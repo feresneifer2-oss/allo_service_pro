@@ -1,23 +1,49 @@
+# =========================
 # Flutter / Dart
+# =========================
 .dart_tool/
 .packages
 .pub/
 build/
+**/build/
 
-# IDE
+# =========================
+# IDE (VS Code / IntelliJ / Android Studio)
+# =========================
 .vscode/
 .idea/
+*.iml
 
+# =========================
 # Android
+# =========================
 android/.gradle/
 android/local.properties
 android/key.properties
+android/app/google-services.json
+android/.kotlin/
 **/*.jks
 **/*.keystore
 
-# iOS
+# =========================
+# iOS / macOS
+# =========================
 ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/flutter_export_environment.sh
 
-# Misc
+# =========================
+# Misc / OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Custom (your project)
+# =========================
 Downloaded Installations/
 *.msi
