@@ -23,10 +23,13 @@ class HomeScreen extends StatelessWidget {
             children: [
               const HomeHeader(userName: "Feres"),
               const SizedBox(height: 24),
+
               const SearchBarWidget(),
               const SizedBox(height: 24),
+
               const BannerCard(),
               const SizedBox(height: 30),
+
               const ServiceGrid(),
               const SizedBox(height: 30),
 
@@ -37,7 +40,6 @@ class HomeScreen extends StatelessWidget {
                   ar: "محترفون موصى بهم",
                 ),
               ),
-
               const SizedBox(height: 18),
 
               ProfessionalCard(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/navigation/client_shell.dart';
+import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 
 class AccountTypeScreen extends StatefulWidget {
   const AccountTypeScreen({super.key});
@@ -33,7 +35,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                "Sélectionnez le type de compte qui correspond à votre utilisation.",
+                "Selectionnez le type de compte qui correspond a votre utilisation.",
                 style: TextStyle(
                   fontSize: 17,
                   color: Colors.grey,
@@ -45,7 +47,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                 icon: Icons.person_outline,
                 title: "Client",
                 subtitle:
-                    "Réservez rapidement des professionnels près de chez vous.",
+                    "Reservez rapidement des professionnels pres de chez vous.",
                 value: "client",
               ),
 
@@ -55,7 +57,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                 icon: Icons.work_outline,
                 title: "Professionnel",
                 subtitle:
-                    "Recevez des demandes et développez votre activité.",
+                    "Recevez des demandes et developpez votre activite.",
                 value: "pro",
               ),
 
@@ -68,7 +70,21 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                   onPressed: selectedType == null
                       ? null
                       : () {
-                          // Firebase ba3d
+                          if (selectedType == "client") {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ClientShell(),
+                              ),
+                            );
+                          } else {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProShell(),
+                              ),
+                            );
+                          }
                         },
                   child: const Text(
                     "Continuer",
@@ -107,9 +123,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected
-                ? const Color(0xff2563EB)
-                : Colors.grey.shade300,
+            color: selected ? const Color(0xff2563EB) : Colors.grey.shade300,
             width: selected ? 2 : 1,
           ),
           boxShadow: [
@@ -126,22 +140,16 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               width: 65,
               height: 65,
               decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xff2563EB)
-                    : const Color(0xffEFF6FF),
+                color: selected ? const Color(0xff2563EB) : const Color(0xffEFF6FF),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(
                 icon,
                 size: 32,
-                color: selected
-                    ? Colors.white
-                    : const Color(0xff2563EB),
+                color: selected ? Colors.white : const Color(0xff2563EB),
               ),
             ),
-
             const SizedBox(width: 18),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,7 +172,6 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                 ],
               ),
             ),
-
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               width: 24,
@@ -172,14 +179,10 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected
-                      ? const Color(0xff2563EB)
-                      : Colors.grey,
+                  color: selected ? const Color(0xff2563EB) : Colors.grey,
                   width: 2,
                 ),
-                color: selected
-                    ? const Color(0xff2563EB)
-                    : Colors.transparent,
+                color: selected ? const Color(0xff2563EB) : Colors.transparent,
               ),
               child: selected
                   ? const Icon(

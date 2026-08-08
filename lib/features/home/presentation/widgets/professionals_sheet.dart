@@ -45,7 +45,7 @@ void showProfessionalsSheet(
                 tr(
                   context,
                   fr: "Professionnels disponibles",
-                  ar: "Professionnels disponibles",
+                  ar: "المحترفون المتوفرون",
                 ),
                 style: const TextStyle(color: Color(0xFF64748B)),
               ),
@@ -57,10 +57,10 @@ void showProfessionalsSheet(
                 rating: 4.9,
                 location: "Ariana",
                 verified: true,
-                buttonText: tr(context, fr: "Reserver", ar: "Reserver"),
+                buttonText: tr(context, fr: "Réserver", ar: "احجز"),
                 onPressed: () {
                   final nav = Navigator.of(context, rootNavigator: true);
-                  nav.pop(); // close sheet
+                  nav.pop();
                   Future.microtask(() {
                     nav.push(
                       MaterialPageRoute(
@@ -80,10 +80,10 @@ void showProfessionalsSheet(
                 rating: 4.8,
                 location: "Tunis",
                 verified: true,
-                buttonText: tr(context, fr: "Reserver", ar: "Reserver"),
+                buttonText: tr(context, fr: "Réserver", ar: "احجز"),
                 onPressed: () {
                   final nav = Navigator.of(context, rootNavigator: true);
-                  nav.pop(); // close sheet
+                  nav.pop();
                   Future.microtask(() {
                     nav.push(
                       MaterialPageRoute(
