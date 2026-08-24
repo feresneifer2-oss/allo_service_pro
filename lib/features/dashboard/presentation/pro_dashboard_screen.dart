@@ -14,14 +14,14 @@ class ProDashboardScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         children: [
           const Text(
-            "Today",
+            "Overview",
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
               color: Color(0xFF1E293B),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
             children: const [
               Expanded(
@@ -158,7 +158,7 @@ class _RequestTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(color: Color(0xFF64748B))),
               ],

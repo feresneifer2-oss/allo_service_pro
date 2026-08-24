@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
+import 'package:allo_service_pro/shared/app_locale.dart';
 
 class AccountTypeScreen extends StatefulWidget {
   const AccountTypeScreen({super.key});
@@ -26,17 +27,25 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Choisissez votre type de compte",
-                style: TextStyle(
+              Text(
+                tr(
+                  context,
+                  fr: "Comment utilisez-vous Allo Service ?",
+                  ar: "كيفاش تحب تستعمل Allo Service؟",
+                ),
+                style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                "Selectionnez le type de compte qui correspond a votre utilisation.",
-                style: TextStyle(
+              Text(
+                tr(
+                  context,
+                  fr: "Ce choix détermine votre expérience dans l'application.",
+                  ar: "الاختيار هذا يحدد تجربتك في التطبيق.",
+                ),
+                style: const TextStyle(
                   fontSize: 17,
                   color: Colors.grey,
                 ),
@@ -45,9 +54,12 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
 
               _buildCard(
                 icon: Icons.person_outline,
-                title: "Client",
-                subtitle:
-                    "Reservez rapidement des professionnels pres de chez vous.",
+                title: tr(context, fr: "Client", ar: "أنا حريف"),
+                subtitle: tr(
+                  context,
+                  fr: "Je cherche et réserve des services.",
+                  ar: "نحب نلقى ونحجز خدمات.",
+                ),
                 value: "client",
               ),
 
@@ -55,9 +67,12 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
 
               _buildCard(
                 icon: Icons.work_outline,
-                title: "Professionnel",
-                subtitle:
-                    "Recevez des demandes et developpez votre activite.",
+                title: tr(context, fr: "Professionnel", ar: "أنا مهني"),
+                subtitle: tr(
+                  context,
+                  fr: "Je propose mes services aux clients.",
+                  ar: "نحب نقدم خدمات.",
+                ),
                 value: "pro",
               ),
 
@@ -73,22 +88,18 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                           if (selectedType == "client") {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(
-                                builder: (_) => const ClientShell(),
-                              ),
+                              MaterialPageRoute(builder: (_) => const ClientShell()),
                             );
                           } else {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProShell(),
-                              ),
+                              MaterialPageRoute(builder: (_) => const ProShell()),
                             );
                           }
                         },
-                  child: const Text(
-                    "Continuer",
-                    style: TextStyle(
+                  child: Text(
+                    tr(context, fr: "Continuer", ar: "متابعة"),
+                    style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),
@@ -111,11 +122,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
     final selected = selectedType == value;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedType = value;
-        });
-      },
+      onTap: () => setState(() => selectedType = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.all(20),
@@ -185,11 +192,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                 color: selected ? const Color(0xff2563EB) : Colors.transparent,
               ),
               child: selected
-                  ? const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 16,
-                    )
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
                   : null,
             ),
           ],

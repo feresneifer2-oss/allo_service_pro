@@ -26,7 +26,7 @@ class SectionTitle extends StatelessWidget {
           width: 10,
           height: 10,
           decoration: const BoxDecoration(
-            color: Color(0xFFF59E0B), // ORANGE dot ✅
+            color: Color(0xFFF59E0B),
             shape: BoxShape.circle,
           ),
         ),

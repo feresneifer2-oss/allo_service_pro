@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/home/presentation/home_screen.dart';
+import 'features/splash/presentation/splash_screen.dart';
 import 'shared/app_locale.dart';
 
 void main() {
@@ -31,7 +31,7 @@ class AlloServiceProApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: const HomeScreen(),
+          home: const SplashScreen(),
         );
       },
     );

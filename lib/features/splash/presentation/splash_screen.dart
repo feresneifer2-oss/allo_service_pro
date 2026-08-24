@@ -2,7 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../onboarding/presentation/onboarding_screen.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/shared/widgets/allo_service_logo.dart';
+
+import '../../auth/presentation/welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -37,9 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => const OnboardingScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       );
     });
   }
@@ -57,10 +58,7 @@ class _SplashScreenState extends State<SplashScreen>
       body: Center(
         child: ScaleTransition(
           scale: _animation,
-          child: Image.asset(
-            'assets/images/logo.png',
-            width: 220,
-          ),
+          child: const AlloServiceLogo(imageWidth: 220),
         ),
       ),
     );

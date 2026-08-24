@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../home/presentation/widgets/section_title.dart';
+
+import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/section_title.dart';
+
+import 'package:allo_service_pro/features/booking/application/booking_store.dart';
+import 'package:allo_service_pro/features/booking/models/booking_model.dart';
 
 class BookingScreen extends StatefulWidget {
   const BookingScreen({
@@ -55,13 +60,42 @@ class _BookingScreenState extends State<BookingScreen> {
         _selectedDate == null ||
         _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all required fields.")),
+        SnackBar(
+          content: Text(
+            tr(
+              context,
+              fr: "Please fill all required fields.",
+              ar: "يرجى ملء جميع الحقول المطلوبة.",
+            ),
+          ),
+        ),
       );
       return;
     }
 
+    final dt = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+
+    final booking = BookingModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      serviceTitle: widget.serviceTitle,
+      professionalName: widget.professionalName,
+      address: _addressController.text.trim(),
+      dateTime: dt,
+      note: _noteController.text.trim(),
+    );
+
+    BookingStore.add(booking);
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Booking created (MVP).")),
+      SnackBar(
+        content: Text(tr(context, fr: "Booking created.", ar: "تم إنشاء الحجز.")),
+      ),
     );
 
     Navigator.pop(context);
@@ -70,47 +104,53 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     final dateText = _selectedDate == null
-        ? "Select a date"
+        ? tr(context, fr: "Select a date", ar: "اختر تاريخا")
         : "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}";
 
-    final timeText =
-        _selectedTime == null ? "Select a time" : _selectedTime!.format(context);
+    final timeText = _selectedTime == null
+        ? tr(context, fr: "Select a time", ar: "اختر وقتا")
+        : _selectedTime!.format(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Booking"),
+        title: Text(tr(context, fr: "Booking", ar: "الحجز")),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const SectionTitle(title: "Details"),
+            SectionTitle(title: tr(context, fr: "Details", ar: "التفاصيل")),
             const SizedBox(height: 12),
-            _InfoRow(label: "Service", value: widget.serviceTitle),
+            _InfoRow(
+              label: tr(context, fr: "Service", ar: "الخدمة"),
+              value: widget.serviceTitle,
+            ),
             const SizedBox(height: 8),
-            _InfoRow(label: "Professional", value: widget.professionalName),
-            const SizedBox(height: 24),
-
-            const SectionTitle(title: "Address"),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _addressController,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                hintText: "Your address",
-                prefixIcon: Icon(Icons.location_on_rounded),
-              ),
+            _InfoRow(
+              label: tr(context, fr: "Professional", ar: "المحترف"),
+              value: widget.professionalName,
             ),
             const SizedBox(height: 24),
 
-            const SectionTitle(title: "Schedule"),
+            SectionTitle(title: tr(context, fr: "Address", ar: "العنوان")),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _addressController,
+              decoration: InputDecoration(
+                hintText: tr(context, fr: "Your address", ar: "عنوانك"),
+                prefixIcon: const Icon(Icons.location_on_rounded),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+            SectionTitle(title: tr(context, fr: "Schedule", ar: "الموعد")),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: _PickCard(
-                    title: "Date",
+                    title: tr(context, fr: "Date", ar: "التاريخ"),
                     value: dateText,
                     icon: Icons.calendar_month_rounded,
                     onTap: _pickDate,
@@ -119,7 +159,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _PickCard(
-                    title: "Time",
+                    title: tr(context, fr: "Time", ar: "الوقت"),
                     value: timeText,
                     icon: Icons.access_time_rounded,
                     onTap: _pickTime,
@@ -127,32 +167,31 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
 
-            const SectionTitle(title: "Note (optional)"),
+            const SizedBox(height: 24),
+            SectionTitle(
+              title: tr(context, fr: "Note (optional)", ar: "ملاحظة (اختياري)"),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: _noteController,
               maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: "Add a note for the professional...",
+              decoration: InputDecoration(
+                hintText: tr(
+                  context,
+                  fr: "Add a note for the professional...",
+                  ar: "اكتب ملاحظة للمحترف...",
+                ),
               ),
             ),
-            const SizedBox(height: 28),
 
+            const SizedBox(height: 28),
             SizedBox(
               height: 56,
               child: ElevatedButton(
                 onPressed: _confirm,
-                child: const Text("Confirm booking"),
+                child: Text(tr(context, fr: "Confirm booking", ar: "تأكيد الحجز")),
               ),
-            ),
-            const SizedBox(height: 14),
-
-            const Text(
-              "Payment will be added later.",
-              style: TextStyle(color: Color(0xFF64748B)),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -180,15 +219,15 @@ class _InfoRow extends StatelessWidget {
           Text(
             "$label: ",
             style: const TextStyle(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: Color(0xFF1E293B),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: Color(0xFF64748B)),
               overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF64748B)),
             ),
           ),
         ],
@@ -232,18 +271,18 @@ class _PickCard extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: Color(0xFF1E293B),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     value,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 12.5,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

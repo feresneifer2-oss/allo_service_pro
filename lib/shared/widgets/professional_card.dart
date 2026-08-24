@@ -4,7 +4,7 @@ class ProfessionalCard extends StatelessWidget {
   const ProfessionalCard({
     super.key,
     this.name = "Ahmed Ben Ali",
-    this.profession = "Électricien",
+    this.profession = "Electricien",
     this.rating = 4.9,
     this.location = "Ariana",
     this.verified = true,

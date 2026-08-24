@@ -4,8 +4,9 @@ import 'package:allo_service_pro/shared/app_locale.dart';
 
 import 'all_categories_sheet.dart';
 import 'category_services_sheet.dart';
-import 'section_title.dart';
-import 'service_card.dart';
+
+import 'package:allo_service_pro/shared/widgets/section_title.dart';
+import 'package:allo_service_pro/shared/widgets/service_card.dart';
 
 class ServiceGrid extends StatelessWidget {
   const ServiceGrid({super.key});
@@ -14,7 +15,6 @@ class ServiceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    // 6 essentials on Home
     final top = <CatalogCategory>[
       ServicesCatalog.byId('home'),
       ServicesCatalog.byId('auto'),
@@ -22,6 +22,10 @@ class ServiceGrid extends StatelessWidget {
       ServicesCatalog.byId('beauty'),
       ServicesCatalog.byId('education'),
       ServicesCatalog.byId('tech'),
+      ServicesCatalog.byId('family'),
+      ServicesCatalog.byId('events'),
+      ServicesCatalog.byId('transport'),
+      ServicesCatalog.byId('business'),
     ];
 
     return Column(
@@ -52,7 +56,6 @@ class ServiceGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 18),
-
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/features/booking/presentation/booking_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
-
-import 'professional_card.dart';
+import 'package:allo_service_pro/shared/widgets/professional_card.dart';
 
 void showProfessionalsSheet(
   BuildContext context,
@@ -57,7 +56,7 @@ void showProfessionalsSheet(
                 rating: 4.9,
                 location: "Ariana",
                 verified: true,
-                buttonText: tr(context, fr: "Réserver", ar: "احجز"),
+                buttonText: tr(context, fr: "Reserver", ar: "احجز"),
                 onPressed: () {
                   final nav = Navigator.of(context, rootNavigator: true);
                   nav.pop();
@@ -80,7 +79,7 @@ void showProfessionalsSheet(
                 rating: 4.8,
                 location: "Tunis",
                 verified: true,
-                buttonText: tr(context, fr: "Réserver", ar: "احجز"),
+                buttonText: tr(context, fr: "Reserver", ar: "احجز"),
                 onPressed: () {
                   final nav = Navigator.of(context, rootNavigator: true);
                   nav.pop();

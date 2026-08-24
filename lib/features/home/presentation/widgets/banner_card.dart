@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/app_locale.dart';
+import '../../../../core/navigation/client_nav_store.dart';
+import '../widgets/all_categories_sheet.dart';
 
 class BannerCard extends StatelessWidget {
   const BannerCard({super.key});
@@ -17,6 +19,7 @@ class BannerCard extends StatelessWidget {
           colors: [
             Color(0xFF2563EB),
             Color(0xFF3B82F6),
+            Color(0xFF2563EB),
           ],
         ),
         boxShadow: [
@@ -71,7 +74,7 @@ class BannerCard extends StatelessWidget {
                 SizedBox(
                   height: 46,
                   child: ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () => showAllCategoriesSheet(context),
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: const Color(0xFFF59E0B), // orange accent
