@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/home/presentation/home_screen.dart';
-import 'package:allo_service_pro/features/booking/presentation/booking_list_screen.dart';
+import 'package:allo_service_pro/features/profile/presentation/customer_profile_screen.dart';
+import 'package:allo_service_pro/features/requests/presentation/request_list_screen.dart';
+import 'package:allo_service_pro/features/search/presentation/search_screen.dart';
+import 'package:allo_service_pro/shared/app_locale.dart';
 
 class ClientShell extends StatefulWidget {
   const ClientShell({super.key});
@@ -12,12 +17,12 @@ class ClientShell extends StatefulWidget {
 class _ClientShellState extends State<ClientShell> {
   int _index = 0;
 
-  // OLD: kenet _ClientBookingsPlaceholder()
-  // NEW: wallew BookingListScreen()
   final _screens = const [
     HomeScreen(),
-    _ClientSearchPlaceholder(),
-    BookingListScreen(),
+    SearchScreen(),
+    RequestListScreen(),
+    MessagesListScreen(),
+    CustomerProfileScreen(),
   ];
 
   @override
@@ -27,44 +32,40 @@ class _ClientShellState extends State<ClientShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        indicatorColor: const Color(0xFFEFF6FF), // light blue
-        destinations: const [
+        indicatorColor: AppColors.secondarySurface,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: "Home",
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon:
+                const Icon(Icons.home_rounded, color: AppColors.primary),
+            label: tr(context, fr: 'Accueil', ar: 'الرئيسية'),
           ),
           NavigationDestination(
-            icon: Icon(Icons.search_rounded),
-            selectedIcon: Icon(Icons.search_rounded),
-            label: "Search",
+            icon: const Icon(Icons.search_rounded),
+            selectedIcon:
+                const Icon(Icons.search_rounded, color: AppColors.primary),
+            label: tr(context, fr: 'Recherche', ar: 'بحث'),
           ),
           NavigationDestination(
-            icon: Icon(Icons.receipt_long_rounded),
-            selectedIcon: Icon(Icons.receipt_long_rounded),
-            label: "Bookings",
+            icon: const Icon(Icons.receipt_long_outlined),
+            selectedIcon: const Icon(Icons.receipt_long_rounded,
+                color: AppColors.primary),
+            label: tr(context, fr: 'Demandes', ar: 'الطلبات'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+            selectedIcon:
+                const Icon(Icons.chat_bubble_rounded, color: AppColors.primary),
+            label: tr(context, fr: 'Messages', ar: 'الرسائل'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline_rounded),
+            selectedIcon:
+                const Icon(Icons.person_rounded, color: AppColors.primary),
+            label: tr(context, fr: 'Profil', ar: 'الملف'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ClientSearchPlaceholder extends StatelessWidget {
-  const _ClientSearchPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(title: const Text("Search")),
-      body: const SafeArea(
-        child: Center(
-          child: Text(
-            "Search screen (soon)",
-            style: TextStyle(color: Color(0xFF64748B)),
-          ),
-        ),
       ),
     );
   }

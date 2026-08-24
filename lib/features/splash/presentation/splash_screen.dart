@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/widgets/allo_service_logo.dart';
 
 import '../../auth/presentation/welcome_screen.dart';

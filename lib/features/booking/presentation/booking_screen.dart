@@ -64,7 +64,7 @@ class _BookingScreenState extends State<BookingScreen> {
           content: Text(
             tr(
               context,
-              fr: "Please fill all required fields.",
+              fr: "Veuillez remplir tous les champs requis.",
               ar: "يرجى ملء جميع الحقول المطلوبة.",
             ),
           ),
@@ -94,7 +94,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(tr(context, fr: "Booking created.", ar: "تم إنشاء الحجز.")),
+        content: Text(
+            tr(context, fr: "Réservation effectuée.", ar: "تم إنشاء الحجز.")),
       ),
     );
 
@@ -104,23 +105,23 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     final dateText = _selectedDate == null
-        ? tr(context, fr: "Select a date", ar: "اختر تاريخا")
+        ? tr(context, fr: "Choisir une date", ar: "اختر تاريخا")
         : "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}";
 
     final timeText = _selectedTime == null
-        ? tr(context, fr: "Select a time", ar: "اختر وقتا")
+        ? tr(context, fr: "Choisir une heure", ar: "اختر وقتا")
         : _selectedTime!.format(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(tr(context, fr: "Booking", ar: "الحجز")),
+        title: Text(tr(context, fr: "Réservation", ar: "الحجز")),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            SectionTitle(title: tr(context, fr: "Details", ar: "التفاصيل")),
+            SectionTitle(title: tr(context, fr: "Détails", ar: "التفاصيل")),
             const SizedBox(height: 12),
             _InfoRow(
               label: tr(context, fr: "Service", ar: "الخدمة"),
@@ -128,23 +129,21 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
             const SizedBox(height: 8),
             _InfoRow(
-              label: tr(context, fr: "Professional", ar: "المحترف"),
+              label: tr(context, fr: "Professionnel", ar: "المحترف"),
               value: widget.professionalName,
             ),
             const SizedBox(height: 24),
-
-            SectionTitle(title: tr(context, fr: "Address", ar: "العنوان")),
+            SectionTitle(title: tr(context, fr: "Adresse", ar: "العنوان")),
             const SizedBox(height: 12),
             TextField(
               controller: _addressController,
               decoration: InputDecoration(
-                hintText: tr(context, fr: "Your address", ar: "عنوانك"),
+                hintText: tr(context, fr: "Votre adresse", ar: "عنوانك"),
                 prefixIcon: const Icon(Icons.location_on_rounded),
               ),
             ),
-
             const SizedBox(height: 24),
-            SectionTitle(title: tr(context, fr: "Schedule", ar: "الموعد")),
+            SectionTitle(title: tr(context, fr: "Rendez-vous", ar: "الموعد")),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -159,7 +158,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _PickCard(
-                    title: tr(context, fr: "Time", ar: "الوقت"),
+                    title: tr(context, fr: "Heure", ar: "الوقت"),
                     value: timeText,
                     icon: Icons.access_time_rounded,
                     onTap: _pickTime,
@@ -167,10 +166,10 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
             SectionTitle(
-              title: tr(context, fr: "Note (optional)", ar: "ملاحظة (اختياري)"),
+              title:
+                  tr(context, fr: "Note (optionnelle)", ar: "ملاحظة (اختياري)"),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -179,18 +178,18 @@ class _BookingScreenState extends State<BookingScreen> {
               decoration: InputDecoration(
                 hintText: tr(
                   context,
-                  fr: "Add a note for the professional...",
+                  fr: "Ajouter une note pour le professionnel...",
                   ar: "اكتب ملاحظة للمحترف...",
                 ),
               ),
             ),
-
             const SizedBox(height: 28),
             SizedBox(
               height: 56,
               child: ElevatedButton(
                 onPressed: _confirm,
-                child: Text(tr(context, fr: "Confirm booking", ar: "تأكيد الحجز")),
+                child: Text(tr(context,
+                    fr: "Confirmer la réservation", ar: "تأكيد الحجز")),
               ),
             ),
           ],

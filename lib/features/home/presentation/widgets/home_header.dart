@@ -36,12 +36,14 @@ class HomeHeader extends StatelessWidget {
               ),
               Text(
                 userName,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
             ],
           ),
         ),
-
         IconButton(
           onPressed: () {
             showModalBottomSheet(
@@ -76,11 +78,46 @@ class HomeHeader extends StatelessWidget {
           },
           icon: const Icon(Icons.language_rounded),
         ),
-
         Stack(
           children: [
             IconButton(
-              onPressed: () {},
+              onPressed: () {
+                showModalBottomSheet<void>(
+                  context: context,
+                  showDragHandle: true,
+                  builder: (sheetContext) => SafeArea(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(24, 8, 24, 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.notifications_none_rounded,
+                              size: 48),
+                          const SizedBox(height: 12),
+                          Text(
+                            tr(context,
+                                fr: 'Aucune nouvelle notification',
+                                ar: 'لا توجد إشعارات جديدة'),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            tr(context,
+                                fr: "Vous êtes à jour !",
+                                ar: "أنت على اطلاع بكل جديد!"),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
               icon: const Icon(Icons.notifications_none_rounded),
             ),
             Positioned(
@@ -89,7 +126,8 @@ class HomeHeader extends StatelessWidget {
               child: Container(
                 width: 8,
                 height: 8,
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                    color: Colors.red, shape: BoxShape.circle),
               ),
             ),
           ],

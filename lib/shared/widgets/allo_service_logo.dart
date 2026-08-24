@@ -24,7 +24,7 @@ class AlloServiceLogo extends StatelessWidget {
             'Services professionnels en Tunisie',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.textSecondary.withOpacity(.9),
+              color: AppColors.textSecondary.withValues(alpha: .9),
               fontSize: 14,
             ),
           ),

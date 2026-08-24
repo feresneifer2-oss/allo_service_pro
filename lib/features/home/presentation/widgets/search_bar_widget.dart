@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/features/search/presentation/professional_search_screen.dart';
 import '../../../../shared/app_locale.dart';
 
 class SearchBarWidget extends StatelessWidget {
@@ -9,16 +10,9 @@ class SearchBarWidget extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tr(
-                context,
-                fr: "Search Screen bientôt disponible",
-                ar: "صفحة البحث قريبا",
-              ),
-            ),
-          ),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfessionalSearchScreen()),
         );
       },
       child: Container(
@@ -29,7 +23,7 @@ class SearchBarWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.04),
+              color: Colors.black.withValues(alpha: .04),
               blurRadius: 12,
               offset: const Offset(0, 5),
             ),
@@ -43,8 +37,8 @@ class SearchBarWidget extends StatelessWidget {
               child: Text(
                 tr(
                   context,
-                  fr: "Rechercher un service...",
-                  ar: "ابحث عن خدمة...",
+                  fr: "Rechercher un professionnel...",
+                  ar: "ابحث عن حرفي...",
                 ),
                 style: const TextStyle(
                   fontSize: 15,

@@ -37,19 +37,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    final phone = _phoneController.text.trim();
-    final email = _emailController.text.trim();
-
-    UserStore.set(
+    final registered = UserStore.register(
       name: _nameController.text.trim(),
-      phone: phone,
-      email: email.isEmpty ? null : email,
+      phone: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
     );
+    if (!registered) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cet e-mail est déjà utilisé.')),
+      );
+      return;
+    }
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OtpScreen(phone: phone),
+        builder: (_) => OtpScreen(phone: _phoneController.text.trim()),
       ),
     );
   }
@@ -126,7 +130,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return null;
+                    if (v == null || v.trim().isEmpty) {
+                      return 'L\'e-mail est obligatoire pour se connecter';
+                    }
                     if (!v.contains('@')) return 'Email invalide';
                     return null;
                   },

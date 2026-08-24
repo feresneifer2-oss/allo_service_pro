@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 
 class AccountTypeScreen extends StatefulWidget {
   const AccountTypeScreen({super.key});
@@ -22,91 +23,95 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                tr(
-                  context,
-                  fr: "Comment utilisez-vous Allo Service ?",
-                  ar: "كيفاش تحب تستعمل Allo Service؟",
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tr(
+                    context,
+                    fr: "Comment utilisez-vous Allo Service ?",
+                    ar: "كيفاش تحب تستعمل Allo Service؟",
+                  ),
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 12),
+                Text(
+                  tr(
+                    context,
+                    fr: "Ce choix détermine votre expérience dans l'application.",
+                    ar: "الاختيار هذا يحدد تجربتك في التطبيق.",
+                  ),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                tr(
-                  context,
-                  fr: "Ce choix détermine votre expérience dans l'application.",
-                  ar: "الاختيار هذا يحدد تجربتك في التطبيق.",
+                const SizedBox(height: 35),
+                _buildCard(
+                  icon: Icons.person_outline,
+                  title: tr(context, fr: "Client", ar: "أنا حريف"),
+                  subtitle: tr(
+                    context,
+                    fr: "Je cherche et réserve des services.",
+                    ar: "نحب نلقى ونحجز خدمات.",
+                  ),
+                  value: "client",
                 ),
-                style: const TextStyle(
-                  fontSize: 17,
-                  color: Colors.grey,
+                const SizedBox(height: 20),
+                _buildCard(
+                  icon: Icons.work_outline,
+                  title: tr(context, fr: "Professionnel", ar: "أنا مهني"),
+                  subtitle: tr(
+                    context,
+                    fr: "Je propose mes services aux clients.",
+                    ar: "نحب نقدم خدمات.",
+                  ),
+                  value: "pro",
                 ),
-              ),
-              const SizedBox(height: 35),
-
-              _buildCard(
-                icon: Icons.person_outline,
-                title: tr(context, fr: "Client", ar: "أنا حريف"),
-                subtitle: tr(
-                  context,
-                  fr: "Je cherche et réserve des services.",
-                  ar: "نحب نلقى ونحجز خدمات.",
-                ),
-                value: "client",
-              ),
-
-              const SizedBox(height: 20),
-
-              _buildCard(
-                icon: Icons.work_outline,
-                title: tr(context, fr: "Professionnel", ar: "أنا مهني"),
-                subtitle: tr(
-                  context,
-                  fr: "Je propose mes services aux clients.",
-                  ar: "نحب نقدم خدمات.",
-                ),
-                value: "pro",
-              ),
-
-              const Spacer(),
-
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: selectedType == null
-                      ? null
-                      : () {
-                          if (selectedType == "client") {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => const ClientShell()),
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: selectedType == null
+                        ? null
+                        : () {
+                            UserStore.setRole(
+                              selectedType == 'client'
+                                  ? UserRole.client
+                                  : UserRole.professional,
                             );
-                          } else {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => const ProShell()),
-                            );
-                          }
-                        },
-                  child: Text(
-                    tr(context, fr: "Continuer", ar: "متابعة"),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
+                            if (selectedType == "client") {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ClientShell()),
+                              );
+                            } else {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ProShell()),
+                              );
+                            }
+                          },
+                    child: Text(
+                      tr(context, fr: "Continuer", ar: "متابعة"),
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -135,7 +140,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.05),
+              color: Colors.black.withValues(alpha: .05),
               blurRadius: 15,
               offset: const Offset(0, 6),
             ),
@@ -147,7 +152,9 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               width: 65,
               height: 65,
               decoration: BoxDecoration(
-                color: selected ? const Color(0xff2563EB) : const Color(0xffEFF6FF),
+                color: selected
+                    ? const Color(0xff2563EB)
+                    : const Color(0xffEFF6FF),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(

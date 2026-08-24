@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../booking/presentation/booking_screen.dart';
+
 void showSubServiceSheet(
   BuildContext context,
   String serviceName,
@@ -31,11 +33,11 @@ void showSubServiceSheet(
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),
-
             ...subServices.map((name) {
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(16),
@@ -45,7 +47,8 @@ void showSubServiceSheet(
                     Expanded(
                       child: Text(
                         name,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -54,10 +57,21 @@ void showSubServiceSheet(
                       height: 40,
                       child: ElevatedButton(
                         onPressed: () {
-                          // TODO: ba3d → écran booking
+                          final navigator = Navigator.of(context);
+                          navigator.pop();
+                          navigator.push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => BookingScreen(
+                                serviceTitle: '$serviceName - $name',
+                                professionalName: 'À sélectionner',
+                              ),
+                            ),
+                          );
                         },
-                        style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                        child: const Text("Réserver", style: TextStyle(fontSize: 12)),
+                        style:
+                            ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+                        child: const Text("RÃ©server",
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ),
                   ],

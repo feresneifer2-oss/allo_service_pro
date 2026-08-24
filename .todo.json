@@ -1,0 +1,27 @@
+[
+  {
+    "content": "Fix compile errors and project structure",
+    "active_form": "Fixing compile errors and project structure",
+    "status": "completed"
+  },
+  {
+    "content": "Resolve analyzer warnings and deprecated APIs",
+    "active_form": "Resolving analyzer warnings and deprecated APIs",
+    "status": "completed"
+  },
+  {
+    "content": "Complete empty app actions without Firebase",
+    "active_form": "Completing empty app actions without Firebase",
+    "status": "completed"
+  },
+  {
+    "content": "Add tests and project documentation",
+    "active_form": "Adding tests and project documentation",
+    "status": "completed"
+  },
+  {
+    "content": "Run analysis, tests, and Android build",
+    "active_form": "Running analysis, tests, and Android build",
+    "status": "completed"
+  }
+]

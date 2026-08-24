@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/localization/app_localizations.dart';
 
 import '../../account_type/presentation/account_type_screen.dart';
 
@@ -37,18 +38,21 @@ class _LanguageScreenState extends State<LanguageScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              const Text(
-                'Choisissez votre langue',
-                style: TextStyle(
+              Text(
+                AppLocalizations.translate(context,
+                    fr: 'Choisissez votre langue', ar: 'اختر لغتك'),
+                style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'اختر لغتك / Choose your language',
-                style: TextStyle(
+              Text(
+                AppLocalizations.translate(context,
+                    fr: 'Vous pourrez la modifier plus tard',
+                    ar: 'يمكنك تغييرها لاحقًا'),
+                style: const TextStyle(
                   fontSize: 16,
                   color: AppColors.textSecondary,
                 ),
@@ -77,7 +81,8 @@ class _LanguageScreenState extends State<LanguageScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _selected == null ? null : _continue,
-                  child: const Text('Continuer'),
+                  child: Text(AppLocalizations.translate(context,
+                      fr: 'Continuer', ar: 'مواصلة')),
                 ),
               ),
             ],
@@ -121,7 +126,7 @@ class _LanguageCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.04),
+              color: Colors.black.withValues(alpha: .04),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),

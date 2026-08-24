@@ -49,7 +49,6 @@ void showProfessionalsSheet(
                 style: const TextStyle(color: Color(0xFF64748B)),
               ),
               const SizedBox(height: 16),
-
               ProfessionalCard(
                 name: "Ahmed Ben Ali",
                 profession: tr(context, fr: professionFr, ar: professionAr),
@@ -72,7 +71,6 @@ void showProfessionalsSheet(
                   });
                 },
               ),
-
               ProfessionalCard(
                 name: "Hatem Trabelsi",
                 profession: tr(context, fr: professionFr, ar: professionAr),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
@@ -6,6 +7,11 @@ import 'features/splash/presentation/splash_screen.dart';
 import 'shared/app_locale.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(const AlloServiceProApp());
 }
 
@@ -31,6 +37,12 @@ class AlloServiceProApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          // Universal keyboard UX: tapping anywhere outside a field dismisses
+          // the keyboard on every screen, without touching each screen's code.
+          builder: (context, child) => GestureDetector(
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: child,
+          ),
           home: const SplashScreen(),
         );
       },

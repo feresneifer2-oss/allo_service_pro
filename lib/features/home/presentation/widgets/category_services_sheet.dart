@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
@@ -55,12 +54,12 @@ void showCategoryServicesSheet(
                 style: const TextStyle(color: Color(0xFF64748B)),
               ),
               const SizedBox(height: 16),
-
               ...category.types.map((t) {
                 final label = tr(context, fr: t.fr, ar: t.ar);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(16),
@@ -82,10 +81,10 @@ void showCategoryServicesSheet(
                         height: 40,
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.pop(sheetContext);
-                            Future.microtask(() {
-                              showProfessionalsSheet(context, t.fr, t.ar);
-                            });
+                            final navigator = Navigator.of(sheetContext);
+                            navigator.pop();
+                            showProfessionalsSheet(
+                                navigator.context, t.fr, t.ar);
                           },
                           child: Text(tr(context, fr: "Voir", ar: "عرض")),
                         ),

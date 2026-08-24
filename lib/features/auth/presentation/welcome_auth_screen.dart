@@ -20,9 +20,7 @@ class WelcomeAuthScreen extends StatelessWidget {
                 'assets/images/logo.png',
                 width: 170,
               ),
-
               const SizedBox(height: 40),
-
               const Text(
                 'Bienvenue',
                 style: TextStyle(
@@ -30,9 +28,7 @@ class WelcomeAuthScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 12),
-
               const Text(
                 'Connectez-vous ou créez un compte pour continuer.',
                 textAlign: TextAlign.center,
@@ -41,9 +37,7 @@ class WelcomeAuthScreen extends StatelessWidget {
                   color: Colors.grey,
                 ),
               ),
-
               const SizedBox(height: 50),
-
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -61,9 +55,7 @@ class WelcomeAuthScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 16),
-
               SizedBox(
                 width: double.infinity,
                 height: 56,

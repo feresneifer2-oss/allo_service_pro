@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/app_locale.dart';
-import '../../../../core/navigation/client_nav_store.dart';
 import '../widgets/all_categories_sheet.dart';
 
 class BannerCard extends StatelessWidget {
@@ -24,7 +23,7 @@ class BannerCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(.18),
+            color: const Color(0xFF2563EB).withValues(alpha: .18),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -104,7 +103,7 @@ class BannerCard extends StatelessWidget {
                 width: 84,
                 height: 84,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.12),
+                  color: Colors.white.withValues(alpha: .12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

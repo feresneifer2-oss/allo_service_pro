@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/shared/app_locale.dart';
 
 import 'language_screen.dart';
 
@@ -21,8 +22,10 @@ class OtpScreen extends StatefulWidget {
 
 class _OtpScreenState extends State<OtpScreen> {
   static const _codeLength = 6;
+  static const _demoCode = '123456';
 
-  final _controllers = List.generate(_codeLength, (_) => TextEditingController());
+  final _controllers =
+      List.generate(_codeLength, (_) => TextEditingController());
   final _focusNodes = List.generate(_codeLength, (_) => FocusNode());
 
   int _secondsLeft = 60;
@@ -75,11 +78,18 @@ class _OtpScreenState extends State<OtpScreen> {
 
   void _verify() {
     if (_code.length != _codeLength) {
-      _showError('Veuillez entrer le code complet.');
+      _showError(tr(context,
+          fr: 'Veuillez entrer le code complet.',
+          ar: 'المرجو إدخال الرمز كاملاً.'));
       return;
     }
 
-    // Mock OTP — any 6 digits work for now.
+    if (_code != _demoCode) {
+      _showError(tr(context,
+          fr: 'Code incorrect. Utilisez 123456 pour cette démo locale.',
+          ar: 'رمز غير صحيح. استعمل 123456 في هذا العرض التجريبي المحلي.'));
+      return;
+    }
     FocusScope.of(context).unfocus();
     Navigator.pushReplacement(
       context,
@@ -102,15 +112,15 @@ class _OtpScreenState extends State<OtpScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 12),
-              const Text(
-                'Vérification',
-                style: TextStyle(
+              Text(
+                tr(context, fr: 'Vérification', ar: 'التحقق'),
+                style: const TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -118,53 +128,69 @@ class _OtpScreenState extends State<OtpScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Entrez le code envoyé au\n${widget.phone}',
+                tr(context,
+                    fr: 'Entrez le code envoyé au\n${widget.phone}',
+                    ar: 'أدخل الرمز المرسل إلى\n${widget.phone}'),
                 style: const TextStyle(
                   fontSize: 17,
                   color: AppColors.textSecondary,
                   height: 1.5,
                 ),
               ),
+              const SizedBox(height: 8),
+              Text(
+                tr(context,
+                    fr: 'Démo locale : 123456',
+                    ar: 'عرض تجريبي محلي : 123456'),
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 40),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(_codeLength, (i) => _OtpBox(
-                  controller: _controllers[i],
-                  focusNode: _focusNodes[i],
-                  onChanged: (v) => _onDigitChanged(i, v),
-                  onBackspace: () {
-                    if (_controllers[i].text.isEmpty && i > 0) {
-                      _focusNodes[i - 1].requestFocus();
-                    }
-                  },
-                )),
+                children: List.generate(
+                    _codeLength,
+                    (i) => _OtpBox(
+                          controller: _controllers[i],
+                          focusNode: _focusNodes[i],
+                          onChanged: (v) => _onDigitChanged(i, v),
+                          onBackspace: () {
+                            if (_controllers[i].text.isEmpty && i > 0) {
+                              _focusNodes[i - 1].requestFocus();
+                            }
+                          },
+                        )),
               ),
               const SizedBox(height: 28),
               Center(
                 child: _secondsLeft > 0
                     ? Text(
-                        'Renvoyer le code dans ${_secondsLeft}s',
+                        tr(context,
+                            fr: 'Renvoyer le code dans ${_secondsLeft}s',
+                            ar: 'إعادة إرسال الرمز بعد $_secondsLeft ث'),
                         style: const TextStyle(color: AppColors.textSecondary),
                       )
                     : TextButton(
                         onPressed: () {
                           _startTimer();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Code renvoyé (simulation).'),
+                            SnackBar(
+                              content: Text(tr(context,
+                                  fr: 'Code renvoyé (simulation).',
+                                  ar: 'تمت إعادة إرسال الرمز (محاكاة).')),
                             ),
                           );
                         },
-                        child: const Text('Renvoyer le code'),
+                        child: Text(tr(context,
+                            fr: 'Renvoyer le code', ar: 'إعادة إرسال الرمز')),
                       ),
               ),
-              const Spacer(),
+              const SizedBox(height: 48),
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _verify,
-                  child: const Text('Vérifier'),
+                  child: Text(tr(context, fr: 'Vérifier', ar: 'تحقق')),
                 ),
               ),
             ],

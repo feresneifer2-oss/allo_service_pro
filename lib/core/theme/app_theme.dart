@@ -6,23 +6,18 @@ class AppTheme {
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
-
     fontFamily: 'Poppins',
-
     scaffoldBackgroundColor: AppColors.background,
-
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       brightness: Brightness.light,
     ),
-
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
     ),
-
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         elevation: 0,
@@ -39,7 +34,6 @@ class AppTheme {
         ),
       ),
     ),
-
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: Colors.white,
@@ -73,7 +67,6 @@ class AppTheme {
         ),
       ),
     ),
-
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
         fontSize: 34,

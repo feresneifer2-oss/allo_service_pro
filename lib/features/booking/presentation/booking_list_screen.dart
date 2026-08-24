@@ -12,7 +12,7 @@ class BookingListScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(tr(context, fr: "Bookings", ar: "الحجوزات")),
+        title: Text(tr(context, fr: "Réservations", ar: "الحجوزات")),
         actions: [
           IconButton(
             onPressed: () {
@@ -20,7 +20,9 @@ class BookingListScreen extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    tr(context, fr: "Bookings cleared.", ar: "تم حذف كل الحجوزات."),
+                    tr(context,
+                        fr: "Réservations supprimées.",
+                        ar: "تم حذف كل الحجوزات."),
                   ),
                 ),
               );
@@ -37,7 +39,8 @@ class BookingListScreen extends StatelessWidget {
             if (items.isEmpty) {
               return Center(
                 child: Text(
-                  tr(context, fr: "No bookings yet.", ar: "لا توجد حجوزات بعد."),
+                  tr(context,
+                      fr: "Aucune réservation.", ar: "لا توجد حجوزات بعد."),
                   style: const TextStyle(color: Color(0xFF64748B)),
                 ),
               );
@@ -78,7 +81,7 @@ class _BookingTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.04),
+            color: Colors.black.withValues(alpha: .04),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),

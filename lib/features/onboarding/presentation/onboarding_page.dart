@@ -19,14 +19,11 @@ class OnboardingPage extends StatelessWidget {
       child: Column(
         children: [
           const Spacer(),
-
           Image.asset(
             item.image,
             width: 170,
           ),
-
           const SizedBox(height: 40),
-
           Text(
             item.title,
             textAlign: TextAlign.center,
@@ -35,9 +32,7 @@ class OnboardingPage extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 20),
-
           Text(
             item.subtitle,
             textAlign: TextAlign.center,
@@ -47,7 +42,6 @@ class OnboardingPage extends StatelessWidget {
               height: 1.5,
             ),
           ),
-
           const Spacer(),
         ],
       ),

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
@@ -39,7 +38,8 @@ void showAllCategoriesSheet(BuildContext context) {
                   ),
                   Expanded(
                     child: Text(
-                      tr(rootContext, fr: "Toutes les categories", ar: "كل التصنيفات"),
+                      tr(rootContext,
+                          fr: "Toutes les categories", ar: "كل التصنيفات"),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 20,
@@ -52,13 +52,13 @@ void showAllCategoriesSheet(BuildContext context) {
                 ],
               ),
               const SizedBox(height: 12),
-
               ...categories.map((c) {
                 final title = tr(rootContext, fr: c.fr, ar: c.ar);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(16),
@@ -66,10 +66,9 @@ void showAllCategoriesSheet(BuildContext context) {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () {
-                      Navigator.pop(sheetContext);
-                      Future.microtask(() {
-                        showCategoryServicesSheet(rootContext, c);
-                      });
+                      final navigator = Navigator.of(sheetContext);
+                      navigator.pop();
+                      showCategoryServicesSheet(navigator.context, c);
                     },
                     child: Row(
                       children: [
@@ -97,7 +96,9 @@ void showAllCategoriesSheet(BuildContext context) {
                           ),
                         ),
                         Icon(
-                          isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                          isRtl
+                              ? Icons.chevron_left_rounded
+                              : Icons.chevron_right_rounded,
                           color: const Color(0xFF64748B),
                         ),
                       ],

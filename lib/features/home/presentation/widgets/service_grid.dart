@@ -22,10 +22,6 @@ class ServiceGrid extends StatelessWidget {
       ServicesCatalog.byId('beauty'),
       ServicesCatalog.byId('education'),
       ServicesCatalog.byId('tech'),
-      ServicesCatalog.byId('family'),
-      ServicesCatalog.byId('events'),
-      ServicesCatalog.byId('transport'),
-      ServicesCatalog.byId('business'),
     ];
 
     return Column(

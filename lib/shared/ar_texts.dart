@@ -1,7 +1,7 @@
 class ArTexts {
   ArTexts._();
 
-  static const categories = '';
-  static const seeAll = '';
-  static const allCategories = '';
+  static const categories = 'الأصناف';
+  static const seeAll = 'عرض الكل';
+  static const allCategories = 'كل الأصناف';
 }
