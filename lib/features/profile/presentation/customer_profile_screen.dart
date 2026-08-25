@@ -5,6 +5,9 @@ import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/models/chat_session.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
+import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
+import 'package:allo_service_pro/features/notifications/presentation/notifications_screen.dart';
+import 'package:allo_service_pro/shared/widgets/empty_state_widget.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/support/presentation/support_screen.dart';
@@ -40,9 +43,12 @@ class MessagesListScreen extends StatelessWidget {
 
             if (chats.isEmpty) {
               return Center(
-                child: Text(
-                  tr(context, fr: 'Aucun message', ar: 'لا رسائل'),
-                  style: const TextStyle(color: AppColors.textSecondary),
+                child: EmptyStateWidget(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  title: tr(context, fr: 'Aucun message', ar: 'لا رسائل'),
+                  message: tr(context,
+                      fr: 'Vos conversations apparaîtront ici.',
+                      ar: 'محادثاتك بتظهر هنا.'),
                 ),
               );
             }
@@ -191,6 +197,49 @@ class CustomerProfileScreen extends StatelessWidget {
                             },
                           ),
                         ],
+                      ),
+                    );
+                  },
+                ),
+                ValueListenableBuilder(
+                  valueListenable: NotificationStore.notifications,
+                  builder: (_, list, __) {
+                    final dynamic items = list;
+                    final unread = items.where((n) => !n.isRead).length;
+                    return ListTile(
+                      leading: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(Icons.notifications_rounded,
+                              color: AppColors.primary),
+                          if (unread > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.secondary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      title: Text(tr(context,
+                          fr: 'Notifications', ar: 'الإشعارات')),
+                      subtitle: unread > 0
+                          ? Text(tr(context,
+                              fr: '$unread non lue(s)',
+                              ar: '$unread غير مقروءة'))
+                          : null,
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
                       ),
                     );
                   },

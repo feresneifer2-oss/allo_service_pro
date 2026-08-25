@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/features/booking/application/booking_store.dart';
@@ -10,7 +11,7 @@ class BookingListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(tr(context, fr: "Réservations", ar: "الحجوزات")),
         actions: [
@@ -41,7 +42,7 @@ class BookingListScreen extends StatelessWidget {
                 child: Text(
                   tr(context,
                       fr: "Aucune réservation.", ar: "لا توجد حجوزات بعد."),
-                  style: const TextStyle(color: Color(0xFF64748B)),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               );
             }
@@ -93,12 +94,12 @@ class _BookingTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
+              color: AppColors.primarySurface,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
               Icons.receipt_long_rounded,
-              color: Color(0xFF2563EB),
+              color: AppColors.blue600,
             ),
           ),
           const SizedBox(width: 12),
@@ -112,20 +113,20 @@ class _BookingTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E293B),
+                    color: AppColors.slate800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   booking.professionalName,
-                  style: const TextStyle(color: Color(0xFF64748B)),
+                  style: const TextStyle(color: AppColors.textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 Text(
                   "$dateText • $timeText",
-                  style: const TextStyle(color: Color(0xFF64748B)),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ],
             ),

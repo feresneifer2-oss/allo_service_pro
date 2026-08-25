@@ -6,6 +6,7 @@ import 'package:allo_service_pro/features/requests/application/request_store.dar
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/requests/presentation/request_detail_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/empty_state_widget.dart';
 import 'package:allo_service_pro/shared/widgets/status_badge.dart';
 
 class RequestListScreen extends StatefulWidget {
@@ -76,11 +77,12 @@ class _RequestListScreenState extends State<RequestListScreen>
             children: List.generate(3, (tab) {
               final items = _filter(all, tab);
               if (items.isEmpty) {
-                return Center(
-                  child: Text(
-                    tr(context, fr: 'Aucune demande', ar: 'لا توجد طلبات'),
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
+                return EmptyStateWidget(
+                  icon: Icons.receipt_long_rounded,
+                  title: tr(context, fr: 'Aucune demande', ar: 'لا توجد طلبات'),
+                  message: tr(context,
+                      fr: 'Vos demandes apparaîtront ici.',
+                      ar: 'طلباتك بتظهر هنا.'),
                 );
               }
               return ListView.builder(

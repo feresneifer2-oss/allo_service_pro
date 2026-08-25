@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 class ServiceCard extends StatelessWidget {
   final IconData icon;
@@ -43,11 +44,11 @@ class ServiceCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: const Color(0xFFEFF6FF),
+                backgroundColor: AppColors.primarySurface,
                 child: imagePath == null
                     ? Icon(
                         icon,
-                        color: const Color(0xFF2563EB),
+                        color: AppColors.blue600,
                         size: 24,
                       )
                     : ClipOval(
@@ -58,7 +59,7 @@ class ServiceCard extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Icon(
                             icon,
-                            color: const Color(0xFF2563EB),
+                            color: AppColors.blue600,
                             size: 24,
                           ),
                         ),

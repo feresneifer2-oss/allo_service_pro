@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/core/data/services_catalog.dart';
@@ -39,7 +40,7 @@ void showCategoryServicesSheet(
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+                        color: AppColors.slate800,
                       ),
                     ),
                   ),
@@ -52,7 +53,7 @@ void showCategoryServicesSheet(
               const SizedBox(height: 4),
               Text(
                 tr(context, fr: "Choisissez un service", ar: "اختر خدمة"),
-                style: const TextStyle(color: Color(0xFF64748B)),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ...category.types.map((t) {
@@ -62,7 +63,7 @@ void showCategoryServicesSheet(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -73,7 +74,7 @@ void showCategoryServicesSheet(
                         width: 36,
                         height: 36,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFEFF6FF),
+                          color: AppColors.primarySurface,
                           shape: BoxShape.circle,
                         ),
                         clipBehavior: Clip.antiAlias,
@@ -84,7 +85,7 @@ void showCategoryServicesSheet(
                                     category.id, t.id);
                             if (asset == null) {
                               return Icon(category.icon,
-                                  color: const Color(0xFF2563EB), size: 18);
+                                  color: AppColors.blue600, size: 18);
                             }
                             return Image.asset(
                               asset,
@@ -93,7 +94,7 @@ void showCategoryServicesSheet(
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
                                   category.icon,
-                                  color: const Color(0xFF2563EB),
+                                  color: AppColors.blue600,
                                   size: 18),
                             );
                           },
@@ -105,7 +106,7 @@ void showCategoryServicesSheet(
                           label,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
+                            color: AppColors.slate800,
                           ),
                         ),
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 import '../../../../shared/app_locale.dart';
 import '../widgets/all_categories_sheet.dart';
 
@@ -16,14 +17,14 @@ class BannerCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2563EB),
+            AppColors.blue600,
             Color(0xFF3B82F6),
-            Color(0xFF2563EB),
+            AppColors.blue600,
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withValues(alpha: .18),
+            color: AppColors.blue600.withValues(alpha: .18),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -76,7 +77,7 @@ class BannerCard extends StatelessWidget {
                     onPressed: () => showAllCategoriesSheet(context),
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
-                      backgroundColor: const Color(0xFFF59E0B), // orange accent
+                      backgroundColor: AppColors.warning, // orange accent
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

@@ -19,9 +19,9 @@ class _DetailedStatisticsScreenState extends State<DetailedStatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.slate900,
         title: Text(
           tr(context, fr: 'Statistiques détaillées', ar: 'إحصائيات تفصيلية'),
           style: const TextStyle(color: Colors.white),
@@ -60,7 +60,7 @@ class _DetailedStatisticsScreenState extends State<DetailedStatisticsScreen> {
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF1E293B)),
+          const Divider(height: 1, color: AppColors.slate800),
           // Content
           Expanded(
             child: _buildContent(),
@@ -110,7 +110,7 @@ class _StatTab extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+              color: isSelected ? Colors.white : AppColors.slate400,
               fontWeight: FontWeight.bold,
               fontSize: 13,
             ),
@@ -149,7 +149,7 @@ class _OverviewStats extends StatelessWidget {
                           fr: 'Revenu total', ar: 'إجمالي الإيرادات'),
                       value: '${StatisticsStore.getTotalRevenue()} DT',
                       icon: Icons.attach_money_rounded,
-                      color: const Color(0xFF22C55E),
+                      color: AppColors.success,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -160,7 +160,7 @@ class _OverviewStats extends StatelessWidget {
                       value:
                           StatisticsStore.getAverageRating().toStringAsFixed(1),
                       icon: Icons.star_rounded,
-                      color: const Color(0xFFF59E0B),
+                      color: AppColors.warning,
                     ),
                   ),
                 ],
@@ -222,7 +222,7 @@ class _CategoryStats extends StatelessWidget {
                 const Center(
                   child: Text(
                     'Aucune donnée disponible',
-                    style: TextStyle(color: Color(0xFF64748B)),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               else
@@ -269,7 +269,7 @@ class _RegionStats extends StatelessWidget {
                 const Center(
                   child: Text(
                     'Aucune donnée disponible',
-                    style: TextStyle(color: Color(0xFF64748B)),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               else
@@ -316,7 +316,7 @@ class _StatusStats extends StatelessWidget {
                 const Center(
                   child: Text(
                     'Aucune donnée disponible',
-                    style: TextStyle(color: Color(0xFF64748B)),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               else
@@ -352,7 +352,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
@@ -374,7 +374,7 @@ class _StatCard extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: AppColors.slate400,
                     fontSize: 12,
                   ),
                 ),
@@ -418,7 +418,7 @@ class _StatBar extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -470,7 +470,7 @@ class _RecentRequestCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -493,7 +493,7 @@ class _RecentRequestCard extends StatelessWidget {
                 Text(
                   '${request.customerName} • ${request.dateTime.day}/${request.dateTime.month}',
                   style: const TextStyle(
-                    color: Color(0xFF94A3B8),
+                    color: AppColors.slate400,
                     fontSize: 12,
                   ),
                 ),

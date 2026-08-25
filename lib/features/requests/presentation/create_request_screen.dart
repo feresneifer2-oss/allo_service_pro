@@ -119,9 +119,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         : _selectedTime!.format(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(tr(context, fr: 'Votre demande', ar: 'طلبك'),
             style: const TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
@@ -178,11 +178,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 decoration: InputDecoration(
                   hintText: tr(context,
                       fr: 'Où se fera le service ?', ar: 'أين ستتم الخدمة؟'),
-                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  hintStyle: const TextStyle(color: AppColors.slate400),
                   prefixIcon: const Icon(Icons.location_on_rounded,
                       color: AppColors.primary),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: AppColors.slate800,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -203,9 +203,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                     fr: 'Décrivez brièvement votre besoin…',
                     ar: 'صف احتياجك باختصار…',
                   ),
-                  hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                  hintStyle: const TextStyle(color: AppColors.slate400),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: AppColors.slate800,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -227,7 +227,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 const SizedBox(height: 8),
                 Text(
                   '${_photos.length} ${tr(context, fr: 'photo(s)', ar: 'صورة')}',
-                  style: const TextStyle(color: Color(0xFF94A3B8)),
+                  style: const TextStyle(color: AppColors.slate400),
                 ),
               ],
               const SizedBox(height: 32),
@@ -271,7 +271,7 @@ class _PickTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: AppColors.slate800,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
         ),
@@ -289,7 +289,7 @@ class _PickTile extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(value,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                style: const TextStyle(color: AppColors.slate400, fontSize: 13)),
           ],
         ),
       ),

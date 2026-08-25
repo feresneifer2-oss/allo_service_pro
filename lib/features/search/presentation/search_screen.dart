@@ -6,6 +6,7 @@ import 'package:allo_service_pro/features/professional/presentation/professional
 import 'package:allo_service_pro/features/professionals/presentation/professionals_list_screen.dart';
 import 'package:allo_service_pro/features/search/application/search_service.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/empty_state_widget.dart';
 
 import '../../home/presentation/widgets/category_services_sheet.dart';
 
@@ -96,13 +97,13 @@ class _SearchScreenState extends State<SearchScreen> {
             Expanded(
               child: _results.isEmpty
                   ? Center(
-                      child: Text(
-                        tr(
+                      child: EmptyStateWidget(
+                        icon: Icons.search_off_rounded,
+                        title: tr(
                           context,
                           fr: 'Recherchez un service ou un professionnel',
                           ar: 'ابحث عن خدمة أو محترف',
                         ),
-                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     )
                   : ListView.builder(

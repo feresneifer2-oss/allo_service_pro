@@ -21,9 +21,9 @@ class ConfirmRequestScreen extends StatelessWidget {
         '${request.dateTime.hour.toString().padLeft(2, '0')}:${request.dateTime.minute.toString().padLeft(2, '0')}';
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(tr(context, fr: 'Récapitulatif', ar: 'ملخص'),
             style: const TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
@@ -101,14 +101,14 @@ class _Row extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: AppColors.slate800,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                style: const TextStyle(color: AppColors.slate400, fontSize: 13)),
             const SizedBox(height: 4),
             Text(value,
                 style: const TextStyle(

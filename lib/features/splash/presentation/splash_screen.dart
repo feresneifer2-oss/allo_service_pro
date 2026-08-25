@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:allo_service_pro/core/navigation/client_shell.dart';
+import 'package:allo_service_pro/core/navigation/pro_shell.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/shared/widgets/allo_service_logo.dart';
 
 import '../../auth/presentation/welcome_screen.dart';
@@ -37,9 +40,22 @@ class _SplashScreenState extends State<SplashScreen>
     Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
 
+      // Session-aware routing: restored sessions skip onboarding entirely.
+      final user = UserStore.user.value;
+      final Widget destination;
+      if (user != null &&
+          user.role == UserRole.professional &&
+          !user.needsVerificationGate) {
+        destination = const ProShell();
+      } else if (user != null && user.role == UserRole.client) {
+        destination = const ClientShell();
+      } else {
+        destination = const WelcomeScreen();
+      }
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        MaterialPageRoute(builder: (_) => destination),
       );
     });
   }

@@ -40,7 +40,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       body: SafeArea(
         child: Column(
           children: [
@@ -77,7 +77,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         Text(
                           'Panneau d\'administration',
                           style:
-                              TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                              TextStyle(color: AppColors.slate400, fontSize: 12),
                         ),
                       ],
                     ),
@@ -142,7 +142,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         value: '$v',
                         icon: Icons.engineering_rounded,
                         gradient: const LinearGradient(
-                            colors: [Color(0xFF7C3AED), Color(0xFFA78BFA)])),
+                            colors: [AppColors.primary, AppColors.primaryLight])),
                   ),
                   const SizedBox(width: 12),
                   ValueListenableBuilder<int>(
@@ -152,7 +152,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         value: '$v',
                         icon: Icons.receipt_long_rounded,
                         gradient: const LinearGradient(
-                            colors: [Color(0xFF0EA5E9), Color(0xFF38BDF8)])),
+                            colors: [AppColors.primary, AppColors.primaryLight])),
                   ),
                 ],
               ),
@@ -163,7 +163,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: AppColors.slate800,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: TabBar(
@@ -173,7 +173,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 labelColor: Colors.white,
-                unselectedLabelColor: const Color(0xFF64748B),
+                unselectedLabelColor: AppColors.textSecondary,
                 labelStyle:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                 dividerColor: Colors.transparent,
@@ -250,7 +250,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -297,7 +297,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                 ),
                 const SizedBox(height: 16),
                 Text('${p.professionFr} • ${p.city ?? '-'} • ${p.phone}',
-                    style: const TextStyle(color: Color(0xFF94A3B8))),
+                    style: const TextStyle(color: AppColors.slate400)),
                 const SizedBox(height: 16),
                 Text('Preuve de travail',
                     style: TextStyle(
@@ -315,7 +315,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                   child: p.docImage == null
                       ? const Center(
                           child: Text('Aucune preuve fournie',
-                              style: TextStyle(color: Color(0xFF64748B))))
+                              style: TextStyle(color: AppColors.textSecondary)))
                       : InteractiveViewer(
                           maxScale: 4,
                           child: p.docImage!.startsWith('assets/')
@@ -326,7 +326,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                                       (_, __, ___) => const Center(
                                           child: Text('Preuve illisible',
                                               style: TextStyle(
-                                                  color: Color(0xFF64748B)))),
+                                                  color: AppColors.textSecondary))),
                                   ),
                         ),
                 ),
@@ -365,7 +365,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                     ),
                   ],
                 ),
-                const Divider(color: Color(0xFF1E293B), height: 28),
+                const Divider(color: AppColors.slate800, height: 28),
 
                 // ── Unlimited plan ──
                 SwitchListTile(
@@ -378,9 +378,9 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                   subtitle: const Text(
                       'Confirme sans consommer de tokens',
                       style:
-                          TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                          TextStyle(color: AppColors.slate400, fontSize: 12)),
                 ),
-                const Divider(color: Color(0xFF1E293B), height: 28),
+                const Divider(color: AppColors.slate800, height: 28),
 
                 // ── Badges manuels ──
                 Text('Badges manuels',
@@ -403,7 +403,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                         label: Text(entry.$2),
                         labelStyle: const TextStyle(
                             color: Colors.white, fontSize: 12),
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: AppColors.slate800,
                         selectedColor:
                             AppColors.primary.withValues(alpha: .35),
                       ),
@@ -437,7 +437,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                         final reason = await showDialog<String>(
                           context: context,
                           builder: (dlgCtx) => AlertDialog(
-                            backgroundColor: const Color(0xFF1E293B),
+                            backgroundColor: AppColors.slate800,
                             title: const Text('Motif du refus',
                                 style: TextStyle(color: Colors.white)),
                             content: TextField(
@@ -449,7 +449,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                               decoration: const InputDecoration(
                                 hintText: 'Expliquez la raison du refus…',
                                 hintStyle: TextStyle(
-                                    color: Color(0xFF64748B)),
+                                    color: AppColors.textSecondary),
                               ),
                             ),
                             actions: [
@@ -488,7 +488,7 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                       p.status == 'approved'
                           ? 'Compte approuvé ✓ — accès actif'
                           : 'Compte refusé',
-                      style: const TextStyle(color: Color(0xFF94A3B8)),
+                      style: const TextStyle(color: AppColors.slate400),
                     ),
                   ),
                 ],
@@ -543,11 +543,11 @@ class _PendingProsTabState extends State<_PendingProsTab> {
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: 'PRO-00001 · Nom · Téléphone',
-              hintStyle: const TextStyle(color: Color(0xFF64748B)),
+              hintStyle: const TextStyle(color: AppColors.textSecondary),
               prefixIcon:
-                  const Icon(Icons.search_rounded, color: Color(0xFF94A3B8)),
+                  const Icon(Icons.search_rounded, color: AppColors.slate400),
               filled: true,
-              fillColor: const Color(0xFF1E293B),
+              fillColor: AppColors.slate800,
               isDense: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -573,11 +573,11 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                     labelStyle: TextStyle(
                       color: _filter == f
                           ? Colors.white
-                          : const Color(0xFF94A3B8),
+                          : AppColors.slate400,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
-                    backgroundColor: const Color(0xFF1E293B),
+                    backgroundColor: AppColors.slate800,
                     onSelected: (_) => setState(() => _filter = f),
                   ),
                 ),
@@ -605,13 +605,13 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.check_circle_outline_rounded,
-                          color: Color(0xFF22C55E), size: 48),
+                          color: AppColors.success, size: 48),
                       const SizedBox(height: 12),
                       Text(
                         _filter == 'pending'
                             ? 'Aucune demande en attente 👌'
                             : 'Aucun résultat',
-                        style: const TextStyle(color: Color(0xFF64748B)),
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -711,9 +711,9 @@ class _ProCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (pro.status) {
-      'approved' => const Color(0xFF22C55E),
-      'rejected' => const Color(0xFFEF4444),
-      _ => const Color(0xFFF59E0B),
+      'approved' => AppColors.success,
+      'rejected' => AppColors.error,
+      _ => AppColors.warning,
     };
 
     final statusLabel = switch (pro.status) {
@@ -725,7 +725,7 @@ class _ProCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: statusColor.withValues(alpha: 0.25)),
       ),
@@ -762,7 +762,7 @@ class _ProCard extends StatelessWidget {
                       Text(
                         '${pro.professionFr} • ${pro.city}',
                         style: const TextStyle(
-                            color: Color(0xFF94A3B8), fontSize: 13),
+                            color: AppColors.slate400, fontSize: 13),
                       ),
                     ],
                   ),
@@ -789,7 +789,7 @@ class _ProCard extends StatelessWidget {
                       onPressed: onOpenDetails,
                       tooltip: 'Détails & gestion',
                       icon: const Icon(Icons.manage_accounts_rounded,
-                          size: 20, color: Color(0xFF38BDF8)),
+                          size: 20, color: AppColors.primaryLight),
                     ),
                     IconButton(
                       tooltip: 'WhatsApp',
@@ -817,28 +817,28 @@ class _ProCard extends StatelessWidget {
               children: [
                 if (pro.proCode != null) ...[
                   const Icon(Icons.badge_outlined,
-                      size: 14, color: Color(0xFF64748B)),
+                      size: 14, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(pro.proCode!,
                       style: const TextStyle(
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.slate400,
                           fontSize: 12,
                           fontWeight: FontWeight.w700)),
                   const SizedBox(width: 10),
                 ],
                 const Icon(Icons.phone_outlined,
-                    size: 14, color: Color(0xFF64748B)),
+                    size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text(pro.phone,
                     style: const TextStyle(
-                        color: Color(0xFF94A3B8), fontSize: 12)),
+                        color: AppColors.slate400, fontSize: 12)),
                 const Spacer(),
                 const Icon(Icons.calendar_today_outlined,
-                    size: 14, color: Color(0xFF64748B)),
+                    size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text(pro.submittedAt,
                     style: const TextStyle(
-                        color: Color(0xFF94A3B8), fontSize: 12)),
+                        color: AppColors.slate400, fontSize: 12)),
               ],
             ),
             if (pro.badges.isNotEmpty) ...[
@@ -874,7 +874,7 @@ class _ProCard extends StatelessWidget {
                     showDialog(
                       context: context,
                       builder: (_) => AlertDialog(
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: AppColors.slate800,
                         title: const Text('Document de vérification',
                             style: TextStyle(color: Colors.white)),
                         content: Container(
@@ -917,15 +917,15 @@ class _ProCard extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text('Professionnel refusé.'),
-                              backgroundColor: Color(0xFFEF4444)),
+                              backgroundColor: AppColors.error),
                         );
                       },
                       icon: const Icon(Icons.close_rounded,
-                          color: Color(0xFFEF4444), size: 18),
+                          color: AppColors.error, size: 18),
                       label: const Text('Refuser',
-                          style: TextStyle(color: Color(0xFFEF4444))),
+                          style: TextStyle(color: AppColors.error)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFEF4444)),
+                        side: const BorderSide(color: AppColors.error),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
@@ -943,7 +943,7 @@ class _ProCard extends StatelessWidget {
                       label: const Text('Approuver',
                           style: TextStyle(color: Colors.white)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF22C55E),
+                        backgroundColor: AppColors.success,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
@@ -962,7 +962,7 @@ class _ProCard extends StatelessWidget {
   void _showBadgeSelection(BuildContext context, String proId) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: AppColors.slate800,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1004,7 +1004,7 @@ class _ProCard extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ Professionnel approuvé avec badge $label !'),
-            backgroundColor: const Color(0xFF22C55E),
+            backgroundColor: AppColors.success,
           ),
         );
       },
@@ -1029,7 +1029,7 @@ class _ReportsTab extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: AppColors.slate800,
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                   color: r.resolved
@@ -1045,7 +1045,7 @@ class _ReportsTab extends StatelessWidget {
                     Row(
                       children: [
                         const Icon(Icons.flag_rounded,
-                            color: Color(0xFFEF4444), size: 20),
+                            color: AppColors.error, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1065,7 +1065,7 @@ class _ReportsTab extends StatelessWidget {
                             ),
                             child: const Text('Résolu',
                                 style: TextStyle(
-                                    color: Color(0xFF22C55E),
+                                    color: AppColors.success,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold)),
                           ),
@@ -1075,13 +1075,13 @@ class _ReportsTab extends StatelessWidget {
                     Text(
                       'Par: ${r.reportedBy}',
                       style: const TextStyle(
-                          color: Color(0xFF64748B), fontSize: 12),
+                          color: AppColors.textSecondary, fontSize: 12),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       r.reason,
                       style: const TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13, height: 1.4),
+                          color: AppColors.slate400, fontSize: 13, height: 1.4),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1145,11 +1145,11 @@ class _RequestsTab extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.receipt_long_rounded,
-                    color: Color(0xFF64748B), size: 48),
+                    color: AppColors.textSecondary, size: 48),
                 const SizedBox(height: 12),
                 const Text(
                   'Aucune demande acceptée',
-                  style: TextStyle(color: Color(0xFF64748B)),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -1164,7 +1164,7 @@ class _RequestsTab extends StatelessWidget {
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: AppColors.slate800,
                 borderRadius: BorderRadius.circular(18),
                 border:
                     Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
@@ -1196,7 +1196,7 @@ class _RequestsTab extends StatelessWidget {
                           ),
                           child: const Text('Acceptée',
                               style: TextStyle(
-                                  color: Color(0xFF22C55E),
+                                  color: AppColors.success,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold)),
                         ),
@@ -1206,13 +1206,13 @@ class _RequestsTab extends StatelessWidget {
                     Text(
                       'Client: ${request.customerName}',
                       style: const TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13),
+                          color: AppColors.slate400, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Pro: ${request.professionalName}',
                       style: const TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13),
+                          color: AppColors.slate400, fontSize: 13),
                     ),
                     const SizedBox(height: 12),
                     // ── Admin chat supervision ──
@@ -1231,8 +1231,8 @@ class _RequestsTab extends StatelessWidget {
                                   : Icons.lock_rounded,
                               size: 16,
                               color: chatActive
-                                  ? const Color(0xFF22C55E)
-                                  : const Color(0xFF64748B),
+                                  ? AppColors.success
+                                  : AppColors.textSecondary,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -1240,7 +1240,7 @@ class _RequestsTab extends StatelessWidget {
                                   ? 'Chat actif • fenêtre ${session.expiryHours}h'
                                   : 'Chat clôturé',
                               style: const TextStyle(
-                                  color: Color(0xFF94A3B8), fontSize: 12),
+                                  color: AppColors.slate400, fontSize: 12),
                             ),
                             const Spacer(),
                             if (chatActive)
@@ -1295,12 +1295,12 @@ class _RequestsTab extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Réinitialiser l\'acceptation',
             style: TextStyle(color: Colors.white)),
         content: const Text(
           'Cela remettra le statut de la demande en attente et déduira 10 tokens supplémentaires du professionnel.',
-          style: TextStyle(color: Color(0xFF94A3B8)),
+          style: TextStyle(color: AppColors.slate400),
         ),
         actions: [
           TextButton(
@@ -1333,12 +1333,12 @@ class _RequestsTab extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Clôturer le chat',
             style: TextStyle(color: Colors.white)),
         content: const Text(
           'Le client et le professionnel ne pourront plus échanger sur cette demande sans une nouvelle confirmation (10 tokens).',
-          style: TextStyle(color: Color(0xFF94A3B8)),
+          style: TextStyle(color: AppColors.slate400),
         ),
         actions: [
           TextButton(
@@ -1416,7 +1416,7 @@ class _SettingsTabState extends State<_SettingsTab> {
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             'Fermeture automatique des conversations après confirmation :',
-            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+            style: const TextStyle(color: AppColors.slate400, fontSize: 13),
           ),
         ),
         ValueListenableBuilder<Map<String, ChatSession>>(
@@ -1433,14 +1433,14 @@ class _SettingsTabState extends State<_SettingsTab> {
                               style: TextStyle(
                                 color: ChatStore.expiryHours == h
                                     ? Colors.white
-                                    : const Color(0xFF94A3B8),
+                                    : AppColors.slate400,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
                           selected: ChatStore.expiryHours == h,
                           selectedColor: AppColors.primary,
-                          backgroundColor: const Color(0xFF1E293B),
+                          backgroundColor: AppColors.slate800,
                           showCheckmark: false,
                           onSelected: (_) =>
                               setState(() => ChatStore.setExpiryHours(h)),
@@ -1507,7 +1507,7 @@ class _SettingsTabState extends State<_SettingsTab> {
           icon: Icons.bar_chart_rounded,
           label: 'Voir les statistiques détaillées',
           subtitle: 'Rapports complets par région / catégorie',
-          color: const Color(0xFF0EA5E9),
+          color: AppColors.primary,
           onTap: () {
             Navigator.push(
               context,
@@ -1595,7 +1595,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: const TextStyle(
-          color: Color(0xFF64748B),
+          color: AppColors.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -1628,7 +1628,7 @@ class _ToggleTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -1651,7 +1651,7 @@ class _ToggleTile extends StatelessWidget {
                         color: Colors.white, fontWeight: FontWeight.w600)),
                 Text(subtitle,
                     style: const TextStyle(
-                        color: Color(0xFF64748B), fontSize: 11)),
+                        color: AppColors.textSecondary, fontSize: 11)),
               ],
             ),
           ),
@@ -1691,7 +1691,7 @@ class _ActionTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -1719,12 +1719,12 @@ class _ActionTile extends StatelessWidget {
                               fontWeight: FontWeight.w600)),
                       Text(subtitle,
                           style: const TextStyle(
-                              color: Color(0xFF64748B), fontSize: 11)),
+                              color: AppColors.textSecondary, fontSize: 11)),
                     ],
                   ),
                 ),
                 const Icon(Icons.chevron_right_rounded,
-                    color: Color(0xFF64748B)),
+                    color: AppColors.textSecondary),
               ],
             ),
           ),

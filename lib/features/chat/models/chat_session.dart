@@ -34,4 +34,10 @@ class ChatSession {
     final d = expiresAt.difference(DateTime.now());
     return d.isNegative ? 0 : d.inHours;
   }
+
+  /// Whole minutes remaining (used for the final-hour countdown).
+  int get minutesUntilAutoClose {
+    final d = expiresAt.difference(DateTime.now());
+    return d.isNegative ? 0 : d.inMinutes;
+  }
 }

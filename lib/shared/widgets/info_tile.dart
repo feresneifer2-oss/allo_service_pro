@@ -34,9 +34,9 @@ class InfoTile extends StatelessWidget {
     final bool isDark = variant == InfoTileVariant.dark;
 
     final Color cardColor =
-        isDark ? const Color(0xFF1E293B) : Colors.white;
+        isDark ? AppColors.slate800 : Colors.white;
     final Color labelColor =
-        isDark ? const Color(0xFF94A3B8) : AppColors.textSecondary;
+        isDark ? AppColors.slate400 : AppColors.textSecondary;
     final Color valueColor = isDark ? Colors.white : AppColors.textPrimary;
 
     return Container(

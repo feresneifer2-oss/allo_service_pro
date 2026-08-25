@@ -76,7 +76,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
@@ -116,7 +116,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: AppColors.slate800,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
                       color: AppColors.secondary.withValues(alpha: 0.35)),
@@ -213,7 +213,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: AppColors.slate800,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
@@ -244,7 +244,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                         ar: 'صوّر وصل الدفع ثم أرفقه في نفس محادثة الواتساب — سيقوم المشرف بتفعيل اشتراكك من لوحة الإدارة.',
                       ),
                       style: const TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13, height: 1.6),
+                          color: AppColors.slate400, fontSize: 13, height: 1.6),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -281,7 +281,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                       ar: 'يتفاعل حسابك تلقائيًا بمجرد موافقة المشرف.'),
                   textAlign: TextAlign.center,
                   style:
-                      const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                      const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
               ),
             ],

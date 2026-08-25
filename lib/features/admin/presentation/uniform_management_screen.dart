@@ -17,9 +17,9 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(
           tr(context, fr: 'Attribution des uniformes', ar: 'توزيع الزي الرسمي'),
           style: const TextStyle(color: Colors.white, fontSize: 18),
@@ -86,13 +86,13 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
                       children: [
                         Icon(
                           Icons.workspace_premium_rounded,
-                          color: const Color(0xFF64748B),
+                          color: AppColors.textSecondary,
                           size: 48,
                         ),
                         const SizedBox(height: 12),
                         Text(
                           tr(context, fr: 'Aucune demande', ar: 'لا طلبات'),
-                          style: const TextStyle(color: Color(0xFF64748B)),
+                          style: const TextStyle(color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -136,7 +136,7 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Nouvelle demande d\'uniforme',
             style: TextStyle(color: Colors.white)),
         content: Column(
@@ -146,7 +146,7 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
               controller: proNameController,
               decoration: const InputDecoration(
                 labelText: 'Nom du professionnel',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -154,7 +154,7 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
               controller: addressController,
               decoration: const InputDecoration(
                 labelText: 'Adresse de livraison',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -195,12 +195,12 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Supprimer la demande',
             style: TextStyle(color: Colors.white)),
         content: const Text(
           'Êtes-vous sûr de vouloir supprimer cette demande?',
-          style: TextStyle(color: Color(0xFF94A3B8)),
+          style: TextStyle(color: AppColors.slate400),
         ),
         actions: [
           TextButton(
@@ -242,11 +242,11 @@ class _FilterChip extends StatelessWidget {
         onSelected: (_) => onTap(),
         selectedColor: AppColors.secondary,
         labelStyle: TextStyle(
-          color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+          color: isSelected ? Colors.white : AppColors.slate400,
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         checkmarkColor: Colors.white,
       ),
     );
@@ -267,10 +267,10 @@ class _UniformRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (request.status) {
-      'pending' => const Color(0xFFF59E0B),
+      'pending' => AppColors.warning,
       'shipped' => const Color(0xFF3B82F6),
-      'delivered' => const Color(0xFF22C55E),
-      _ => const Color(0xFF64748B),
+      'delivered' => AppColors.success,
+      _ => AppColors.textSecondary,
     };
 
     final statusLabel = switch (request.status) {
@@ -283,7 +283,7 @@ class _UniformRequestCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: statusColor.withValues(alpha: 0.25)),
       ),
@@ -313,7 +313,7 @@ class _UniformRequestCard extends StatelessWidget {
                       Text(
                         request.address,
                         style: const TextStyle(
-                          color: Color(0xFF94A3B8),
+                          color: AppColors.slate400,
                           fontSize: 14,
                         ),
                       ),
@@ -345,13 +345,13 @@ class _UniformRequestCard extends StatelessWidget {
                 Row(
                   children: [
                     const Icon(Icons.calendar_today_outlined,
-                        size: 16, color: Color(0xFF64748B)),
+                        size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         'Demandé le: ${request.requestedAt.day}/${request.requestedAt.month}/${request.requestedAt.year}',
                         style: const TextStyle(
-                            color: Color(0xFF94A3B8), fontSize: 13),
+                            color: AppColors.slate400, fontSize: 13),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -362,13 +362,13 @@ class _UniformRequestCard extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(Icons.local_shipping_outlined,
-                          size: 16, color: Color(0xFF64748B)),
+                          size: 16, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           'Expédié le: ${request.shippedAt!.day}/${request.shippedAt!.month}/${request.shippedAt!.year}',
                           style: const TextStyle(
-                              color: Color(0xFF94A3B8), fontSize: 13),
+                              color: AppColors.slate400, fontSize: 13),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -403,7 +403,7 @@ class _UniformRequestCard extends StatelessWidget {
                       icon: const Icon(Icons.check_circle, size: 16),
                       label: const Text('Marquer livré'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF22C55E),
+                        backgroundColor: AppColors.success,
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 import '../../../booking/presentation/booking_screen.dart';
 
@@ -39,7 +40,7 @@ void showSubServiceSheet(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(

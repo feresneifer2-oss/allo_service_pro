@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/features/booking/presentation/booking_screen.dart';
@@ -36,7 +37,7 @@ void showProfessionalsSheet(
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
+                  color: AppColors.slate800,
                 ),
               ),
               const SizedBox(height: 6),
@@ -46,7 +47,7 @@ void showProfessionalsSheet(
                   fr: "Professionnels disponibles",
                   ar: "المحترفون المتوفرون",
                 ),
-                style: const TextStyle(color: Color(0xFF64748B)),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ProfessionalCard(

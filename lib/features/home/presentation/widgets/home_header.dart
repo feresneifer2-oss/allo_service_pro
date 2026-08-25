@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 import '../../../../shared/app_locale.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -15,11 +16,11 @@ class HomeHeader extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 26,
-          backgroundColor: const Color(0xFFEFF6FF),
+          backgroundColor: AppColors.primarySurface,
           child: Text(
             userName.substring(0, 1).toUpperCase(),
             style: const TextStyle(
-              color: Color(0xFF2563EB),
+              color: AppColors.blue600,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),

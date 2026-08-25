@@ -16,9 +16,9 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppColors.slate900,
         title: Text(
           tr(context, fr: 'Gestion des catégories', ar: 'إدارة الفئات'),
           style: const TextStyle(color: Colors.white),
@@ -60,7 +60,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Ajouter une catégorie',
             style: TextStyle(color: Colors.white)),
         content: Column(
@@ -70,7 +70,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: frController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Français)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -78,13 +78,13 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: arController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Arabe)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
             const Text('Choisir une icône:',
-                style: TextStyle(color: Color(0xFF94A3B8))),
+                style: TextStyle(color: AppColors.slate400)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -153,7 +153,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Modifier la catégorie',
             style: TextStyle(color: Colors.white)),
         content: Column(
@@ -163,7 +163,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: frController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Français)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -171,7 +171,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: arController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Arabe)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -213,12 +213,12 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Supprimer la catégorie',
             style: TextStyle(color: Colors.white)),
         content: const Text(
           'Êtes-vous sûr de vouloir supprimer cette catégorie?',
-          style: TextStyle(color: Color(0xFF94A3B8)),
+          style: TextStyle(color: AppColors.slate400),
         ),
         actions: [
           TextButton(
@@ -246,7 +246,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: const Text('Ajouter un type de service',
             style: TextStyle(color: Colors.white)),
         content: Column(
@@ -256,7 +256,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: frController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Français)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -264,7 +264,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
               controller: arController,
               decoration: const InputDecoration(
                 labelText: 'Nom (Arabe)',
-                labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                labelStyle: TextStyle(color: AppColors.slate400),
               ),
               style: const TextStyle(color: Colors.white),
             ),
@@ -318,7 +318,7 @@ class _CategoryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.secondary.withValues(alpha: 0.2)),
       ),
@@ -335,7 +335,7 @@ class _CategoryCard extends StatelessWidget {
         ),
         subtitle: Text(
           category.ar,
-          style: const TextStyle(color: Color(0xFF94A3B8)),
+          style: const TextStyle(color: AppColors.slate400),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -370,7 +370,7 @@ class _CategoryCard extends StatelessWidget {
                     const Text(
                       'Types de services:',
                       style: TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.slate400,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -388,7 +388,7 @@ class _CategoryCard extends StatelessWidget {
                 if (category.types.isEmpty)
                   const Text(
                     'Aucun type de service',
-                    style: TextStyle(color: Color(0xFF64748B)),
+                    style: TextStyle(color: AppColors.textSecondary),
                   )
                 else
                   ...category.types.map((type) => Padding(
@@ -402,7 +402,7 @@ class _CategoryCard extends StatelessWidget {
                               child: Text(
                                 '${type.fr} / ${type.ar}',
                                 style:
-                                    const TextStyle(color: Color(0xFF94A3B8)),
+                                    const TextStyle(color: AppColors.slate400),
                               ),
                             ),
                             IconButton(

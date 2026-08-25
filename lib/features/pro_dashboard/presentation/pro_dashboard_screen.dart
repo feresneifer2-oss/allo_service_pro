@@ -18,7 +18,7 @@ class ProDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       body: SafeArea(
         child: ValueListenableBuilder(
           valueListenable: RequestStore.requests,
@@ -275,7 +275,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
@@ -293,7 +293,7 @@ class _StatCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: 28, fontWeight: FontWeight.w800, color: color)),
           Text(label,
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+              style: const TextStyle(color: AppColors.slate400, fontSize: 12)),
         ],
       ),
     );
@@ -314,9 +314,9 @@ class ProRequestsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(tr(context, fr: 'Demandes', ar: 'الطلبات'),
             style: const TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
@@ -328,7 +328,7 @@ class ProRequestsScreen extends StatelessWidget {
             return Center(
               child: Text(
                 tr(context, fr: 'Aucune demande', ar: 'لا طلبات'),
-                style: const TextStyle(color: Color(0xFF94A3B8)),
+                style: const TextStyle(color: AppColors.slate400),
               ),
             );
           }
@@ -345,7 +345,7 @@ class ProRequestsScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: AppColors.slate800,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
@@ -365,16 +365,16 @@ class ProRequestsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text('📍 ${r.address}',
-                        style: const TextStyle(color: Color(0xFF94A3B8))),
+                        style: const TextStyle(color: AppColors.slate400)),
                     Text(
                       '📅 ${r.dateTime.day}/${r.dateTime.month} 🕐 ${r.dateTime.hour}:${r.dateTime.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(color: Color(0xFF94A3B8)),
+                      style: const TextStyle(color: AppColors.slate400),
                     ),
                     if (r.message.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(r.message,
                           style: const TextStyle(
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.slate400,
                               fontStyle: FontStyle.italic)),
                     ],
                     const SizedBox(height: 12),
@@ -428,7 +428,7 @@ class ProRequestsScreen extends StatelessWidget {
                       DropdownButton<RequestStatus>(
                         isExpanded: true,
                         value: r.status,
-                        dropdownColor: const Color(0xFF1E293B),
+                        dropdownColor: AppColors.slate800,
                         items: _statusFlow
                             .map(
                               (s) => DropdownMenuItem(

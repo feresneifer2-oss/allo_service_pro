@@ -35,9 +35,9 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(
           tr(context, fr: 'Zones de service', ar: 'مناطق الخدمة'),
           style: const TextStyle(color: Colors.white),
@@ -64,8 +64,8 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
             initiallyExpanded: isSelected,
             tilePadding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            backgroundColor: const Color(0xFF1E293B),
-            collapsedBackgroundColor: const Color(0xFF1E293B),
+            backgroundColor: AppColors.slate800,
+            collapsedBackgroundColor: AppColors.slate800,
             leading: Checkbox(
               value: isSelected,
               onChanged: (value) {
@@ -91,7 +91,7 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
             ),
             subtitle: Text(
               '${selectedCities.length} ${tr(context, fr: 'ville(s) sélectionnée(s)', ar: 'مدينة/مدن مختارة')}',
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              style: const TextStyle(color: AppColors.slate400, fontSize: 12),
             ),
             children: [
               Padding(
@@ -103,7 +103,7 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
                       tr(context,
                           fr: 'Sélectionner les villes', ar: 'اختر المدن'),
                       style: const TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.slate400,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -124,7 +124,7 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
                             style: TextStyle(
                               color: isCitySelected
                                   ? Colors.white
-                                  : const Color(0xFF94A3B8),
+                                  : AppColors.slate400,
                               fontSize: 12,
                             ),
                           ),
@@ -144,7 +144,7 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
                             });
                           },
                           selectedColor: AppColors.secondary,
-                          backgroundColor: const Color(0xFF0F172A),
+                          backgroundColor: AppColors.slate900,
                           checkmarkColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
@@ -172,7 +172,7 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
             children: [
               Text(
                 '${_selectedGovernorates.length} ${tr(context, fr: 'gouvernorat(s)', ar: 'معتمدية/معتمديات')}',
-                style: const TextStyle(color: Color(0xFF94A3B8)),
+                style: const TextStyle(color: AppColors.slate400),
               ),
               const SizedBox(height: 12),
               SizedBox(

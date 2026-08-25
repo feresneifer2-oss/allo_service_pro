@@ -38,9 +38,9 @@ class RequestDetailScreen extends StatelessWidget {
             '${request.dateTime.hour.toString().padLeft(2, '0')}:${request.dateTime.minute.toString().padLeft(2, '0')}';
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0F172A),
+          backgroundColor: AppColors.slate900,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF1E293B),
+            backgroundColor: AppColors.slate800,
             title: Text(tr(context, fr: 'Ma demande', ar: 'طلبي')),
           ),
           body: SafeArea(
@@ -66,7 +66,7 @@ class RequestDetailScreen extends StatelessWidget {
                   Text(
                     request.professionalName,
                     style:
-                        const TextStyle(color: Color(0xFF94A3B8), fontSize: 16),
+                        const TextStyle(color: AppColors.slate400, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
                   InfoTile(

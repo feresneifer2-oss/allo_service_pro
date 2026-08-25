@@ -70,12 +70,12 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.lock_rounded,
-                  color: Color(0xFF64748B), size: 48),
+                  color: AppColors.textSecondary, size: 48),
               const SizedBox(height: 12),
               Text(
                 _lockedTitle(context, request?.status),
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF64748B)),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
               if (request?.status == RequestStatus.pending) ...[
                 const SizedBox(height: 8),
@@ -84,7 +84,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       fr: 'Le professionnel doit accepter la demande pour activer le chat',
                       ar: 'يجب على الحرفي قبول الطلب لتفعيل المحادثة'),
                   style:
-                      const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                      const TextStyle(color: AppColors.slate400, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -124,15 +124,21 @@ class _ChatScreenState extends State<ChatScreen> {
                 return const SizedBox.shrink();
               }
               final hours = session.hoursUntilAutoClose;
+              final minutes = session.minutesUntilAutoClose;
+              final countdown = hours >= 1
+                  ? tr(context,
+                      fr: 'Fermeture auto dans $hours h',
+                      ar: 'الإغلاق التلقائي بعد $hours ساعة')
+                  : tr(context,
+                      fr: 'Fermeture auto dans $minutes min',
+                      ar: 'بقت $minutes دقيقة على الإغلاق');
               return Container(
                 width: double.infinity,
-                color: const Color(0xFFEFF6FF),
+                color: AppColors.primarySurface,
                 padding:
                     const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                 child: Text(
-                  tr(context,
-                      fr: '⏳ Fermeture auto dans $hours h (max 4 jours)',
-                      ar: '⏳ الإغلاق التلقائي بعد $hours ساعة (4 أيام)'),
+                  '⏳ $countdown',
                   textAlign: TextAlign.center,
                   style:
                       const TextStyle(color: AppColors.primary, fontSize: 11),

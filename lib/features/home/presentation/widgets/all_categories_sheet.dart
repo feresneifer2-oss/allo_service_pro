@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/core/data/services_catalog.dart';
@@ -45,7 +46,7 @@ void showAllCategoriesSheet(BuildContext context) {
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E293B),
+                        color: AppColors.slate800,
                       ),
                     ),
                   ),
@@ -61,7 +62,7 @@ void showAllCategoriesSheet(BuildContext context) {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: InkWell(
@@ -77,7 +78,7 @@ void showAllCategoriesSheet(BuildContext context) {
                           width: 40,
                           height: 40,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFEFF6FF),
+                            color: AppColors.primarySurface,
                             shape: BoxShape.circle,
                           ),
                           clipBehavior: Clip.antiAlias,
@@ -86,7 +87,7 @@ void showAllCategoriesSheet(BuildContext context) {
                                   null
                               ? Icon(
                                   c.icon,
-                                  color: const Color(0xFF2563EB),
+                                  color: AppColors.blue600,
                                   size: 22,
                                 )
                               : Image.asset(
@@ -97,7 +98,7 @@ void showAllCategoriesSheet(BuildContext context) {
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Icon(
                                     c.icon,
-                                    color: const Color(0xFF2563EB),
+                                    color: AppColors.blue600,
                                     size: 22,
                                   ),
                                 ),
@@ -108,7 +109,7 @@ void showAllCategoriesSheet(BuildContext context) {
                             title,
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E293B),
+                              color: AppColors.slate800,
                             ),
                           ),
                         ),
@@ -116,7 +117,7 @@ void showAllCategoriesSheet(BuildContext context) {
                           isRtl
                               ? Icons.chevron_left_rounded
                               : Icons.chevron_right_rounded,
-                          color: const Color(0xFF64748B),
+                          color: AppColors.textSecondary,
                         ),
                       ],
                     ),

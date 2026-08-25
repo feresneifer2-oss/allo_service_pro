@@ -3,26 +3,26 @@ import 'app_colors.dart';
 
 class AppThemeConstants {
   // Dark Theme Colors
-  static const Color darkBackground = Color(0xFF0F172A);
-  static const Color darkCardBackground = Color(0xFF1E293B);
-  static const Color darkInputBackground = Color(0xFF1E293B);
+  static const Color darkBackground = AppColors.slate900;
+  static const Color darkCardBackground = AppColors.slate800;
+  static const Color darkInputBackground = AppColors.slate800;
   static const Color darkTextPrimary = Colors.white;
-  static const Color darkTextSecondary = Color(0xFF94A3B8);
-  static const Color darkTextTertiary = Color(0xFF64748B);
+  static const Color darkTextSecondary = AppColors.slate400;
+  static const Color darkTextTertiary = AppColors.textSecondary;
 
   // Light Theme Colors
-  static const Color lightBackground = Color(0xFFF8FAFC);
+  static const Color lightBackground = AppColors.background;
   static const Color lightCardBackground = Colors.white;
   static const Color lightInputBackground = Color(0xFFF1F5F9);
-  static const Color lightTextPrimary = Color(0xFF1E293B);
-  static const Color lightTextSecondary = Color(0xFF64748B);
-  static const Color lightTextTertiary = Color(0xFF94A3B8);
+  static const Color lightTextPrimary = AppColors.slate800;
+  static const Color lightTextSecondary = AppColors.textSecondary;
+  static const Color lightTextTertiary = AppColors.slate400;
 
   // Status Colors
-  static const Color statusPending = Color(0xFFF59E0B);
+  static const Color statusPending = AppColors.warning;
   static const Color statusAccepted = Color(0xFF10B981);
   static const Color statusCompleted = Color(0xFF3B82F6);
-  static const Color statusRejected = Color(0xFFEF4444);
+  static const Color statusRejected = AppColors.error;
   static const Color statusCancelled = Color(0xFF6B7280);
 
   // Border Radius
@@ -285,7 +285,7 @@ class AppThemeConstants {
     bool isSelected = false,
   }) {
     return BoxDecoration(
-      color: isSelected ? AppColors.secondary : const Color(0xFF0F172A),
+      color: isSelected ? AppColors.secondary : AppColors.slate900,
       borderRadius: BorderRadius.circular(borderRadiusRound),
       border: Border.all(
         color: isSelected ? AppColors.secondary : const Color(0xFF334155),

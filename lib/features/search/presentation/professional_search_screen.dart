@@ -102,9 +102,9 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.slate900,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(
           tr(context, fr: 'Trouver un professionnel', ar: 'البحث عن حرفي'),
           style: const TextStyle(color: Colors.white),
@@ -140,11 +140,11 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                                 fr: 'Rechercher par nom ou profession...',
                                 ar: 'ابحث بالاسم أو المهنة...'),
                             hintStyle:
-                                const TextStyle(color: Color(0xFF94A3B8)),
+                                const TextStyle(color: AppColors.slate400),
                             prefixIcon: const Icon(Icons.search,
                                 color: AppColors.primary),
                             filled: true,
-                            fillColor: const Color(0xFF1E293B),
+                            fillColor: AppColors.slate800,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide.none,
@@ -166,7 +166,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
+                            color: AppColors.slate800,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                                 color:
@@ -180,10 +180,10 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                                     fr: 'Tous les gouvernorats',
                                     ar: 'جميع الولايات'),
                                 style:
-                                    const TextStyle(color: Color(0xFF94A3B8)),
+                                    const TextStyle(color: AppColors.slate400),
                               ),
                               isExpanded: true,
-                              dropdownColor: const Color(0xFF1E293B),
+                              dropdownColor: AppColors.slate800,
                               items: _governorates.map((gov) {
                                 return DropdownMenuItem<String>(
                                   value: gov,
@@ -221,7 +221,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
+                              color: AppColors.slate800,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                   color:
@@ -235,10 +235,10 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                                       fr: 'Toutes les villes',
                                       ar: 'جميع المدن'),
                                   style:
-                                      const TextStyle(color: Color(0xFF94A3B8)),
+                                      const TextStyle(color: AppColors.slate400),
                                 ),
                                 isExpanded: true,
-                                dropdownColor: const Color(0xFF1E293B),
+                                dropdownColor: AppColors.slate800,
                                 items: _getCities(_selectedGovernorate!)
                                     .map((city) {
                                   return DropdownMenuItem<String>(
@@ -296,7 +296,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                           Text(
                             '${_filteredProfessionals.length} ${tr(context, fr: 'professionnel(s) trouvé(s)', ar: 'حرفي/حرفيون تم العثور عليهم')}',
                             style: const TextStyle(
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.slate400,
                               fontSize: 14,
                             ),
                           ),
@@ -325,14 +325,14 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
         children: [
           const Icon(
             Icons.location_on_outlined,
-            color: Color(0xFF64748B),
+            color: AppColors.textSecondary,
             size: 64,
           ),
           const SizedBox(height: 16),
           Text(
             tr(context, fr: 'Sélectionnez un gouvernorat', ar: 'اختر ولاية'),
             style: const TextStyle(
-              color: Color(0xFF94A3B8),
+              color: AppColors.slate400,
               fontSize: 16,
             ),
           ),
@@ -342,7 +342,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                 fr: 'Nous afficherons les professionnels disponibles dans votre zone',
                 ar: 'سنعرض الحرفيين المتاحين في منطقتك'),
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               fontSize: 14,
             ),
             textAlign: TextAlign.center,
@@ -388,7 +388,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
         children: [
           const Icon(
             Icons.search_off_rounded,
-            color: Color(0xFF64748B),
+            color: AppColors.textSecondary,
             size: 64,
           ),
           const SizedBox(height: 16),
@@ -397,7 +397,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                 fr: 'Aucun professionnel trouvé',
                 ar: 'لم يتم العثور على حرفيين'),
             style: const TextStyle(
-              color: Color(0xFF94A3B8),
+              color: AppColors.slate400,
               fontSize: 16,
             ),
           ),
@@ -407,7 +407,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                 fr: 'Essayez de modifier vos critères de recherche',
                 ar: 'حاول تعديل معايير البحث'),
             style: const TextStyle(
-              color: Color(0xFF64748B),
+              color: AppColors.textSecondary,
               fontSize: 14,
             ),
             textAlign: TextAlign.center,
@@ -426,14 +426,14 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: AppColors.slate800,
         title: Text(
           tr(context, fr: 'Demander un service', ar: 'طلب خدمة'),
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
           '${tr(context, fr: 'Voulez-vous contacter', ar: 'هل تريد التواصل مع')} ${professional.name} ?',
-          style: const TextStyle(color: Color(0xFF94A3B8)),
+          style: const TextStyle(color: AppColors.slate400),
         ),
         actions: [
           TextButton(
@@ -488,7 +488,7 @@ class _ProfessionalCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: AppColors.slate800,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
@@ -528,7 +528,7 @@ class _ProfessionalCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: AppColors.slate400,
                         fontSize: 14,
                       ),
                     ),
@@ -564,13 +564,13 @@ class _ProfessionalCard extends StatelessWidget {
           // City + Availability row
           Row(
             children: [
-              const Icon(Icons.location_on, size: 16, color: Color(0xFF64748B)),
+              const Icon(Icons.location_on, size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   '$city • ${professional.distanceKm.toStringAsFixed(1)} km',
                   style:
-                      const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                      const TextStyle(color: AppColors.slate400, fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

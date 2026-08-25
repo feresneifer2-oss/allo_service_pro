@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/pro_registration/presentation/pro_registration_screen.dart';
 
 class AccountTypeScreen extends StatefulWidget {
   const AccountTypeScreen({super.key});
@@ -17,7 +19,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xffF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -94,10 +96,20 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                                     builder: (_) => const ClientShell()),
                               );
                             } else {
+                              // Without a registered PRO account, land on
+                              // the registration flow instead of an empty
+                              // shell with a blank PRO code.
+                              final account = UserStore.user.value;
+                              final hasProAccount = account != null &&
+                                  (account.proCode?.isNotEmpty ?? false);
+
                               Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) => const ProShell()),
+                                  builder: (_) => hasProAccount
+                                      ? const ProShell()
+                                      : const ProRegistrationScreen(),
+                                ),
                               );
                             }
                           },
@@ -135,7 +147,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? const Color(0xff2563EB) : Colors.grey.shade300,
+            color: selected ? AppColors.blue600 : Colors.grey.shade300,
             width: selected ? 2 : 1,
           ),
           boxShadow: [
@@ -153,14 +165,14 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               height: 65,
               decoration: BoxDecoration(
                 color: selected
-                    ? const Color(0xff2563EB)
-                    : const Color(0xffEFF6FF),
+                    ? AppColors.blue600
+                    : AppColors.primarySurface,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(
                 icon,
                 size: 32,
-                color: selected ? Colors.white : const Color(0xff2563EB),
+                color: selected ? Colors.white : AppColors.blue600,
               ),
             ),
             const SizedBox(width: 18),
@@ -193,10 +205,10 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected ? const Color(0xff2563EB) : Colors.grey,
+                  color: selected ? AppColors.blue600 : Colors.grey,
                   width: 2,
                 ),
-                color: selected ? const Color(0xff2563EB) : Colors.transparent,
+                color: selected ? AppColors.blue600 : Colors.transparent,
               ),
               child: selected
                   ? const Icon(Icons.check, color: Colors.white, size: 16)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/section_title.dart';
@@ -113,7 +114,7 @@ class _BookingScreenState extends State<BookingScreen> {
         : _selectedTime!.format(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(tr(context, fr: "Réservation", ar: "الحجز")),
       ),
@@ -219,14 +220,14 @@ class _InfoRow extends StatelessWidget {
             "$label: ",
             style: const TextStyle(
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1E293B),
+              color: AppColors.slate800,
             ),
           ),
           Expanded(
             child: Text(
               value,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF64748B)),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
         ],
@@ -261,7 +262,7 @@ class _PickCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFF2563EB)),
+            Icon(icon, color: AppColors.blue600),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -271,7 +272,7 @@ class _PickCard extends StatelessWidget {
                     title,
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
+                      color: AppColors.slate800,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -279,7 +280,7 @@ class _PickCard extends StatelessWidget {
                     value,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF64748B),
+                      color: AppColors.textSecondary,
                       fontSize: 12.5,
                     ),
                   ),

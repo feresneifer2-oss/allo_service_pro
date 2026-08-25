@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/theme/app_colors.dart';
 
 class ProfessionalCard extends StatelessWidget {
   const ProfessionalCard({
@@ -43,12 +44,12 @@ class ProfessionalCard extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
+              color: AppColors.primarySurface,
               borderRadius: BorderRadius.circular(18),
             ),
             child: const Icon(
               Icons.person_rounded,
-              color: Color(0xFF2563EB),
+              color: AppColors.blue600,
               size: 34,
             ),
           ),
@@ -78,7 +79,7 @@ class ProfessionalCard extends StatelessWidget {
                         padding: EdgeInsets.only(top: 2),
                         child: Icon(
                           Icons.verified_rounded,
-                          color: Color(0xFF2563EB),
+                          color: AppColors.blue600,
                           size: 18,
                         ),
                       ),
@@ -89,7 +90,7 @@ class ProfessionalCard extends StatelessWidget {
                 Text(
                   profession,
                   style: const TextStyle(
-                    color: Color(0xFF64748B),
+                    color: AppColors.textSecondary,
                     fontSize: 13.5,
                   ),
                 ),
@@ -100,12 +101,12 @@ class ProfessionalCard extends StatelessWidget {
                   children: [
                     _InfoChip(
                       icon: Icons.star_rounded,
-                      iconColor: const Color(0xFFF59E0B),
+                      iconColor: AppColors.warning,
                       text: rating.toStringAsFixed(1),
                     ),
                     _InfoChip(
                       icon: Icons.location_on_rounded,
-                      iconColor: const Color(0xFFEF4444),
+                      iconColor: AppColors.error,
                       text: location,
                     ),
                   ],
@@ -157,7 +158,7 @@ class _InfoChip extends StatelessWidget {
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF1E293B),
+            color: AppColors.slate800,
           ),
         ),
       ],
