@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 
 class ProProfileStore {
   ProProfileStore._();
@@ -31,7 +32,13 @@ class ProProfileStore {
   static final serviceZones = ValueNotifier<List<String>>(['Ariana', 'Tunis']);
 
   // Token management
+
+  /// Unlimited mode: paid subscribers never spend tokens.
+  static bool get hasUnlimitedTokens =>
+      SubscriptionStore.isPaidSubscriber.value;
+
   static bool deductTokens(int amount) {
+    if (hasUnlimitedTokens) return true;
     if (tokens.value >= amount) {
       tokens.value -= amount;
       return true;

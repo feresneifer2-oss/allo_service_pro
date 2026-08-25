@@ -5,6 +5,7 @@ import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/service_zones_screen.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
@@ -143,11 +144,15 @@ class ProDashboardScreen extends StatelessWidget {
                       ValueListenableBuilder<int>(
                         valueListenable: ProProfileStore.tokens,
                         builder: (context, tokenCount, _) {
-                          return _StatCard(
-                            label: tr(context, fr: 'Tokens', ar: 'توكن'),
-                            value: '$tokenCount',
-                            color: AppColors.success,
-                            icon: Icons.diamond_rounded,
+                          return ValueListenableBuilder<bool>(
+                            valueListenable:
+                                SubscriptionStore.isPaidSubscriber,
+                            builder: (_, isPaid, __) => _StatCard(
+                              label: tr(context, fr: 'Tokens', ar: 'توكن'),
+                              value: isPaid ? '∞' : '$tokenCount',
+                              color: AppColors.success,
+                              icon: Icons.diamond_rounded,
+                            ),
                           );
                         },
                       ),
@@ -183,48 +188,62 @@ class ProDashboardScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      ValueListenableBuilder<int>(
-                        valueListenable: ProProfileStore.tokens,
-                        builder: (_, tokens, __) {
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.accentGradient,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.monetization_on_rounded,
-                                    color: Colors.white, size: 36),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        tr(context, fr: 'Tokens', ar: 'Tokens'),
-                                        style: const TextStyle(
-                                            color: Colors.white70),
-                                      ),
-                                      Text(
-                                        '$tokens Tokens',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
+                      ValueListenableBuilder<bool>(
+                        valueListenable: SubscriptionStore.isPaidSubscriber,
+                        builder: (_, isPaid, ____) =>
+                            ValueListenableBuilder<int>(
+                          valueListenable: ProProfileStore.tokens,
+                          builder: (_, tokens, ___) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                gradient: AppColors.accentGradient,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isPaid
+                                        ? Icons.all_inclusive_rounded
+                                        : Icons.monetization_on_rounded,
+                                    color: Colors.white,
+                                    size: 36,
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          tr(context,
+                                              fr: 'Tokens', ar: 'توكن'),
+                                          style: const TextStyle(
+                                              color: Colors.white70),
+                                        ),
+                                        Text(
+                                          isPaid
+                                              ? tr(context,
+                                                  fr: 'Illimité',
+                                                  ar: 'غير محدود')
+                                              : '$tokens Tokens',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
@@ -376,8 +395,12 @@ class ProRequestsScreen extends StatelessWidget {
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () {
-                                // Check if pro has enough tokens
-                                if (ProProfileStore.tokens.value >= 10) {
+                                // Paid subscribers confirm freely; trial
+                                // accounts need at least 10 tokens.
+                                final canConfirm =
+                                    SubscriptionStore.isPaidSubscriber.value ||
+                                        ProProfileStore.tokens.value >= 10;
+                                if (canConfirm) {
                                   RequestStore.updateStatus(
                                       r.id, RequestStatus.accepted);
                                 } else {

@@ -131,27 +131,48 @@ class ProProfileScreen extends StatelessWidget {
                   leading: Icon(Icons.workspace_premium_rounded,
                       color: isActive ? AppColors.success : AppColors.error),
                   title: Text(tr(context, fr: 'Abonnement', ar: 'الاشتراك')),
-                  trailing: _SubscriptionBadge(isActive: isActive),
+                  trailing: _PillBadge(
+                    label: tr(context,
+                        fr: isActive ? 'Actif' : 'Expiré',
+                        ar: isActive ? 'نشط' : 'منتهي'),
+                    color: isActive ? AppColors.success : AppColors.error,
+                  ),
                 );
               },
             ),
-            // Solde de tokens (même source que le dashboard)
-            ValueListenableBuilder<int>(
-              valueListenable: ProProfileStore.tokens,
-              builder: (_, tokenCount, __) => ListTile(
-                leading: const Icon(Icons.diamond_rounded,
-                    color: AppColors.success),
-                title: Text(
-                    tr(context, fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
-                trailing: Text(
-                  '$tokenCount',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: AppColors.success,
-                  ),
-                ),
-              ),
+            // Solde de tokens : badge ∞ illimité pour les abonnés payants,
+            // compteur numérique en mode essai (même source que le dashboard).
+            ValueListenableBuilder<bool>(
+              valueListenable: SubscriptionStore.isPaidSubscriber,
+              builder: (_, isPaid, __) => isPaid
+                  ? ListTile(
+                      leading: const Icon(Icons.all_inclusive_rounded,
+                          color: AppColors.success),
+                      title: Text(tr(
+                          context, fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
+                      trailing: _PillBadge(
+                        label: tr(context, fr: 'Illimité', ar: 'غير محدود'),
+                        color: AppColors.success,
+                        icon: Icons.all_inclusive_rounded,
+                      ),
+                    )
+                  : ValueListenableBuilder<int>(
+                      valueListenable: ProProfileStore.tokens,
+                      builder: (_, tokenCount, ___) => ListTile(
+                        leading: const Icon(Icons.diamond_rounded,
+                            color: AppColors.success),
+                        title: Text(tr(
+                            context, fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
+                        trailing: Text(
+                          '$tokenCount',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -160,14 +181,19 @@ class ProProfileScreen extends StatelessWidget {
   }
 }
 
-class _SubscriptionBadge extends StatelessWidget {
-  const _SubscriptionBadge({required this.isActive});
+class _PillBadge extends StatelessWidget {
+  const _PillBadge({
+    required this.label,
+    required this.color,
+    this.icon,
+  });
 
-  final bool isActive;
+  final String label;
+  final Color color;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppColors.success : AppColors.error;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -175,15 +201,22 @@ class _SubscriptionBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
-      child: Text(
-        tr(context,
-            fr: isActive ? 'Actif' : 'Expiré',
-            ar: isActive ? 'نشط' : 'منتهي'),
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }

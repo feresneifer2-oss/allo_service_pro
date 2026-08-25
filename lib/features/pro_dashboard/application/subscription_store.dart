@@ -21,6 +21,15 @@ class SubscriptionStore {
   static final status =
       ValueNotifier<SubscriptionStatus>(SubscriptionStatus.active);
 
+  /// True once a paid unlimited plan is activated by the admin.
+  ///
+  /// `false` = free-trial mode: every confirmed order costs tokens and a
+  /// zero balance locks pro actions behind the paywall.
+  static final isPaidSubscriber = ValueNotifier<bool>(false);
+
+  /// Free-trial mode: no active paid plan (token costs apply).
+  static bool get isTrial => !isPaidSubscriber.value;
+
   /// Moment the current 30-day cycle was activated (null = never activated).
   static final activatedAt = ValueNotifier<DateTime?>(null);
 
@@ -43,10 +52,12 @@ class SubscriptionStore {
   /// Called by the admin panel once the D17 payment is approved.
   ///
   /// Starts (or renews) a full [durationDays]-day cycle opening at [at]
-  /// (defaults to now) and flips the status back to active.
+  /// (defaults to now), flips the status back to active and enables
+  /// unlimited mode ([isPaidSubscriber] = true).
   static void renew({DateTime? at}) {
     activatedAt.value = at ?? DateTime.now();
     status.value = SubscriptionStatus.active;
+    isPaidSubscriber.value = true;
   }
 
   /// Marks the monthly plan as expired → dashboard gets paywalled.

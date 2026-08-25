@@ -5,6 +5,7 @@ import '../../../core/models/request_status.dart';
 import '../../chat/application/chat_store.dart';
 import '../../notifications/application/notification_store.dart';
 import '../../pro_dashboard/application/pro_profile_store.dart';
+import '../../pro_dashboard/application/subscription_store.dart';
 
 class RequestStore {
   RequestStore._();
@@ -34,20 +35,24 @@ class RequestStore {
     final request = byId(id);
     if (request == null) return false;
 
-    // Handle token deduction and notifications when accepting
+    // Handle token cost and notifications when accepting
     if (status == RequestStatus.accepted &&
         request.status == RequestStatus.pending) {
-      // Confirming the order costs exactly 10 tokens.
-      final deducted = ProProfileStore.deductTokens(10);
-      if (!deducted) {
-        // Not enough tokens: the confirmation cannot proceed.
-        return false;
+      // Paid subscribers confirm freely (unlimited mode); only trial
+      // accounts pay the 10-token confirmation fee.
+      if (!SubscriptionStore.isPaidSubscriber.value) {
+        // Confirming the order costs exactly 10 tokens.
+        final deducted = ProProfileStore.deductTokens(10);
+        if (!deducted) {
+          // Trial out of tokens: confirmation locked → paywall territory.
+          return false;
+        }
+        NotificationStore.notifyTokenDeduction(
+          id,
+          ProProfileStore.tokens.value,
+          request.professionalId,
+        );
       }
-      NotificationStore.notifyTokenDeduction(
-        id,
-        ProProfileStore.tokens.value,
-        request.professionalId,
-      );
       NotificationStore.notifyRequestAccepted(
         id,
         request.professionalName,

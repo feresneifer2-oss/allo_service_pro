@@ -5,6 +5,7 @@ import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/models/chat_session.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 
@@ -33,6 +34,7 @@ void main() {
     ChatStore.sessions.value = {};
     ChatStore.messages.value = {};
     NotificationStore.clear();
+    SubscriptionStore.isPaidSubscriber.value = false;
     ProProfileStore.tokens.value = 100; // headroom for confirmation costs
   });
 
@@ -150,6 +152,30 @@ void main() {
 
       expect(ChatStore.isActive('r-expiry'), isFalse);
       expect(RequestStore.isChatAllowed('r-expiry'), isFalse);
+    });
+
+    test('paid subscribers confirm orders without spending tokens', () {
+      // Unlimited mode: even a zero balance cannot block confirmation.
+      SubscriptionStore.isPaidSubscriber.value = true;
+      ProProfileStore.tokens.value = 0;
+
+      RequestStore.add(_request('r-paid'));
+      final ok = RequestStore.updateStatus('r-paid', RequestStatus.accepted);
+
+      expect(ok, isTrue);
+      expect(ProProfileStore.tokens.value, 0); // untouched — unlimited mode
+      expect(RequestStore.isChatAllowed('r-paid'), isTrue);
+    });
+
+    test('trial account with zero tokens cannot confirm orders', () {
+      SubscriptionStore.isPaidSubscriber.value = false; // trial mode
+      ProProfileStore.tokens.value = 0;
+
+      RequestStore.add(_request('r-locked'));
+      final ok = RequestStore.updateStatus('r-locked', RequestStatus.accepted);
+
+      expect(ok, isFalse);
+      expect(RequestStore.isChatAllowed('r-locked'), isFalse);
     });
   });
 }
