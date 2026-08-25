@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProProfileStore {
   ProProfileStore._();
@@ -37,10 +38,36 @@ class ProProfileStore {
   static bool get hasUnlimitedTokens =>
       SubscriptionStore.isPaidSubscriber.value;
 
+  // ─── Local persistence (SharedPreferences) ──────────────────────────
+  static const String _kTokens = 'pro_tokens';
+
+  /// Writes the token balance to SharedPreferences.
+  ///
+  /// Failures are swallowed so gameplay mutations never break because
+  /// storage happens to be unavailable.
+  static Future<void> persistToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_kTokens, tokens.value);
+    } catch (_) {
+      // Storage unavailable (e.g. tests without platform binding): ignore.
+    }
+  }
+
+  /// Restores the persisted token balance at app startup.
+  ///
+  /// Falls back to the default trial balance (150) when nothing is saved.
+  static Future<void> loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey(_kTokens)) return;
+    tokens.value = prefs.getInt(_kTokens) ?? 150;
+  }
+
   static bool deductTokens(int amount) {
     if (hasUnlimitedTokens) return true;
     if (tokens.value >= amount) {
       tokens.value -= amount;
+      persistToPrefs();
       return true;
     }
     return false;
@@ -48,6 +75,7 @@ class ProProfileStore {
 
   static void addTokens(int amount) {
     tokens.value += amount;
+    persistToPrefs();
   }
 
   static void updateServiceZones(List<String> zones) {

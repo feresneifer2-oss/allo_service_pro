@@ -3,15 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/pro_dashboard/application/pro_profile_store.dart';
+import 'features/pro_dashboard/application/subscription_store.dart';
 import 'features/splash/presentation/splash_screen.dart';
 import 'shared/app_locale.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // Restore locally persisted pro state (token balance & subscription)
+  // before the first frame so dashboards render the correct mode.
+  await SubscriptionStore.loadFromPrefs();
+  await ProProfileStore.loadFromPrefs();
+
   runApp(const AlloServiceProApp());
 }
 

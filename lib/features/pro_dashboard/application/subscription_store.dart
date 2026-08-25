@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum SubscriptionStatus { active, expired }
 
@@ -17,6 +18,12 @@ class SubscriptionStore {
 
   /// Support WhatsApp number (international format, no '+').
   static const String whatsappNumber = '21624449959';
+
+  // ─── Local persistence keys (SharedPreferences) ────────────────────
+  static const String _kIsPaid = 'sub_isPaidSubscriber';
+  static const String _kActivatedAtMs = 'sub_activatedAtMs';
+  static const String _kExpiresAtMs = 'sub_expiresAtMs';
+  static const String _kStatusIndex = 'sub_statusIndex';
 
   static final status =
       ValueNotifier<SubscriptionStatus>(SubscriptionStatus.active);
@@ -58,8 +65,64 @@ class SubscriptionStore {
     activatedAt.value = at ?? DateTime.now();
     status.value = SubscriptionStatus.active;
     isPaidSubscriber.value = true;
+    persistToPrefs();
   }
 
   /// Marks the monthly plan as expired → dashboard gets paywalled.
-  static void expire() => status.value = SubscriptionStatus.expired;
+  static void expire() {
+    status.value = SubscriptionStatus.expired;
+    persistToPrefs();
+  }
+
+  // ─── Local persistence (SharedPreferences) ──────────────────────────
+
+  /// Writes the current subscription state to SharedPreferences.
+  ///
+  /// Fire-and-forget by callers; failures are swallowed so state mutations
+  /// never break because storage happens to be unavailable.
+  static Future<void> persistToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kIsPaid, isPaidSubscriber.value);
+
+      final activated = activatedAt.value;
+      if (activated == null) {
+        await prefs.remove(_kActivatedAtMs);
+      } else {
+        await prefs.setInt(_kActivatedAtMs, activated.millisecondsSinceEpoch);
+      }
+
+      final expires = expiresAt;
+      if (expires == null) {
+        await prefs.remove(_kExpiresAtMs);
+      } else {
+        await prefs.setInt(_kExpiresAtMs, expires.millisecondsSinceEpoch);
+      }
+
+      await prefs.setInt(_kStatusIndex, status.value.index);
+    } catch (_) {
+      // Storage unavailable (e.g. tests without platform binding): ignore.
+    }
+  }
+
+  /// Restores the persisted subscription state at app startup.
+  ///
+  /// Falls back safely to the default trial configuration when no saved
+  /// preferences exist yet (fresh install).
+  static Future<void> loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey(_kIsPaid)) return; // fresh install → trial defaults
+
+    isPaidSubscriber.value = prefs.getBool(_kIsPaid) ?? false;
+
+    final activatedMs = prefs.getInt(_kActivatedAtMs);
+    activatedAt.value = activatedMs == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(activatedMs);
+
+    final statusIndex =
+        prefs.getInt(_kStatusIndex) ?? SubscriptionStatus.active.index;
+    status.value = SubscriptionStatus
+        .values[statusIndex.clamp(0, SubscriptionStatus.values.length - 1)];
+  }
 }
