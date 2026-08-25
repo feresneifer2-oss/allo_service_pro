@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 
 class ServiceCard extends StatelessWidget {
   final IconData icon;
+
+  /// Optional local asset path (`assets/services/...`). When provided it
+  /// replaces the plain icon inside the avatar (with icon fallback if the
+  /// asset fails to load).
+  final String? imagePath;
   final String title;
   final VoidCallback onTap;
 
   const ServiceCard({
     super.key,
     required this.icon,
+    this.imagePath,
     required this.title,
     required this.onTap,
   });
@@ -38,11 +44,25 @@ class ServiceCard extends StatelessWidget {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: const Color(0xFFEFF6FF),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFF2563EB),
-                  size: 24,
-                ),
+                child: imagePath == null
+                    ? Icon(
+                        icon,
+                        color: const Color(0xFF2563EB),
+                        size: 24,
+                      )
+                    : ClipOval(
+                        child: Image.asset(
+                          imagePath!,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            icon,
+                            color: const Color(0xFF2563EB),
+                            size: 24,
+                          ),
+                        ),
+                      ),
               ),
               const SizedBox(height: 10),
               Expanded(

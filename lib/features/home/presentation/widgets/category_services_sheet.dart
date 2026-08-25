@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
 import 'professionals_sheet.dart';
@@ -66,6 +67,39 @@ void showCategoryServicesSheet(
                   ),
                   child: Row(
                     children: [
+                      // New colored icon for this sub-service (falls back to
+                      // the category icon when no asset is mapped).
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEFF6FF),
+                          shape: BoxShape.circle,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Builder(
+                          builder: (context) {
+                            final asset =
+                                AppServicesCatalog.imageForLegacyType(
+                                    category.id, t.id);
+                            if (asset == null) {
+                              return Icon(category.icon,
+                                  color: const Color(0xFF2563EB), size: 18);
+                            }
+                            return Image.asset(
+                              asset,
+                              width: 36,
+                              height: 36,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                  category.icon,
+                                  color: const Color(0xFF2563EB),
+                                  size: 18),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           label,

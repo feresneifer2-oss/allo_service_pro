@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
 import 'all_categories_sheet.dart';
@@ -68,6 +69,8 @@ class ServiceGrid extends StatelessWidget {
 
             return ServiceCard(
               icon: c.icon,
+              imagePath:
+                  AppServicesCatalog.imageForLegacyCategory(c.id),
               title: title,
               onTap: () => showCategoryServicesSheet(context, c),
             );

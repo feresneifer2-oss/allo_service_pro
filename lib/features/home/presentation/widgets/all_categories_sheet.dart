@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
 import 'category_services_sheet.dart';
@@ -79,11 +80,27 @@ void showAllCategoriesSheet(BuildContext context) {
                             color: Color(0xFFEFF6FF),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
-                            c.icon,
-                            color: const Color(0xFF2563EB),
-                            size: 22,
-                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: AppServicesCatalog.imageForLegacyCategory(
+                                      c.id) ==
+                                  null
+                              ? Icon(
+                                  c.icon,
+                                  color: const Color(0xFF2563EB),
+                                  size: 22,
+                                )
+                              : Image.asset(
+                                  AppServicesCatalog.imageForLegacyCategory(
+                                      c.id)!,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Icon(
+                                    c.icon,
+                                    color: const Color(0xFF2563EB),
+                                    size: 22,
+                                  ),
+                                ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
