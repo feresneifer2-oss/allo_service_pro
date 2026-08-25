@@ -9,6 +9,8 @@ import 'package:allo_service_pro/features/requests/application/request_store.dar
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/support/presentation/support_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart' show appLocale, tr;
+import 'package:allo_service_pro/shared/widgets/info_tile.dart';
+import 'package:allo_service_pro/shared/widgets/initials_avatar.dart';
 
 class MessagesListScreen extends StatelessWidget {
   const MessagesListScreen({super.key});
@@ -58,13 +60,10 @@ class MessagesListScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   tileColor: Colors.white,
-                  leading: CircleAvatar(
+                  leading: InitialsAvatar(
+                    name: r.professionalName,
                     backgroundColor: AppColors.primarySurface,
-                    child: Text(
-                        (r.professionalName.trim().isNotEmpty
-                            ? r.professionalName.trim()[0]
-                            : '?'),
-                        style: const TextStyle(color: AppColors.primary)),
+                    textStyle: const TextStyle(color: AppColors.primary),
                   ),
                   title: Text(r.professionalName,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -116,9 +115,6 @@ class CustomerProfileScreen extends StatelessWidget {
         final accountId = (user?.id.trim().isNotEmpty ?? false)
             ? user!.id.trim()
             : '—';
-        // Garde-fou : évite un RangeError si le nom est vide ou blanc.
-        final avatarInitial =
-            (name.trim().isNotEmpty ? name.trim()[0] : '?').toUpperCase();
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -130,16 +126,14 @@ class CustomerProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               children: [
                 Center(
-                  child: CircleAvatar(
+                  child: InitialsAvatar(
+                    name: name,
                     radius: 48,
                     backgroundColor: AppColors.primarySurface,
-                    child: Text(
-                      avatarInitial,
-                      style: const TextStyle(
-                          fontSize: 36,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold),
-                    ),
+                    textStyle: const TextStyle(
+                        fontSize: 36,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -149,15 +143,26 @@ class CustomerProfileScreen extends StatelessWidget {
                           fontSize: 24, fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(height: 32),
-                _ProfileTile(Icons.person_rounded,
-                    tr(context, fr: 'Nom', ar: 'الاسم'), name),
-                _ProfileTile(Icons.phone_rounded,
-                    tr(context, fr: 'Téléphone', ar: 'الهاتف'), phone),
-                _ProfileTile(Icons.email_rounded,
-                    tr(context, fr: 'Email', ar: 'البريد الإلكتروني'), email),
-                _ProfileTile(Icons.badge_rounded,
-                    tr(context, fr: 'Identifiant de compte', ar: 'معرّف الحساب'),
-                    accountId),
+                InfoTile(
+                  icon: Icons.person_rounded,
+                  label: tr(context, fr: 'Nom', ar: 'الاسم'),
+                  value: name,
+                ),
+                InfoTile(
+                  icon: Icons.phone_rounded,
+                  label: tr(context, fr: 'Téléphone', ar: 'الهاتف'),
+                  value: phone,
+                ),
+                InfoTile(
+                  icon: Icons.email_rounded,
+                  label: tr(context, fr: 'Email', ar: 'البريد الإلكتروني'),
+                  value: email,
+                ),
+                InfoTile(
+                  icon: Icons.badge_rounded,
+                  label: tr(context, fr: 'Identifiant de compte', ar: 'معرّف الحساب'),
+                  value: accountId,
+                ),
                 const SizedBox(height: 24),
                 ListTile(
                   leading: const Icon(Icons.language_rounded,
@@ -214,44 +219,6 @@ class CustomerProfileScreen extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _ProfileTile extends StatelessWidget {
-  const _ProfileTile(this.icon, this.label, this.value);
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13)),
-                Text(value,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

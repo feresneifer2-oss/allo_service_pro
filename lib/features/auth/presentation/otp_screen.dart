@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
 
 import 'language_screen.dart';
 
@@ -185,13 +186,10 @@ class _OtpScreenState extends State<OtpScreen> {
                       ),
               ),
               const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
+              PrimaryActionButton(
+                label: tr(context, fr: 'Vérifier', ar: 'تحقق'),
+                onPressed: _verify,
                 height: 56,
-                child: ElevatedButton(
-                  onPressed: _verify,
-                  child: Text(tr(context, fr: 'Vérifier', ar: 'تحقق')),
-                ),
               ),
             ],
           ),

@@ -8,6 +8,8 @@ import 'package:allo_service_pro/features/rating/presentation/rating_screen.dart
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/info_tile.dart';
+import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
 import 'package:allo_service_pro/shared/widgets/status_badge.dart';
 
 class RequestDetailScreen extends StatelessWidget {
@@ -67,66 +69,57 @@ class RequestDetailScreen extends StatelessWidget {
                         const TextStyle(color: Color(0xFF94A3B8), fontSize: 16),
                   ),
                   const SizedBox(height: 24),
-                  _InfoCard(
+                  InfoTile(
                     icon: Icons.calendar_month_rounded,
+                    variant: InfoTileVariant.dark,
                     label:
                         tr(context, fr: 'Date & Heure', ar: 'التاريخ والوقت'),
                     value: '$date • $time',
                   ),
-                  _InfoCard(
+                  InfoTile(
                     icon: Icons.location_on_rounded,
+                    variant: InfoTileVariant.dark,
                     label: tr(context, fr: 'Lieu', ar: 'المكان'),
                     value: request.address,
                   ),
                   if (request.message.isNotEmpty)
-                    _InfoCard(
+                    InfoTile(
                       icon: Icons.message_rounded,
+                      variant: InfoTileVariant.dark,
                       label: tr(context, fr: 'Message', ar: 'الرسالة'),
                       value: request.message,
                     ),
                   const SizedBox(height: 24),
                   if (RequestStore.isChatAllowed(request.id))
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          ChatStore.seedDemo(request.id);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ChatScreen(requestId: request.id),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.chat_rounded),
-                        label: Text(tr(context,
-                            fr: 'Ouvrir le chat', ar: 'فتح المحادثة')),
-                      ),
+                    PrimaryActionButton(
+                      label: tr(
+                          context, fr: 'Ouvrir le chat', ar: 'فتح المحادثة'),
+                      icon: Icons.chat_rounded,
+                      onPressed: () {
+                        ChatStore.seedDemo(request.id);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(requestId: request.id),
+                          ),
+                        );
+                      },
                     ),
                   if (request.status == RequestStatus.completed &&
                       request.rating == null) ...[
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  RatingScreen(requestId: request.id),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.secondary),
-                        icon: const Icon(Icons.star_rounded),
-                        label: Text(
-                          tr(context, fr: 'Évaluer', ar: 'قيّم'),
-                        ),
-                      ),
+                    PrimaryActionButton(
+                      label: tr(context, fr: 'Évaluer', ar: 'قيّم'),
+                      icon: Icons.star_rounded,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RatingScreen(requestId: request.id),
+                          ),
+                        );
+                      },
+                      backgroundColor: AppColors.secondary,
                     ),
                   ],
                   const SizedBox(height: 40),
@@ -136,50 +129,6 @@ class RequestDetailScreen extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard(
-      {required this.icon, required this.label, required this.value});
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: Color(0xFF94A3B8), fontSize: 13)),
-                const SizedBox(height: 4),
-                Text(value,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    )),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -5,6 +5,8 @@ import 'package:allo_service_pro/features/professionals/data/mock_professionals.
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/initials_avatar.dart';
+import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
 
 class ProfessionalSearchScreen extends StatefulWidget {
   const ProfessionalSearchScreen({super.key});
@@ -260,20 +262,13 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                         const SizedBox(height: 24),
 
                         // Search button
-                        SizedBox(
-                          width: double.infinity,
+                        PrimaryActionButton(
+                          label: tr(context, fr: 'Rechercher', ar: 'بحث'),
+                          icon: Icons.search,
+                          onPressed: _performSearch,
+                          backgroundColor: AppColors.secondary,
+                          foregroundColor: Colors.white,
                           height: 56,
-                          child: ElevatedButton.icon(
-                            onPressed: _performSearch,
-                            icon: const Icon(Icons.search),
-                            label: Text(
-                              tr(context, fr: 'Rechercher', ar: 'بحث'),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.secondary,
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -502,19 +497,14 @@ class _ProfessionalCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              InitialsAvatar(
+                name: professional.name,
                 radius: 28,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                child: Text(
-                  (professional.name.trim().isNotEmpty
-                          ? professional.name.trim()[0]
-                          : '?')
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.primaryLight,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 24,
-                  ),
+                textStyle: const TextStyle(
+                  color: AppColors.primaryLight,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
                 ),
               ),
               const SizedBox(width: 12),
