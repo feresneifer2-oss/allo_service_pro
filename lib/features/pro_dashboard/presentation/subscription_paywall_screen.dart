@@ -23,16 +23,23 @@ class SubscriptionPaywallScreen extends StatelessWidget {
     final accountId =
         (user?.id.isNotEmpty ?? false) ? user!.id : (user?.phone ?? '-');
 
-    final String message;
+    final proCode = user?.proCode;
+    final codeLine = (proCode == null || proCode.isEmpty)
+        ? ''
+        : '\n${isArabic ? 'المعرّف المهني' : 'ID Pro'} : $proCode';
+
+    final String base;
     if (isArabic) {
-      message = askingForReceipt
+      base = askingForReceipt
           ? 'مرحبا، أنا $name (معرّف الحساب: $accountId).\nهذا وصل دفع D17 الخاص بتجديد اشتراكي الشهري (15 دينار) — أرجو تفعيل الحساب غير المحدود. 🙏'
           : 'مرحبا، أنا $name، معرّف حسابي: $accountId.\nانتهى اشتراكي الشهري وأرجو تزويدي بمعلومات الدفع عبر D17 لتفعيل الحساب غير المحدود لمدة شهر كامل مقابل 15 دينار.\nسأرفق صورة وصل الدفع هنا بعد التحويل 🙏';
     } else {
-      message = askingForReceipt
+      base = askingForReceipt
           ? 'Bonjour, je suis $name (ID : $accountId).\nVoici mon reçu de paiement D17 pour le renouvellement mensuel (15 TND) — merci d\'activer mon accès illimité. 🙏'
           : "Bonjour, je suis $name (ID : $accountId).\nMon abonnement mensuel a expiré ; merci de m'envoyer les informations de paiement D17 pour activer l'accès illimité d'un mois complet pour 15 TND.\nJe joindrai le reçu de paiement ici après le transfert 🙏";
     }
+
+    final String message = '$base$codeLine';
 
     final uri = Uri.parse(
       'https://wa.me/${SubscriptionStore.whatsappNumber}'

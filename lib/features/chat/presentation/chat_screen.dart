@@ -116,6 +116,30 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          // ⏳ Auto-close countdown (4 days after acceptance).
+          Builder(
+            builder: (_) {
+              final session = ChatStore.sessionOf(widget.requestId);
+              if (session == null || !session.active) {
+                return const SizedBox.shrink();
+              }
+              final hours = session.hoursUntilAutoClose;
+              return Container(
+                width: double.infinity,
+                color: const Color(0xFFEFF6FF),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: Text(
+                  tr(context,
+                      fr: '⏳ Fermeture auto dans $hours h (max 4 jours)',
+                      ar: '⏳ الإغلاق التلقائي بعد $hours ساعة (4 أيام)'),
+                  textAlign: TextAlign.center,
+                  style:
+                      const TextStyle(color: AppColors.primary, fontSize: 11),
+                ),
+              );
+            },
+          ),
           Expanded(
             // Le seul abonnement à ChatStore.messages est celui de build() ;
             // cette liste lit simplement l'instantané courant à chaque
@@ -149,6 +173,26 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          if (!RequestStore.isChatAllowed(widget.requestId)) ...[
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.lock_rounded, color: AppColors.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'هذه المحادثة مغلقة تلقائياً بعد مرور 4 أيام',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else
           Container(
             padding: const EdgeInsets.all(12),
             color: Colors.white,

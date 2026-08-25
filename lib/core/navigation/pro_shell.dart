@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_dashboard_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_profile_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/subscription_paywall_screen.dart';
+import 'package:allo_service_pro/features/pro_dashboard/presentation/verification_gate_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
 class ProShell extends StatefulWidget {
@@ -26,6 +28,13 @@ class _ProShellState extends State<ProShell> {
 
   @override
   Widget build(BuildContext context) {
+    // ── Gate 0 · Verification ────────────────────────────────────────────
+    // Unverified professionals are blocked until the admin approves them.
+    final sessionUser = UserStore.user.value;
+    if (sessionUser?.needsVerificationGate ?? false) {
+      return const VerificationGateScreen();
+    }
+
     // Paywall gates:
     // 1. An expired monthly subscription blocks every dashboard feature
     //    until the admin re-activates the account.

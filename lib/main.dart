@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/admin/application/admin_store.dart';
+import 'features/auth/application/user_store.dart';
 import 'features/pro_dashboard/application/pro_profile_store.dart';
 import 'features/pro_dashboard/application/subscription_store.dart';
 import 'features/splash/presentation/splash_screen.dart';
@@ -15,8 +17,10 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Restore locally persisted pro state (token balance & subscription)
-  // before the first frame so dashboards render the correct mode.
+  // Restore locally persisted state BEFORE the first frame:
+  // admin registry · user session · tokens · subscription.
+  await AdminStore.loadFromPrefs();
+  await UserStore.loadFromPrefs();
   await SubscriptionStore.loadFromPrefs();
   await ProProfileStore.loadFromPrefs();
 

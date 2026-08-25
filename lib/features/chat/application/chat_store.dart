@@ -15,11 +15,11 @@ class ChatStore {
 
   /// Auto-expiry window applied to newly opened chats. Admin-configurable,
   /// business range: 48–72 hours (default 48h).
-  static int _expiryHours = 48;
+  static int _expiryHours = 96;
   static int get expiryHours => _expiryHours;
 
   static void setExpiryHours(int hours) {
-    if (hours < 48 || hours > 72) return;
+    if (hours < 48 || hours > 96) return;
     _expiryHours = hours;
   }
 

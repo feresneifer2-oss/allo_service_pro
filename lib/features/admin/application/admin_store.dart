@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 
 // ─── Admin Credentials ──────────────────────────────────────────────────────
@@ -91,33 +93,11 @@ class AdminStore {
     ),
   ]);
 
-  static void approvePro(String id, {String? badge}) {
-    final list = List<PendingProModel>.from(pendingPros.value);
-    final idx = list.indexWhere((p) => p.id == id);
-    if (idx != -1) {
-      list[idx] = list[idx].copyWith(
-        status: 'approved',
-        badge: badge ?? 'verified',
-      );
-      pendingPros.value = list;
-      totalPros.value++;
-    }
-  }
-
   static void setBadge(String id, String badge) {
     final list = List<PendingProModel>.from(pendingPros.value);
     final idx = list.indexWhere((p) => p.id == id);
     if (idx != -1) {
       list[idx] = list[idx].copyWith(badge: badge);
-      pendingPros.value = list;
-    }
-  }
-
-  static void rejectPro(String id) {
-    final list = List<PendingProModel>.from(pendingPros.value);
-    final idx = list.indexWhere((p) => p.id == id);
-    if (idx != -1) {
-      list[idx] = list[idx].copyWith(status: 'rejected');
       pendingPros.value = list;
     }
   }
@@ -140,5 +120,152 @@ class AdminStore {
   // Admin function to reset request acceptance and deduct tokens again
   static void resetRequestAcceptance(String requestId) {
     RequestStore.adminResetAcceptance(requestId);
+  }
+
+  // ─── Registration gatekeeping · PRO-XXXXX lifecycle ─────────────────
+
+  static int _proSeq = 1;
+  static const String _kRegistry = 'admin_pending_pros_json';
+  static const String _kSeq = 'admin_pro_seq';
+
+  /// Generates the next unique non-repeating identifier (PRO-00001…).
+  static String _nextProCode() {
+    final used = pendingPros.value.map((p) => p.proCode).toSet();
+    var n = _proSeq;
+    String code() => 'PRO-${n.toString().padLeft(5, '0')}';
+    while (used.contains(code())) {
+      n++;
+    }
+    _proSeq = n + 1;
+    return code();
+  }
+
+  /// Registers a new professional: assigns the unique PRO-XXXXX code,
+  /// defaults to `status = pending`, no tokens, no badges, not paid.
+  static PendingProModel registerPro(PendingProModel draft) {
+    final code = _nextProCode();
+    final pro = draft.copyWith(
+      proCode: code,
+      status: 'pending',
+      tokens: 0,
+      isPaid: false,
+      badges: const [],
+    );
+    pendingPros.value = [pro, ...pendingPros.value];
+    persistToPrefs();
+    return pro;
+  }
+
+  /// Admin approval: unlocks the account and grants 150 initial tokens.
+  static void approvePro(String id, {String? badge}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(
+      status: 'approved',
+      tokens: 150,
+      rejectionReason: null,
+      badge: badge,
+    );
+    pendingPros.value = list;
+    totalPros.value++;
+    persistToPrefs();
+  }
+
+  /// Rejects with a visible reason; the Pro can re-upload proof later.
+  static void rejectPro(String id, {String? reason}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(status: 'rejected', rejectionReason: reason);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Pro re-submits proof after a rejection — back to the review queue.
+  static void resubmitProof(String id, {String? proofPath}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(
+      status: 'pending',
+      rejectionReason: null,
+      docImage: proofPath,
+    );
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Manual token adjustment from the admin detail modal (+/-).
+  static void adjustTokens(String id, int delta) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    final next = (list[idx].tokens + delta).clamp(0, 9999);
+    list[idx] = list[idx].copyWith(tokens: next);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Toggles the 30-day unlimited paid plan for a specific Pro.
+  static void setPaid(String id, {required bool isPaid}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(isPaid: isPaid);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Adds or removes a manual badge (`verified` / `master` / `top_rated`).
+  static void toggleBadge(String id, String badge) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    final current = Set<String>.from(list[idx].badges);
+    if (!current.add(badge)) current.remove(badge);
+    list[idx] = list[idx].copyWith(badges: current.toList());
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Pre-filled WhatsApp inquiry text for a given Pro.
+  static String whatsappMessage({
+    required String name,
+    required String profession,
+    required String proCode,
+  }) =>
+      'مرحبا، أنا $name — $profession.\n'
+      'معرّفي المهني: $proCode\n'
+      'أرجو مراجعة طلب تفعيل حسابي. 🙏';
+
+  // ─── Local persistence (SharedPreferences) ──────────────────────────
+
+  static Future<void> persistToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kRegistry,
+        jsonEncode(pendingPros.value.map((p) => p.toJson()).toList()),
+      );
+      await prefs.setInt(_kSeq, _proSeq);
+    } catch (_) {
+      // Best-effort persistence.
+    }
+  }
+
+  static Future<void> loadFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kRegistry);
+      if (raw == null) return;
+      final decoded = (jsonDecode(raw) as List)
+          .map((e) => PendingProModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      pendingPros.value = decoded;
+      _proSeq = (prefs.getInt(_kSeq) ?? decoded.length + 1).clamp(1, 999999);
+    } catch (_) {
+      // Corrupted registry: keep seeded demo data.
+    }
   }
 }

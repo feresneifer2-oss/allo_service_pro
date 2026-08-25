@@ -4,6 +4,8 @@ import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/presentation/verification_gate_screen.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
@@ -86,11 +88,21 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
       setState(() => _step++);
     } else {
       // ── Submit Pro Registration ──
-      final proId = 'pro_${DateTime.now().millisecondsSinceEpoch}';
+      // Proof of work / profession photo is MANDATORY.
+      if (!_docUploaded) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(context,
+                fr: 'Veuillez téléverser une preuve (photo métier).',
+                ar: 'المرجو رفع إثبات المهنة (صورة).')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
 
-      // Houni nabaathou el data lel AdminStore
       final newPro = PendingProModel(
-        id: proId,
+        id: 'pro_${DateTime.now().millisecondsSinceEpoch}',
         name: _nameController.text,
         phone: '+216 20 123 456', // Mock phone
         professionFr: _selectedCategory?.fr ?? 'Peintre',
@@ -98,11 +110,12 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
         city: _city ?? _governorate,
         submittedAt:
             '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
-        docImage: _docUploaded ? 'assets/images/doc_placeholder.png' : null,
+        docImage: 'assets/images/doc_placeholder.png',
         status: 'pending',
       );
 
-      AdminStore.pendingPros.value = [...AdminStore.pendingPros.value, newPro];
+      // Assigns the unique PRO-XXXXX code and queues for admin review.
+      final registered = AdminStore.registerPro(newPro);
 
       ProProfileStore.professionFr = newPro.professionFr;
       ProProfileStore.professionAr = newPro.professionAr;
@@ -113,6 +126,17 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
       ProProfileStore.workImages.value = List.from(_galleryPhotos);
       ProProfileStore.serviceZones.value = [_governorate];
       ProProfileStore.verificationStatus.value = ProVerificationStatus.pending;
+
+      // Bind the professional identity to the local session, then land on
+      // the verification gate (pending approval / WhatsApp inquiry).
+      UserStore.set(
+        name: registered.name,
+        phone: registered.phone,
+        role: UserRole.professional,
+        proCode: registered.proCode,
+        proofPath: registered.docImage,
+        verificationStatus: ProVerification.pending,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -126,7 +150,10 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           backgroundColor: AppColors.secondary,
         ),
       );
-      Navigator.pop(context);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const VerificationGateScreen()),
+      );
     }
   }
 

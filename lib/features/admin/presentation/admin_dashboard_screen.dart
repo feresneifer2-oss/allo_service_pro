@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
@@ -6,8 +9,6 @@ import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
-import 'package:allo_service_pro/features/admin/presentation/category_management_screen.dart';
-import 'package:allo_service_pro/features/admin/presentation/uniform_management_screen.dart';
 import 'package:allo_service_pro/features/admin/presentation/detailed_statistics_screen.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/models/chat_session.dart';
@@ -214,20 +215,355 @@ class _PendingProsTab extends StatefulWidget {
 }
 
 class _PendingProsTabState extends State<_PendingProsTab> {
-  String _filter = 'all'; // 'all' | 'pending' | 'approved' | 'rejected'
+  String _filter = 'all';
+  final _queryController = TextEditingController();
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  /// Account lifecycle bucket derived from registry fields.
+  String _accountState(PendingProModel p) {
+    switch (p.status) {
+      case 'pending':
+      case 'rejected':
+        return 'pending';
+      case 'approved':
+        if (p.isPaid) return 'paid';
+        return p.tokens <= 0 ? 'expired' : 'active';
+    }
+    return 'pending';
+  }
+
+  bool _matchesQuery(PendingProModel p, String q) {
+    if (q.isEmpty) return true;
+    final needle = q.toLowerCase();
+    return (p.proCode ?? '').toLowerCase().contains(needle) ||
+        p.name.toLowerCase().contains(needle) ||
+        p.phone.toLowerCase().contains(needle);
+  }
+
+  /// Full admin detail modal for a single Pro.
+  void _showProDetail(BuildContext context, PendingProModel pro) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.92,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) =>
+            ValueListenableBuilder<List<PendingProModel>>(
+          valueListenable: AdminStore.pendingPros,
+          builder: (_, list, ___) {
+            final p =
+                list.firstWhere((e) => e.id == pro.id, orElse: () => pro);
+            return ListView(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(p.name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20)),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon:
+                          const Icon(Icons.close_rounded, color: Colors.white),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (p.proCode != null)
+                      _codeChip(p.proCode!, success: p.isPaid),
+                    _stateChip(p),
+                    for (final b in p.badges) _badgeChip(b),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('${p.professionFr} • ${p.city ?? '-'} • ${p.phone}',
+                    style: const TextStyle(color: Color(0xFF94A3B8))),
+                const SizedBox(height: 16),
+                Text('Preuve de travail',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: .9),
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Container(
+                  height: 260,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: p.docImage == null
+                      ? const Center(
+                          child: Text('Aucune preuve fournie',
+                              style: TextStyle(color: Color(0xFF64748B))))
+                      : InteractiveViewer(
+                          maxScale: 4,
+                          child: p.docImage!.startsWith('assets/')
+                              ? Image.asset(p.docImage!,
+                                  fit: BoxFit.contain)
+                              : Image.file(File(p.docImage!),
+                                  fit: BoxFit.contain, errorBuilder:
+                                      (_, __, ___) => const Center(
+                                          child: Text('Preuve illisible',
+                                              style: TextStyle(
+                                                  color: Color(0xFF64748B)))),
+                                  ),
+                        ),
+                ),
+                const SizedBox(height: 20),
+                // ── Tokens ──
+                Row(
+                  children: [
+                    const Icon(Icons.toll_rounded,
+                        color: AppColors.secondary, size: 20),
+                    const SizedBox(width: 8),
+                    const Text('Tokens',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    IconButton.filledTonal(
+                      onPressed: () =>
+                          AdminStore.adjustTokens(p.id, -10),
+                      icon: const Icon(Icons.remove_rounded,
+                          color: Colors.white),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('${p.tokens}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18)),
+                    ),
+                    IconButton.filledTonal(
+                      onPressed: () =>
+                          AdminStore.adjustTokens(p.id, 10),
+                      icon: const Icon(Icons.add_rounded,
+                          color: Colors.white),
+                    ),
+                  ],
+                ),
+                const Divider(color: Color(0xFF1E293B), height: 28),
+
+                // ── Unlimited plan ──
+                SwitchListTile(
+                  value: p.isPaid,
+                  onChanged: (v) => AdminStore.setPaid(p.id, isPaid: v),
+                  title: const Text('Abonnement illimité (30 jours)',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700)),
+                  subtitle: const Text(
+                      'Confirme sans consommer de tokens',
+                      style:
+                          TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                ),
+                const Divider(color: Color(0xFF1E293B), height: 28),
+
+                // ── Badges manuels ──
+                Text('Badges manuels',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: .9),
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final entry in const [
+                      ('verified', 'موثّق'),
+                      ('master', 'خبير'),
+                      ('top_rated', 'الأعلى تقييمًا'),
+                    ])
+                      FilterChip(
+                        selected: p.badges.contains(entry.$1),
+                        onSelected: (_) =>
+                            AdminStore.toggleBadge(p.id, entry.$1),
+                        label: Text(entry.$2),
+                        labelStyle: const TextStyle(
+                            color: Colors.white, fontSize: 12),
+                        backgroundColor: const Color(0xFF1E293B),
+                        selectedColor:
+                            AppColors.primary.withValues(alpha: .35),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                // ── Decisions ──
+                if (p.status == 'pending' || p.status == 'rejected') ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        AdminStore.approvePro(p.id);
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.verified_rounded),
+                      label: const Text('Approuver le compte'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final reasonCtrl = TextEditingController();
+                        final reason = await showDialog<String>(
+                          context: context,
+                          builder: (dlgCtx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1E293B),
+                            title: const Text('Motif du refus',
+                                style: TextStyle(color: Colors.white)),
+                            content: TextField(
+                              controller: reasonCtrl,
+                              maxLines: 3,
+                              autofocus: true,
+                              style:
+                                  const TextStyle(color: Colors.white),
+                              decoration: const InputDecoration(
+                                hintText: 'Expliquez la raison du refus…',
+                                hintStyle: TextStyle(
+                                    color: Color(0xFF64748B)),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(dlgCtx),
+                                child: const Text('Annuler'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(
+                                    dlgCtx, reasonCtrl.text.trim()),
+                                child: const Text('Confirmer'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (reason != null && reason.isNotEmpty) {
+                          AdminStore.rejectPro(p.id, reason: reason);
+                        }
+                      },
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Refuser avec motif'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(
+                            color:
+                                AppColors.error.withValues(alpha: .5)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Center(
+                    child: Text(
+                      p.status == 'approved'
+                          ? 'Compte approuvé ✓ — accès actif'
+                          : 'Compte refusé',
+                      style: const TextStyle(color: Color(0xFF94A3B8)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                // ── Direct WhatsApp ──
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      final msg = AdminStore.whatsappMessage(
+                        name: p.name,
+                        profession: p.professionFr,
+                        proCode: p.proCode ?? '-',
+                      );
+                      final uri = Uri.parse(
+                          'https://wa.me/${SubscriptionStore.whatsappNumber}'
+                          '?text=${Uri.encodeComponent(msg)}');
+                      launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    },
+                    icon: const Icon(Icons.chat_rounded),
+                    label: const Text('Contacter via WhatsApp'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.success,
+                      side: BorderSide(
+                          color:
+                              AppColors.success.withValues(alpha: .4)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Filter chips
+        // ── Search ───────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+          child: TextField(
+            controller: _queryController,
+            onChanged: (_) => setState(() {}),
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'PRO-00001 · Nom · Téléphone',
+              hintStyle: const TextStyle(color: Color(0xFF64748B)),
+              prefixIcon:
+                  const Icon(Icons.search_rounded, color: Color(0xFF94A3B8)),
+              filled: true,
+              fillColor: const Color(0xFF1E293B),
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ),
+        // ── Filter chips ─────────────────────────────────────────────────
         SizedBox(
           height: 40,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             children: [
-              for (final f in ['all', 'pending', 'approved', 'rejected'])
+              for (final f in ['all', 'pending', 'active', 'paid', 'expired'])
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
@@ -235,8 +571,9 @@ class _PendingProsTabState extends State<_PendingProsTab> {
                     selected: _filter == f,
                     selectedColor: AppColors.secondary,
                     labelStyle: TextStyle(
-                      color:
-                          _filter == f ? Colors.white : const Color(0xFF94A3B8),
+                      color: _filter == f
+                          ? Colors.white
+                          : const Color(0xFF94A3B8),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -254,9 +591,13 @@ class _PendingProsTabState extends State<_PendingProsTab> {
           child: ValueListenableBuilder<List<PendingProModel>>(
             valueListenable: AdminStore.pendingPros,
             builder: (context, list, _) {
-              final filtered = _filter == 'all'
-                  ? list
-                  : list.where((p) => p.status == _filter).toList();
+              final query = _queryController.text.trim().toLowerCase();
+              final filtered = list.where((p) {
+                if (_filter != 'all' && _accountState(p) != _filter) {
+                  return false;
+                }
+                return _matchesQuery(p, query);
+              }).toList();
 
               if (filtered.isEmpty) {
                 return Center(
@@ -280,7 +621,10 @@ class _PendingProsTabState extends State<_PendingProsTab> {
               return ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 itemCount: filtered.length,
-                itemBuilder: (_, i) => _ProCard(pro: filtered[i]),
+                itemBuilder: (_, i) => _ProCard(
+                  pro: filtered[i],
+                  onOpenDetails: () => _showProDetail(context, filtered[i]),
+                ),
               );
             },
           ),
@@ -293,19 +637,76 @@ class _PendingProsTabState extends State<_PendingProsTab> {
     switch (f) {
       case 'pending':
         return '⏳ En attente';
-      case 'approved':
-        return '✅ Approuvés';
-      case 'rejected':
-        return '❌ Refusés';
+      case 'active':
+        return '🟢 Actifs';
+      case 'paid':
+        return '💎 Payés';
+      case 'expired':
+        return '⛔ Expirés';
       default:
         return '📋 Tous';
     }
   }
+  Widget _codeChip(String text, {bool success = false}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: (success ? AppColors.success : AppColors.primary)
+              .withValues(alpha: .15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: success ? AppColors.success : AppColors.primaryLight,
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      );
+
+  Widget _badgeChip(String b) {
+    final label = switch (b) {
+      'verified' => 'موثّق',
+      'master' => 'خبير',
+      'top_rated' => 'الأعلى تقييمًا',
+      _ => b,
+    };
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      backgroundColor: AppColors.secondary.withValues(alpha: .15),
+      side: BorderSide.none,
+      label: Text(label,
+          style: const TextStyle(color: Colors.white, fontSize: 11)),
+    );
+  }
+
+  Widget _stateChip(PendingProModel p) {
+    final state = _accountState(p);
+    final (label, color) = switch (state) {
+      'paid' => ('اشتراك مدفوع 💎', AppColors.success),
+      'active' => ('نشط 🟢', AppColors.success),
+      'expired' => ('منتهي ⛔', AppColors.error),
+      _ => p.status == 'rejected'
+          ? ('مرفوض ❌', AppColors.error)
+          : ('في انتظار التفعيل ⏳', AppColors.warning),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+    );
+  }
 }
 
 class _ProCard extends StatelessWidget {
-  const _ProCard({required this.pro});
+  const _ProCard({required this.pro, this.onOpenDetails});
   final PendingProModel pro;
+  final VoidCallback? onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -366,26 +767,65 @@ class _ProCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11),
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11),
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: onOpenDetails,
+                      tooltip: 'Détails & gestion',
+                      icon: const Icon(Icons.manage_accounts_rounded,
+                          size: 20, color: Color(0xFF38BDF8)),
+                    ),
+                    IconButton(
+                      tooltip: 'WhatsApp',
+                      onPressed: () {
+                        final msg = AdminStore.whatsappMessage(
+                          name: pro.name,
+                          profession: pro.professionFr,
+                          proCode: pro.proCode ?? '-',
+                        );
+                        final uri = Uri.parse(
+                            'https://wa.me/${SubscriptionStore.whatsappNumber}'
+                            '?text=${Uri.encodeComponent(msg)}');
+                        launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                      },
+                      icon: const Icon(Icons.chat_rounded,
+                          size: 20, color: AppColors.success),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 10),
             Row(
               children: [
+                if (pro.proCode != null) ...[
+                  const Icon(Icons.badge_outlined,
+                      size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 4),
+                  Text(pro.proCode!,
+                      style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 10),
+                ],
                 const Icon(Icons.phone_outlined,
                     size: 14, color: Color(0xFF64748B)),
                 const SizedBox(width: 4),
@@ -401,6 +841,31 @@ class _ProCard extends StatelessWidget {
                         color: Color(0xFF94A3B8), fontSize: 12)),
               ],
             ),
+            if (pro.badges.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final b in pro.badges)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor:
+                          AppColors.secondary.withValues(alpha: .15),
+                      side: BorderSide.none,
+                      label: Text(
+                        switch (b) {
+                          'verified' => 'موثّق',
+                          'master' => 'خبير',
+                          'top_rated' => 'الأعلى تقييمًا',
+                          _ => b,
+                        },
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 11),
+                      ),
+                    ),
+                ],
+              ),
+            ],
             if (pro.status == 'pending') ...[
               const SizedBox(height: 14),
               if (pro.docImage != null) ...[
@@ -1038,34 +1503,6 @@ class _SettingsTabState extends State<_SettingsTab> {
         ),
         const SizedBox(height: 16),
         _SectionHeader(label: 'Gestion des données'),
-        _ActionTile(
-          icon: Icons.category_rounded,
-          label: 'Gérer les catégories',
-          subtitle: 'Ajouter / modifier les catégories de services',
-          color: const Color(0xFF7C3AED),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const CategoryManagementScreen(),
-              ),
-            );
-          },
-        ),
-        _ActionTile(
-          icon: Icons.workspace_premium_rounded,
-          label: 'Attribuer des uniformes',
-          subtitle: 'Envoyer un pack équipement aux Top Pros',
-          color: AppColors.secondary,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const UniformManagementScreen(),
-              ),
-            );
-          },
-        ),
         _ActionTile(
           icon: Icons.bar_chart_rounded,
           label: 'Voir les statistiques détaillées',
