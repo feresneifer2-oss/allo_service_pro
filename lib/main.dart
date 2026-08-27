@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/network/connectivity_store.dart';
 import 'core/theme/app_theme.dart';
 import 'features/admin/application/admin_store.dart';
 import 'features/auth/application/user_store.dart';
 import 'features/pro_dashboard/application/pro_profile_store.dart';
 import 'features/pro_dashboard/application/subscription_store.dart';
 import 'features/splash/presentation/splash_screen.dart';
+import 'package:allo_service_pro/shared/widgets/offline_overlay.dart';
 import 'shared/app_locale.dart';
 
 Future<void> main() async {
@@ -23,6 +25,9 @@ Future<void> main() async {
   await UserStore.loadFromPrefs();
   await SubscriptionStore.loadFromPrefs();
   await ProProfileStore.loadFromPrefs();
+
+  // Global connectivity listener (Uber-style offline overlay).
+  ConnectivityStore.init();
 
   runApp(const AlloServiceProApp());
 }
@@ -53,7 +58,9 @@ class AlloServiceProApp extends StatelessWidget {
           // the keyboard on every screen, without touching each screen's code.
           builder: (context, child) => GestureDetector(
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-            child: child,
+            child: OfflineOverlay(
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
           home: const SplashScreen(),
         );

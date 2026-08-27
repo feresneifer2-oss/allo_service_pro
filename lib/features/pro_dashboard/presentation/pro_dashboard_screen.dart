@@ -470,7 +470,9 @@ class ProRequestsScreen extends StatelessWidget {
                                 context,
                                 MaterialPageRoute(
                                     builder: (_) =>
-                                        ChatScreen(requestId: r.id)),
+                                        ChatScreen(
+                                            requestId: r.id,
+                                            isCustomer: false)),
                               );
                             },
                             icon: const Icon(Icons.chat_rounded),

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Voice notes recording (bidirectional chat messaging) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="allo_service_pro"
         android:name="${applicationName}"

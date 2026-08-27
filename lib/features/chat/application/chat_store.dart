@@ -95,18 +95,90 @@ class ChatStore {
     required String text,
     required bool isCustomer,
   }) {
-    // Defense-in-depth: never persist messages into locked rooms (admin
-    // closure, expiry, or unconfirmed order).
+    _append(
+      requestId: requestId,
+      senderId: senderId,
+      senderName: senderName,
+      text: text,
+      isCustomer: isCustomer,
+    );
+  }
+
+  /// Sends a recorded voice note. Available to BOTH roles (client & pro) —
+  /// the stored structure is identical, only the bubble side differs.
+  static void sendVoice({
+    required String requestId,
+    required String senderId,
+    required String senderName,
+    required String filePath,
+    required int durationSec,
+    required bool isCustomer,
+  }) {
+    final path = filePath.trim();
+    if (path.isEmpty) return;
+    final seconds =
+        durationSec < 1 ? 1 : (durationSec > 600 ? 600 : durationSec);
+    _append(
+      requestId: requestId,
+      senderId: senderId,
+      senderName: senderName,
+      text: '',
+      isCustomer: isCustomer,
+      type: ChatMessageType.voice,
+      mediaPath: path,
+      voiceDurationSec: seconds,
+    );
+  }
+
+  /// Sends an attached photo. Available to BOTH roles as well.
+  static void sendPhoto({
+    required String requestId,
+    required String senderId,
+    required String senderName,
+    required String filePath,
+    required bool isCustomer,
+  }) {
+    final path = filePath.trim();
+    if (path.isEmpty) return;
+    _append(
+      requestId: requestId,
+      senderId: senderId,
+      senderName: senderName,
+      text: '',
+      isCustomer: isCustomer,
+      type: ChatMessageType.photo,
+      mediaPath: path,
+    );
+  }
+
+  static int _seq = 0;
+
+  /// Single persistence pipeline shared by text / voice / photo messages.
+  /// Defense-in-depth: never persist messages into locked rooms (admin
+  /// closure, expiry, or unconfirmed order).
+  static void _append({
+    required String requestId,
+    required String senderId,
+    required String senderName,
+    required String text,
+    required bool isCustomer,
+    ChatMessageType type = ChatMessageType.text,
+    String? mediaPath,
+    int voiceDurationSec = 0,
+  }) {
     if (!RequestStore.isChatAllowed(requestId)) return;
 
     final msg = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: '${DateTime.now().millisecondsSinceEpoch}_${_seq++}',
       requestId: requestId,
       senderId: senderId,
       senderName: senderName,
       text: text,
       sentAt: DateTime.now(),
       isCustomer: isCustomer,
+      type: type,
+      mediaPath: mediaPath,
+      voiceDurationSec: voiceDurationSec,
     );
 
     final map = Map<String, List<ChatMessage>>.from(messages.value);

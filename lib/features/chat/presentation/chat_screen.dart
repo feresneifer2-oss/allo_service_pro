@@ -1,17 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
+import 'package:allo_service_pro/features/chat/data/chat_media_service.dart';
 import 'package:allo_service_pro/features/chat/models/chat_message.dart';
 import 'package:allo_service_pro/features/chat/models/chat_session.dart';
+import 'package:allo_service_pro/features/chat/presentation/widgets/media_bubbles.dart';
+import 'package:allo_service_pro/features/chat/presentation/widgets/voice_note_player.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
-import 'package:allo_service_pro/core/models/request_status.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.requestId});
+  const ChatScreen({super.key, required this.requestId, this.isCustomer});
 
   final String requestId;
+
+  /// Viewer role. Null → inferred from the active session (UserStore).
+  final bool? isCustomer;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -19,9 +28,24 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
+  Timer? _recTimer;
+  int _recSeconds = 0;
+  bool _isRecording = false;
+
+  /// Client vs pro viewer — drives bubble mirroring & sender identity.
+  bool get _viewerIsCustomer =>
+      widget.isCustomer ??
+      !(UserStore.user.value?.isProfessional ?? false);
+
+  @override
+  void initState() {
+    super.initState();
+    VoiceNotePlayer.warmUp();
+  }
 
   @override
   void dispose() {
+    _recTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -39,6 +63,108 @@ class _ChatScreenState extends State<ChatScreen> {
       isCustomer: isCustomer,
     );
     _controller.clear();
+  }
+
+  void _sendVoice() async {
+    final isCustomer = _viewerIsCustomer;
+    final request = RequestStore.byId(widget.requestId);
+    if (request == null) return;
+    final (path, seconds) = await ChatMediaService.stopVoiceRecording();
+    _recTimer?.cancel();
+    if (mounted) setState(() => _isRecording = false);
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr(context,
+              fr: 'Enregistrement indisponible', ar: 'تعذّر التسجيل الصوتي')),
+        ));
+      }
+      return;
+    }
+    ChatStore.sendVoice(
+      requestId: widget.requestId,
+      senderId: isCustomer ? 'customer' : 'pro',
+      senderName: isCustomer ? request.customerName : request.professionalName,
+      filePath: path,
+      durationSec: seconds,
+      isCustomer: isCustomer,
+    );
+  }
+
+  void _startRecording() async {
+    final ok = await ChatMediaService.startVoiceRecording();
+    if (!ok) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr(context,
+              fr: 'Microphone indisponible', ar: 'الميكروفون غير متاح')),
+        ));
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _isRecording = true;
+      _recSeconds = 0;
+      _recTimer?.cancel();
+      _recTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _recSeconds++);
+      });
+    });
+  }
+
+  void _cancelRecording() async {
+    _recTimer?.cancel();
+    await ChatMediaService.cancelVoiceRecording();
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _recSeconds = 0;
+      });
+    }
+  }
+
+  void _attachPhoto() async {
+    final isCustomer = _viewerIsCustomer;
+    final request = RequestStore.byId(widget.requestId);
+    if (request == null) return;
+    if (!mounted) return;
+    final fromCamera = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded,
+                  color: AppColors.primary),
+              title: Text(tr(sheetCtx, fr: 'Galerie', ar: 'المعرض')),
+              onTap: () => Navigator.pop(sheetCtx, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded,
+                  color: AppColors.primary),
+              title: Text(tr(sheetCtx, fr: 'Caméra', ar: 'الكاميرا')),
+              onTap: () => Navigator.pop(sheetCtx, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (fromCamera == null) return;
+    final path = await ChatMediaService.pickPhoto(fromCamera: fromCamera);
+    if (path == null) return;
+    ChatStore.sendPhoto(
+      requestId: widget.requestId,
+      senderId: isCustomer ? 'customer' : 'pro',
+      senderName: isCustomer ? request.customerName : request.professionalName,
+      filePath: path,
+      isCustomer: isCustomer,
+    );
   }
 
   @override
@@ -155,7 +281,14 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: msgs.length,
               itemBuilder: (_, i) {
                 final m = msgs[i];
-                final isMe = m.isCustomer;
+                final isMe = m.isCustomer == _viewerIsCustomer;
+                if (m.hasMedia) {
+                  return Align(
+                    alignment:
+                        isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    child: ChatMediaBubble(message: m, isMine: isMe),
+                  );
+                }
                 return Align(
                   alignment:
                       isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -191,7 +324,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'هذه المحادثة مغلقة تلقائياً بعد مرور 4 أيام',
+                      tr(context,
+                          fr:
+                              "Cette conversation s'est fermée automatiquement après 4 jours.",
+                          ar: 'هذه المحادثة مغلقة تلقائياً بعد مرور 4 أيام'),
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                   ),
@@ -202,30 +338,93 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             color: Colors.white,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(
-                      hintText:
-                          tr(context, fr: 'Votre message...', ar: 'رسالتك...'),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                    ),
+            child: _isRecording
+                ? Row(
+                    children: [
+                      const Icon(Icons.radio_button_checked_rounded,
+                          color: AppColors.error, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '$_recSeconds s',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _cancelRecording,
+                        child: Text(tr(context,
+                            fr: 'Annuler', ar: 'إلغاء')),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: _sendVoice,
+                        customBorder: const CircleBorder(),
+                        child: const CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.secondary,
+                          child: Icon(Icons.send_rounded,
+                              size: 20, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) =>
+                              _send(isCustomer: _viewerIsCustomer),
+                          decoration: InputDecoration(
+                            hintText: tr(context,
+                                fr: 'Votre message...', ar: 'رسالتك...'),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24)),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: _attachPhoto,
+                        customBorder: const CircleBorder(),
+                        child: const CircleAvatar(
+                          radius: 19,
+                          backgroundColor: AppColors.primarySurface,
+                          child: Icon(Icons.add_photo_alternate_outlined,
+                              size: 20, color: AppColors.primary),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: _startRecording,
+                        customBorder: const CircleBorder(),
+                        child: const CircleAvatar(
+                          radius: 19,
+                          backgroundColor: AppColors.primarySurface,
+                          child: Icon(Icons.mic_none_rounded,
+                              size: 20, color: AppColors.secondary),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _send(isCustomer: _viewerIsCustomer),
+                        customBorder: const CircleBorder(),
+                        child: const CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AppColors.primary,
+                          child: Icon(Icons.send_rounded,
+                              size: 20, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: () => _send(isCustomer: true),
-                  icon: const Icon(Icons.send_rounded),
-                  style: IconButton.styleFrom(
-                      backgroundColor: AppColors.secondary),
-                ),
-              ],
-            ),
           ),
         ],
       ),
