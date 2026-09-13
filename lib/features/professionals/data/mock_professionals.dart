@@ -151,6 +151,8 @@ const allProfessionals = <ProfessionalModel>[
   ),
 ];
 
+/// Legacy helpers — kept only for old imports. New code should use
+/// [ProfessionalsRepository] which also includes live approved pros.
 List<ProfessionalModel> professionalsForService(String serviceId) =>
     allProfessionals.where((p) => p.serviceIds.contains(serviceId)).toList();
 

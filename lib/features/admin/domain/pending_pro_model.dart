@@ -16,8 +16,11 @@ class PendingProModel {
     this.proCode,
     this.tokens = 0,
     this.isPaid = false,
+    this.paidUntilMs,
     this.rejectionReason,
     this.badges = const [],
+    this.deactivated = false,
+    this.adminMessages = const [],
   });
 
   final String id;
@@ -37,8 +40,21 @@ class PendingProModel {
   final String? proCode;
   final int tokens;
   final bool isPaid;
+
+  /// Expiration timestamp (ms epoch) of the pro's 30-day paid cycle —
+  /// per-pro source of truth so session sync NEVER extends it.
+  final int? paidUntilMs;
   final String? rejectionReason;
   final List<String> badges;
+
+  /// Admin-controlled deactivation: a deactivated pro loses dashboard
+  /// access (no orders / chat) and disappears from client listings.
+  final bool deactivated;
+
+  /// Two-way verification thread ("AlloService|text" / "pro|text").
+  final List<String> adminMessages;
+
+  static const Object _unset = Object();
 
   PendingProModel copyWith({
     String? id,
@@ -48,14 +64,17 @@ class PendingProModel {
     String? professionAr,
     String? city,
     String? submittedAt,
-    String? docImage,
+    Object? docImage = _unset,
     String? status,
     String? badge,
     String? proCode,
     int? tokens,
     bool? isPaid,
-    String? rejectionReason,
+    Object? paidUntilMs = _unset,
+    Object? rejectionReason = _unset,
     List<String>? badges,
+    bool? deactivated,
+    List<String>? adminMessages,
   }) {
     return PendingProModel(
       id: id ?? this.id,
@@ -65,14 +84,22 @@ class PendingProModel {
       professionAr: professionAr ?? this.professionAr,
       city: city ?? this.city,
       submittedAt: submittedAt ?? this.submittedAt,
-      docImage: docImage ?? this.docImage,
+      docImage:
+          identical(docImage, _unset) ? this.docImage : docImage as String?,
       status: status ?? this.status,
       badge: badge ?? this.badge,
       proCode: proCode ?? this.proCode,
       tokens: tokens ?? this.tokens,
       isPaid: isPaid ?? this.isPaid,
-      rejectionReason: rejectionReason ?? this.rejectionReason,
+      paidUntilMs: identical(paidUntilMs, _unset)
+          ? this.paidUntilMs
+          : paidUntilMs as int?,
+      rejectionReason: identical(rejectionReason, _unset)
+          ? this.rejectionReason
+          : rejectionReason as String?,
       badges: badges ?? this.badges,
+      deactivated: deactivated ?? this.deactivated,
+      adminMessages: adminMessages ?? this.adminMessages,
     );
   }
 
@@ -90,8 +117,11 @@ class PendingProModel {
         'proCode': proCode,
         'tokens': tokens,
         'isPaid': isPaid,
+        'paidUntilMs': paidUntilMs,
         'rejectionReason': rejectionReason,
         'badges': badges,
+        'deactivated': deactivated,
+        'adminMessages': adminMessages,
       };
 
   factory PendingProModel.fromJson(Map<String, dynamic> json) =>
@@ -109,9 +139,14 @@ class PendingProModel {
         proCode: json['proCode'] as String?,
         tokens: (json['tokens'] as num?)?.toInt() ?? 0,
         isPaid: (json['isPaid'] as bool?) ?? false,
+        paidUntilMs: (json['paidUntilMs'] as num?)?.toInt(),
         rejectionReason: json['rejectionReason'] as String?,
         badges: [
           for (final b in (json['badges'] as List? ?? [])) b as String,
+        ],
+        deactivated: (json['deactivated'] as bool?) ?? false,
+        adminMessages: [
+          for (final m in (json['adminMessages'] as List? ?? [])) m as String,
         ],
       );
 }

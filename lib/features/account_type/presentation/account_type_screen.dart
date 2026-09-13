@@ -26,11 +26,12 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                 Text(
                   tr(
                     context,
@@ -124,7 +125,6 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
                 ),
               ],
             ),
-          ),
         ),
       ),
     );

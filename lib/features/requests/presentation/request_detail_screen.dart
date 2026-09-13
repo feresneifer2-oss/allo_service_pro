@@ -10,6 +10,7 @@ import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/info_tile.dart';
 import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
+import 'package:allo_service_pro/shared/widgets/request_stepper.dart';
 import 'package:allo_service_pro/shared/widgets/status_badge.dart';
 
 class RequestDetailScreen extends StatelessWidget {
@@ -45,6 +46,8 @@ class RequestDetailScreen extends StatelessWidget {
           ),
           body: SafeArea(
             child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
@@ -68,6 +71,10 @@ class RequestDetailScreen extends StatelessWidget {
                     style:
                         const TextStyle(color: AppColors.slate400, fontSize: 16),
                   ),
+                  const SizedBox(height: 20),
+                  // Uber-style live progress: Pending ➔ Accepted ➔ En Route
+                  // ➔ In Progress ➔ Completed.
+                  RequestStepper(status: request.status),
                   const SizedBox(height: 24),
                   InfoTile(
                     icon: Icons.calendar_month_rounded,

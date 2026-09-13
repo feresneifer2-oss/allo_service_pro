@@ -38,6 +38,7 @@ class _RatingScreenState extends State<RatingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
@@ -45,6 +46,8 @@ class _RatingScreenState extends State<RatingScreen> {
       ),
       body: SafeArea(
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(24),
           children: [
             const Icon(Icons.check_circle_rounded,

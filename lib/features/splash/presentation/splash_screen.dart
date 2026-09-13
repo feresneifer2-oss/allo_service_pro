@@ -1,12 +1,10 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
+import 'package:allo_service_pro/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/shared/widgets/allo_service_logo.dart';
-
 import '../../auth/presentation/welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -37,27 +35,33 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
+    _checkAuthAndRoute();
+  }
 
-      // Session-aware routing: restored sessions skip onboarding entirely.
-      final user = UserStore.user.value;
-      final Widget destination;
-      if (user != null &&
-          user.role == UserRole.professional &&
-          !user.needsVerificationGate) {
-        destination = const ProShell();
-      } else if (user != null && user.role == UserRole.client) {
-        destination = const ClientShell();
-      } else {
-        destination = const WelcomeScreen();
-      }
+  Future<void> _checkAuthAndRoute() async {
+    // Wait for the animation, then route via the SINGLE consolidated session
+    // authority (UserStore.checkInitialSession) — the session is already
+    // hydrated during main() startup, so no duplicated prefs reads here.
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => destination),
-      );
-    });
+    final roleKey = await UserStore.checkInitialSession();
+    if (!mounted) return;
+
+    Widget destination = const WelcomeScreen();
+    if (roleKey != null) {
+      destination = switch (roleKey) {
+        'admin' => const AdminDashboardScreen(),
+        'professionnel' => const ProShell(),
+        'client' => const ClientShell(),
+        _ => const WelcomeScreen(),
+      };
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => destination),
+    );
   }
 
   @override

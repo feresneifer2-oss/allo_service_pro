@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.allo_service_pro"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -19,8 +19,8 @@ android {
         applicationId = "com.example.allo_service_pro"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23 // record & audioplayers plugins require API 23+
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

@@ -132,4 +132,30 @@ class ChatMediaService {
   }
 
   static Future<void> dispose() => _recorder.dispose();
+
+  /// Housekeeping: deletes every media file older than [maxAge] from the
+  /// chat-media folder. Since chat sessions/messages live only in memory,
+  /// files orphaned by finished conversations would otherwise pile up
+  /// forever. Fire-and-forget; called when a chat screen opens.
+  static Future<void> cleanupOrphans({
+    Duration maxAge = const Duration(days: 5),
+  }) async {
+    try {
+      final dir = await _chatDir();
+      final cutoff = DateTime.now().subtract(maxAge);
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final stat = await entity.stat();
+        if (stat.modified.isBefore(cutoff)) {
+          try {
+            await entity.delete();
+          } catch (_) {
+            // Individual failure (locked file) → skip it.
+          }
+        }
+      }
+    } catch (_) {
+      // Storage unavailable → skip silently.
+    }
+  }
 }

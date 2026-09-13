@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/shared/app_locale.dart';
 
 class ProfessionalCard extends StatelessWidget {
   const ProfessionalCard({
@@ -10,6 +11,7 @@ class ProfessionalCard extends StatelessWidget {
     this.location = "Ariana",
     this.verified = true,
     this.buttonText = "Voir",
+    this.priceFrom,
     this.onPressed,
   });
 
@@ -19,6 +21,9 @@ class ProfessionalCard extends StatelessWidget {
   final String location;
   final bool verified;
   final String buttonText;
+
+  /// Starting price in TND — rendered as a gold-bordered price chip.
+  final int? priceFrom;
   final VoidCallback? onPressed;
 
   @override
@@ -28,7 +33,7 @@ class ProfessionalCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: .05),
@@ -73,22 +78,13 @@ class ProfessionalCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (verified) ...const [
-                      SizedBox(width: 6),
-                      Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Icon(
-                          Icons.verified_rounded,
-                          color: AppColors.blue600,
-                          size: 18,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   profession,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 13.5,
@@ -97,34 +93,124 @@ class ProfessionalCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 12,
+                  runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _InfoChip(
-                      icon: Icons.star_rounded,
-                      iconColor: AppColors.warning,
-                      text: rating.toStringAsFixed(1),
+                    // Trust badge: identity card verified by the admin
+                    // (بطاقة هويّة مفعلة / CIN Vérifié).
+                    if (verified)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(10),
+                          border:
+                              Border.all(color: const Color(0xFF057A55)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified_user_rounded,
+                                size: 14, color: Color(0xFF057A55)),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                tr(context,
+                                    fr: 'CIN Vérifié',
+                                    ar: 'بطاقة هويّة مفعلة'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF057A55),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    // Gold rating badge (Uber-style ★ 4.9).
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFC107).withValues(alpha: .18),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFFFC107),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star_rounded,
+                              size: 14, color: Color(0xFFB8860B)),
+                          const SizedBox(width: 3),
+                          Flexible(
+                            child: Text(
+                              rating.toStringAsFixed(1),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8A6D00),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     _InfoChip(
                       icon: Icons.location_on_rounded,
                       iconColor: AppColors.error,
                       text: location,
                     ),
+                    if (priceFrom != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySurface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'dès $priceFrom DT',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          SizedBox(
-            width: 96,
-            height: 42,
-            child: ElevatedButton(
-              onPressed: onPressed ?? () {},
-              child: Text(
-                buttonText,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+          // Flexible so the CTA shrinks on narrow screens instead of
+          // pushing the content column into a RIGHT OVERFLOW.
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 96),
+              child: SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: ElevatedButton(
+                  onPressed: onPressed ?? () {},
+                  child: Text(
+                    buttonText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -153,12 +239,16 @@ class _InfoChip extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: iconColor),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.slate800,
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.slate800,
+            ),
           ),
         ),
       ],

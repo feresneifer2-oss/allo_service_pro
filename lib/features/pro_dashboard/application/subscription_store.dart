@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/constants/app_constants.dart';
+
 enum SubscriptionStatus { active, expired }
 
 /// Monthly unlimited-plan subscription state for a craftsperson.
@@ -17,7 +19,8 @@ class SubscriptionStore {
   static const int durationDays = 30;
 
   /// Support WhatsApp number (international format, no '+').
-  static const String whatsappNumber = '21624449959';
+  /// Single source of truth: [AppConstants.adminWhatsAppNumber].
+  static const String whatsappNumber = AppConstants.adminWhatsAppNumber;
 
   // ─── Local persistence keys (SharedPreferences) ────────────────────
   static const String _kIsPaid = 'sub_isPaidSubscriber';
@@ -72,6 +75,47 @@ class SubscriptionStore {
   static void expire() {
     status.value = SubscriptionStatus.expired;
     persistToPrefs();
+  }
+
+  /// Mirrors a paid state WITHOUT restarting the 30-day cycle.
+  ///
+  /// Used by the session-sync path: the existing activatedAt/expiration
+  /// timestamps from the persisted session state are PRESERVED instead of
+  /// being extended on every sync (renew() would stack +30 days each time
+  /// a pro logged back in).
+  ///
+  /// • A previously stored cycle is kept as-is → the status reflects the
+  ///   real remaining time (active, or expired once the 30 days elapsed).
+  /// • No cycle recorded on this device yet (fresh admin grant) → the
+  ///   cycle is seeded once, exactly like a first [renew].
+  static void markPaidPreservingCycle() {
+    final start = activatedAt.value;
+    final now = DateTime.now();
+    final cycleOver = start != null && isCycleOver(start, now);
+    status.value =
+        cycleOver ? SubscriptionStatus.expired : SubscriptionStatus.active;
+    isPaidSubscriber.value = true;
+    if (start == null) {
+      activatedAt.value = now;
+    }
+    persistToPrefs();
+  }
+
+  /// Wipes the persisted subscription state and restores the trial
+  /// defaults (used on logout).
+  static Future<void> reset() async {
+    status.value = SubscriptionStatus.active;
+    isPaidSubscriber.value = false;
+    activatedAt.value = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kIsPaid);
+      await prefs.remove(_kActivatedAtMs);
+      await prefs.remove(_kExpiresAtMs);
+      await prefs.remove(_kStatusIndex);
+    } catch (_) {
+      // Best-effort cleanup.
+    }
   }
 
   // ─── Local persistence (SharedPreferences) ──────────────────────────

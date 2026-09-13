@@ -1,0 +1,252 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    AdminStore.pendingPros.value = [
+      PendingProModel(
+        id: 'pp_sync_1',
+        name: 'Sync Pro',
+        phone: '99111222',
+        professionFr: 'Plombier',
+        professionAr: 'سبّاك',
+        submittedAt: '01/01/2026',
+        docImage: 'assets/images/doc_placeholder.png',
+        status: 'pending',
+        proCode: 'PRO-00777',
+        tokens: 40,
+      ),
+    ];
+    UserStore.user.value = null;
+    ProProfileStore.tokens.value = 150;
+    SubscriptionStore.isPaidSubscriber.value = false;
+    SubscriptionStore.status.value = SubscriptionStatus.active;
+    SubscriptionStore.activatedAt.value = null;
+  });
+
+  PendingProModel entry() =>
+      AdminStore.pendingPros.value.firstWhere((p) => p.id == 'pp_sync_1');
+
+  void loginAsPro() {
+    UserStore.set(
+      name: 'Sync Pro',
+      phone: '99111222',
+      email: 'sync@pro.tn',
+      role: UserRole.professional,
+      proCode: 'PRO-00777',
+      verificationStatus: ProVerification.pending,
+    );
+  }
+
+  test('1 · approvePro flips the LIVE pending session to approved instantly',
+      () {
+    loginAsPro();
+    expect(UserStore.user.value!.verificationStatus, ProVerification.pending);
+
+    // Admin taps [قبول الحساب] → no re-login needed.
+    AdminStore.approvePro('pp_sync_1');
+
+    expect(entry().status, 'approved');
+    expect(entry().badges, contains('cin'));
+    expect(UserStore.user.value!.verificationStatus,
+        ProVerification.approved); // live session follows
+    expect(UserStore.user.value!.needsVerificationGate, isFalse);
+    // 150 starter tokens land on the live session too.
+    expect(ProProfileStore.tokens.value, 150);
+    expect(entry().tokens, 150);
+  });
+
+  test('2 · syncSessionStoresForCurrentUser mirrors the registry truth',
+      () {
+    // Admin granted a subscription + left 25 tokens on the registry.
+    AdminStore.setPaid('pp_sync_1', isPaid: true);
+    AdminStore.adjustTokens('pp_sync_1', -15); // 40 → 25
+    UserStore.set(
+      name: 'Sync Pro',
+      phone: '99111222',
+      email: 'sync@pro.tn',
+      role: UserRole.professional,
+      proCode: 'PRO-00777',
+      verificationStatus: ProVerification.approved,
+    );
+    // Session stores still show a stale trial state.
+    expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
+    expect(ProProfileStore.tokens.value, 150);
+
+    AdminStore.syncSessionStoresForCurrentUser();
+
+    expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+    expect(ProProfileStore.tokens.value, 25);
+
+    // …and an expired subscription reverts the session to trial mode.
+    AdminStore.setPaid('pp_sync_1', isPaid: false);
+    AdminStore.syncSessionStoresForCurrentUser();
+    expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+  });
+
+  test('3 · live token depletion is pushed into the admin registry', () async {
+    await AdminStore.loadFromPrefs(); // binds the live-token bridge
+    loginAsPro();
+
+    // Pro accepts orders → tokens drop to 0.
+    ProProfileStore.tokens.value = 0;
+
+    expect(entry().tokens, 0); // admin card sees "Tokens Épuisés" instantly
+  });
+
+  test('4 · suspend / reactivate update the registry for the reactive gate',
+      () {
+    loginAsPro();
+    UserStore.updateProVerification(status: ProVerification.approved);
+
+    AdminStore.suspendPro('pp_sync_1');
+    expect(entry().deactivated, isTrue); // → ProShell gate -1 (Compte Bloqué)
+
+    AdminStore.reactivatePro('pp_sync_1');
+    expect(entry().deactivated, isFalse); // → dashboard restored instantly
+  });
+
+  test('5 · no pro session → token bridge never pollutes the registry',
+      () async {
+    await AdminStore.loadFromPrefs();
+    // Admin or no session — a stray token change must not touch entries.
+    ProProfileStore.tokens.value = 0;
+    expect(entry().tokens, 40);
+  });
+
+  test('E2E · full Admin↔Pro lifecycle (steps A→F)', () async {
+    await AdminStore.loadFromPrefs(); // binds the live-token bridge
+
+    // ── Step A · New Pro registers → status = pending ─────────────────────
+    expect(
+      UserStore.register(
+        name: 'E2E Pro',
+        phone: '98765432',
+        email: 'e2e@pro.tn',
+        password: 'pw123456',
+      ),
+      isTrue,
+    );
+    UserStore.setRole(UserRole.professional);
+    final registered = AdminStore.registerPro(PendingProModel(
+      id: 'draft_e2e',
+      name: 'E2E Pro',
+      phone: '98765432',
+      professionFr: 'Électricien',
+      professionAr: 'كهربائي',
+      submittedAt: '02/01/2026',
+      status: 'pending',
+    ));
+    UserStore.bindProAccount(
+      proCode: registered.proCode,
+      verificationStatus: ProVerification.pending,
+    );
+    UserStore.set(
+      name: 'E2E Pro',
+      phone: '98765432',
+      email: 'e2e@pro.tn',
+      role: UserRole.professional,
+      proCode: registered.proCode,
+      verificationStatus: ProVerification.pending,
+    );
+    PendingProModel cur() => AdminStore.pendingPros.value
+        .firstWhere((p) => p.id == registered.id);
+    expect(registered.status, 'pending');
+    expect(UserStore.user.value!.needsVerificationGate, isTrue); // → gate
+
+    // ── Step B · Admin approves → approved + cin badge ────────────────────
+    AdminStore.approvePro(registered.id);
+    expect(cur().status, 'approved');
+    expect(cur().badges, contains('cin'));
+
+    // ── Step C · Session auto-routes away from the gate (no re-login) ─────
+    expect(
+        UserStore.user.value!.verificationStatus, ProVerification.approved);
+    expect(UserStore.user.value!.needsVerificationGate, isFalse);
+
+    // ── Step D · [Activer 30j (+15DT)] → cash log & paywall unlock ────────
+    final cashBefore = AdminStore.cashRevenueTnd;
+    AdminStore.grantSubscription(registered.id); // the admin-button path
+    expect(AdminStore.cashRevenueTnd, cashBefore + 15);
+    expect(cur().isPaid, isTrue);
+    expect(cur().paidUntilMs, isNotNull); // 30-day stamp stamped on the pro
+    expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+    // Paywall gate: (!isPaid && tokens<=0) → false → dashboard unlocked.
+    final paywalled =
+        !SubscriptionStore.isPaidSubscriber.value && ProProfileStore.tokens.value <= 0;
+    expect(paywalled, isFalse);
+
+    // ── Step E · [Suspendre] → Compte Bloqué gate ──────────────────────────
+    AdminStore.suspendPro(registered.id);
+    expect(cur().deactivated, isTrue); // ProShell gate -1 locks instantly
+
+    // ── Step F · Token depletion → "Tokens Épuisés" on the admin card ─────
+    AdminStore.reactivatePro(registered.id);
+    AdminStore.revokeSubscription(registered.id); // [Expirer] → trial again
+    expect(cur().isPaid, isFalse);
+    expect(cur().paidUntilMs, isNull);
+    expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
+    ProProfileStore.tokens.value = 0; // pro accepts orders until depletion
+    expect(cur().tokens, 0); // registry mirrors → admin badge appears
+    // Paywall gate flips back ON: trial + zero tokens.
+    final relocked =
+        !SubscriptionStore.isPaidSubscriber.value && ProProfileStore.tokens.value <= 0;
+    expect(relocked, isTrue);
+  });
+
+  test('6 · session sync NEVER extends an existing paid cycle', () {
+    loginAsPro();
+    // Admin grants the subscription → cycle seeded once (day 0).
+    SubscriptionStore.renew();
+    AdminStore.setPaid('pp_sync_1', isPaid: true);
+    final cycleStart = SubscriptionStore.activatedAt.value;
+
+    // Pro logs out & back in (or auto-login restore) → sync runs again…
+    AdminStore.syncSessionStoresForCurrentUser();
+
+    // …the cycle start is PRESERVED — no +30-day stacking on every sync.
+    expect(SubscriptionStore.activatedAt.value, cycleStart);
+    expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+  });
+
+  test('7 · suspend / reactivate on an unknown proId exits safely', () {
+    final before = AdminStore.pendingPros.value;
+    // Must NOT throw (old code: unguarded firstWhere → StateError).
+    AdminStore.suspendPro('ghost_id');
+    AdminStore.reactivatePro('ghost_id');
+
+    // Registry untouched by the failed lookups.
+    expect(AdminStore.pendingPros.value.length, before.length);
+    expect(
+      AdminStore.pendingPros.value.every((p) => !p.deactivated),
+      isTrue,
+    );
+  });
+
+  test('8 · suspended clients persist across app restarts', () async {
+    await AdminStore.suspendClient('client_ban_1');
+    await AdminStore.suspendClient('client_ban_2');
+
+    // Cold restart: bans are restored from SharedPreferences.
+    AdminStore.suspendedClients.value = [];
+    await AdminStore.loadFromPrefs();
+
+    expect(AdminStore.suspendedClients.value,
+        containsAll(['client_ban_1', 'client_ban_2']));
+    expect(AdminStore.isClientSuspended('client_ban_1'), isTrue);
+    expect(AdminStore.isClientSuspended('client_ban_2'), isTrue);
+  });
+}

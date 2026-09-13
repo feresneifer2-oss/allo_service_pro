@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/home/presentation/home_screen.dart';
 import 'package:allo_service_pro/features/profile/presentation/customer_profile_screen.dart';
 import 'package:allo_service_pro/features/requests/presentation/request_list_screen.dart';
@@ -27,8 +29,29 @@ class _ClientShellState extends State<ClientShell> {
 
   @override
   Widget build(BuildContext context) {
+    final me = UserStore.user.value;
+    return ValueListenableBuilder<List<String>>(
+      // Reactive ban gate: the instant an admin suspends this client, the
+      // whole shell is swapped for a locked screen — and back the moment the
+      // account is re-activated. No app restart or pull-to-refresh needed.
+      valueListenable: AdminStore.suspendedClients,
+      builder: (_, suspended, __) {
+        if (me != null && suspended.contains(me.id)) {
+          return const _AccountLockedScreen();
+        }
+        return _buildShell(context);
+      },
+    );
+  }
+
+  Widget _buildShell(BuildContext context) {
     return Scaffold(
-      body: _screens[_index],
+      // IndexedStack keeps every tab's scroll position, search text and
+      // form state alive while switching (Uber-style persistent tabs).
+      body: IndexedStack(
+        index: _index,
+        children: _screens,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
@@ -66,6 +89,55 @@ class _ClientShellState extends State<ClientShell> {
             label: tr(context, fr: 'Profil', ar: 'الملف'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Full-screen "account frozen" lock shown to a client while the admin keeps
+/// them suspended. It listens on AdminStore.suspendedClients through the
+/// enclosing shell, so it unlocks automatically on re-activation.
+class _AccountLockedScreen extends StatelessWidget {
+  const _AccountLockedScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.slate900,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_rounded,
+                    color: AppColors.error, size: 72),
+                const SizedBox(height: 16),
+                Text(
+                  tr(context, fr: 'Compte suspendu', ar: 'الحساب مجمَّد'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tr(context,
+                      fr: 'Votre compte a été suspendu par l\'administration. '
+                          'Contacter le support pour plus de détails.',
+                      ar: 'تم تجميد حسابك من طرف الإدارة. '
+                          'راسل الدعم الفني للمزيد من التفاصيل.'),
+                  textAlign: TextAlign.center,
+                  style:
+                      const TextStyle(color: AppColors.slate400, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,9 +1,15 @@
 class TunisianLocation {
+  /// Stable, unique lookup key for this governorate (slug). NEVER derived
+  /// from a city name — city labels may collide with governorate labels
+  /// (e.g. the city of "Tunis" vs the governorate of "Tunis"), so every
+  /// governorate gets its own immutable id for unambiguous resolution.
+  final String key;
   final String governorateAr;
   final String governorateFr;
   final List<TunisianCity> cities;
 
   const TunisianLocation({
+    required this.key,
     required this.governorateAr,
     required this.governorateFr,
     required this.cities,
@@ -25,6 +31,7 @@ class TunisianLocations {
 
   static const locations = [
     TunisianLocation(
+      key: 'tunis',
       governorateAr: 'تونس',
       governorateFr: 'Tunis',
       cities: [
@@ -52,6 +59,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'ariana',
       governorateAr: 'أريانة',
       governorateFr: 'Ariana',
       cities: [
@@ -65,6 +73,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'ben_arous',
       governorateAr: 'بن عروس',
       governorateFr: 'Ben Arous',
       cities: [
@@ -83,6 +92,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'manouba',
       governorateAr: 'منوبة',
       governorateFr: 'Manouba',
       cities: [
@@ -97,6 +107,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'nabeul',
       governorateAr: 'نابل',
       governorateFr: 'Nabeul',
       cities: [
@@ -119,6 +130,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'zaghouan',
       governorateAr: 'زغوان',
       governorateFr: 'Zaghouan',
       cities: [
@@ -131,6 +143,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'bizerte',
       governorateAr: 'بنزرت',
       governorateFr: 'Bizerte',
       cities: [
@@ -151,6 +164,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'beja',
       governorateAr: 'باجة',
       governorateFr: 'Béja',
       cities: [
@@ -166,6 +180,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'jendouba',
       governorateAr: 'جندوبة',
       governorateFr: 'Jendouba',
       cities: [
@@ -181,6 +196,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'kef',
       governorateAr: 'الكاف',
       governorateFr: 'Le Kef',
       cities: [
@@ -198,6 +214,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'siliana',
       governorateAr: 'سليانة',
       governorateFr: 'Siliana',
       cities: [
@@ -215,6 +232,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'sousse',
       governorateAr: 'سوسة',
       governorateFr: 'Sousse',
       cities: [
@@ -238,6 +256,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'monastir',
       governorateAr: 'المنستير',
       governorateFr: 'Monastir',
       cities: [
@@ -257,6 +276,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'mahdia',
       governorateAr: 'المهدية',
       governorateFr: 'Mahdia',
       cities: [
@@ -274,6 +294,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'sfax',
       governorateAr: 'صفاقس',
       governorateFr: 'Sfax',
       cities: [
@@ -296,6 +317,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'kairouan',
       governorateAr: 'القيروان',
       governorateFr: 'Kairouan',
       cities: [
@@ -313,6 +335,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'kasserine',
       governorateAr: 'القصرين',
       governorateFr: 'Kasserine',
       cities: [
@@ -332,6 +355,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'sidi_bouzid',
       governorateAr: 'سيدي بوزيد',
       governorateFr: 'Sidi Bouzid',
       cities: [
@@ -350,6 +374,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'gabes',
       governorateAr: 'قابس',
       governorateFr: 'Gabès',
       cities: [
@@ -366,6 +391,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'medenine',
       governorateAr: 'مدنين',
       governorateFr: 'Médenine',
       cities: [
@@ -381,6 +407,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'tataouine',
       governorateAr: 'تطاوين',
       governorateFr: 'Tataouine',
       cities: [
@@ -394,6 +421,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'gafsa',
       governorateAr: 'قفصة',
       governorateFr: 'Gafsa',
       cities: [
@@ -411,6 +439,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'tozeur',
       governorateAr: 'توزر',
       governorateFr: 'Tozeur',
       cities: [
@@ -422,6 +451,7 @@ class TunisianLocations {
       ],
     ),
     TunisianLocation(
+      key: 'kebili',
       governorateAr: 'قبلي',
       governorateFr: 'Kebili',
       cities: [
@@ -447,7 +477,7 @@ class TunisianLocations {
     final location = locations.firstWhere(
       (loc) => loc.governorateAr == governorateAr,
       orElse: () => const TunisianLocation(
-          governorateAr: '', governorateFr: '', cities: []),
+          key: '', governorateAr: '', governorateFr: '', cities: []),
     );
     return location.cities.map((city) => city.ar).toList();
   }
@@ -456,7 +486,7 @@ class TunisianLocations {
     final location = locations.firstWhere(
       (loc) => loc.governorateFr == governorateFr,
       orElse: () => const TunisianLocation(
-          governorateAr: '', governorateFr: '', cities: []),
+          key: '', governorateAr: '', governorateFr: '', cities: []),
     );
     return location.cities.map((city) => city.fr).toList();
   }
@@ -475,5 +505,77 @@ class TunisianLocations {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Resolves a governorate by its UNIQUE key (slug) — the only reference
+  /// guaranteed collision-free against city names.
+  static TunisianLocation? getLocationByKey(String key) {
+    try {
+      return locations.firstWhere((loc) => loc.key == key);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Key-first governorate resolution against a French label: the governorate
+  /// name itself beats any city named identically to another governorate.
+  static TunisianLocation? getLocationByKeyOrFr(String identity) {
+    return getLocationByKey(identity) ??
+        locations.where((loc) => loc.governorateFr == identity).firstOrNull;
+  }
+
+  /// Key-first governorate resolution against an Arabic label.
+  static TunisianLocation? getLocationByKeyOrAr(String identity) {
+    return getLocationByKey(identity) ??
+        locations.where((loc) => loc.governorateAr == identity).firstOrNull;
+  }
+
+  /// Matches a geocoder/UI label to a governorate with a strict priority that
+  /// can NEVER let a city name shadow a governorate:
+  /// 1. full governorate French name / key  → 2. full governorate Arabic name
+  /// 3. unique governorate slug (key)       → 4. any city name inside.
+  static TunisianLocation? matchGovernorate(String label, String normalized) {
+    for (final loc in locations) {
+      if (_norm(loc.governorateFr) == normalized || loc.governorateAr == label) {
+        return loc;
+      }
+    }
+    for (final loc in locations) {
+      if (_norm(loc.key) == normalized) return loc;
+    }
+    for (final loc in locations) {
+      for (final city in loc.cities) {
+        if (_norm(city.fr) == normalized || city.ar == label) return loc;
+      }
+    }
+    return null;
+  }
+
+  static String _norm(String value) {
+    var v = value.trim().toLowerCase();
+    const accents = {
+      'é': 'e', 'è': 'e', 'ê': 'e', 'à': 'a', 'â': 'a', 'î': 'i',
+      'ï': 'i', 'ô': 'o', 'û': 'u', 'ù': 'u', 'ç': 'c',
+    };
+    accents.forEach((accent, plain) => v = v.replaceAll(accent, plain));
+    return v;
+  }
+
+  static String? getGovernorateArFromCityAr(String cityAr) {
+    for (final loc in locations) {
+      for (final city in loc.cities) {
+        if (city.ar == cityAr) return loc.governorateAr;
+      }
+    }
+    return null;
+  }
+
+  static String? getGovernorateFrFromCityFr(String cityFr) {
+    for (final loc in locations) {
+      for (final city in loc.cities) {
+        if (city.fr == cityFr) return loc.governorateFr;
+      }
+    }
+    return null;
   }
 }

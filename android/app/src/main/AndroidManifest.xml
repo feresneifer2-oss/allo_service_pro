@@ -1,6 +1,13 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Voice notes recording (bidirectional chat messaging) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- GPS is an enhancement, not a hard requirement: devices without a
+         GPS chip can still install and type their address manually. -->
+    <uses-feature
+        android:name="android.hardware.location.gps"
+        android:required="false"/>
     <application
         android:label="allo_service_pro"
         android:name="${applicationName}"

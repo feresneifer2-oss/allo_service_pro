@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
-import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart';
+import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -22,7 +22,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
   String _searchQuery = '';
   List<ProfessionalModel> _filteredProfessionals = [];
 
-  List<ProfessionalModel> get _allProfessionals => allProfessionals;
+  List<ProfessionalModel> get _allProfessionals => ProfessionalsRepository.all;
 
   List<String> get _governorates {
     final isArabic = appLocale.value.languageCode == 'ar';
@@ -102,6 +102,7 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.slate900,
       appBar: AppBar(
         backgroundColor: AppColors.slate800,
@@ -121,7 +122,8 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
             onTap: () => FocusScope.of(context).unfocus(),
             behavior: HitTestBehavior.opaque,
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

@@ -1,19 +1,31 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
-import 'package:allo_service_pro/features/requests/application/request_store.dart';
-import 'package:allo_service_pro/features/requests/models/service_request.dart';
-import 'package:allo_service_pro/core/models/request_status.dart';
-import 'package:allo_service_pro/features/admin/presentation/detailed_statistics_screen.dart';
+import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
-import 'package:allo_service_pro/features/chat/models/chat_session.dart';
-import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
+import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
+import 'package:allo_service_pro/features/notifications/domain/notification_model.dart';
+import 'package:allo_service_pro/features/requests/application/request_store.dart';
+import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/requests/models/service_request.dart';
+import 'package:allo_service_pro/features/support/presentation/support_screen.dart'
+    show SupportStore, SupportTicket, ChatMsg;
+import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
 
+/// ─────────────────────────────────────────────────────────────────────────────
+/// ADMIN DASHBOARD — clean-slate build (5 tabs · KPIs · global search).
+/// Tabs: Professionnels · En attente · Tickets · Clients · Paramètres.
+/// All state lives in AdminStore/UserStore/SupportStore ValueNotifiers and
+/// persists to SharedPreferences.
+/// ─────────────────────────────────────────────────────────────────────────────
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -23,179 +35,67 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  late final TabController _tabController;
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
+    _searchController.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.slate900,
+      appBar: AppBar(
+        backgroundColor: AppColors.slate900,
+        foregroundColor: Colors.white,
+        title: Text(tr(context,
+            fr: 'Panneau d\'administration', ar: 'لوحة الإدارة')),
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // ── Header ────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.secondary, AppColors.secondaryLight],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.admin_panel_settings_rounded,
-                        color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Allo Service Pro',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          'Panneau d\'administration',
-                          style:
-                              TextStyle(color: AppColors.slate400, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Badges counter (pending + reports)
-                  ValueListenableBuilder<List<PendingProModel>>(
-                    valueListenable: AdminStore.pendingPros,
-                    builder: (_, __, ___) {
-                      return ValueListenableBuilder<List<ReportModel>>(
-                        valueListenable: AdminStore.reports,
-                        builder: (_, __, ___) {
-                          final total = AdminStore.pendingCount +
-                              AdminStore.openReportsCount;
-                          return total == 0
-                              ? const SizedBox.shrink()
-                              : Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.error,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '$total en attente',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                );
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ── Stats Row ─────────────────────────────────────────────────────
-            SizedBox(
-              height: 106,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  ValueListenableBuilder<int>(
-                    valueListenable: AdminStore.totalUsers,
-                    builder: (_, v, __) => _StatCard(
-                        label: 'Utilisateurs',
-                        value: '$v',
-                        icon: Icons.people_rounded,
-                        gradient: const LinearGradient(
-                            colors: [Color(0xFF1D4ED8), Color(0xFF3B82F6)])),
-                  ),
-                  const SizedBox(width: 12),
-                  ValueListenableBuilder<int>(
-                    valueListenable: AdminStore.totalPros,
-                    builder: (_, v, __) => _StatCard(
-                        label: 'Professionnels',
-                        value: '$v',
-                        icon: Icons.engineering_rounded,
-                        gradient: const LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryLight])),
-                  ),
-                  const SizedBox(width: 12),
-                  ValueListenableBuilder<int>(
-                    valueListenable: AdminStore.totalRequests,
-                    builder: (_, v, __) => _StatCard(
-                        label: 'Demandes',
-                        value: '$v',
-                        icon: Icons.receipt_long_rounded,
-                        gradient: const LinearGradient(
-                            colors: [AppColors.primary, AppColors.primaryLight])),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // ── TabBar ────────────────────────────────────────────────────
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: AppColors.slate800,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: AppColors.secondary,
-                  borderRadius: BorderRadius.circular(12),
+            // ── Scrollable header (search + KPI rows) ─────────────────────
+            // Flexible (loose fit): takes exactly its content height when
+            // space is plentiful, and gracefully shrinks + scrolls when the
+            // keyboard eats into the viewport — never a pixel overflow.
+            Flexible(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                physics: const ClampingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Column(
+                  children: [
+                    _buildSearchBar(),
+                    _buildKpiRows(),
+                  ],
                 ),
-                labelColor: Colors.white,
-                unselectedLabelColor: AppColors.textSecondary,
-                labelStyle:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: 'Professionnels'),
-                  Tab(text: 'Réclamations'),
-                  Tab(text: 'Demandes'),
-                  Tab(text: 'Paramètres'),
-                ],
               ),
             ),
-            const SizedBox(height: 12),
-
-            // ── Tab views ─────────────────────────────────────────────────
+            const SizedBox(height: 8),
+            _buildTabBar(),
+            const SizedBox(height: 4),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _PendingProsTab(),
-                  _ReportsTab(),
-                  _RequestsTab(),
-                  _SettingsTab(),
+                  _ProsTab(query: _searchController.text.trim()),
+                  _PendingTab(query: _searchController.text.trim()),
+                  const _TicketsTab(),
+                  _ClientsTab(query: _searchController.text.trim()),
+                  const _SettingsTab(),
                 ],
               ),
             ),
@@ -204,49 +104,887 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ),
     );
   }
+
+  // ── Global search bar (above tabs) ────────────────────────────────────────
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: TextField(
+        controller: _searchController,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: tr(context,
+              fr: 'Rechercher par nom ou ID (PRO-… / client)',
+              ar: 'ابحث بالاسم أو المعرّف (PRO-… / كليان)'),
+          hintStyle: const TextStyle(color: AppColors.slate400, fontSize: 13),
+          prefixIcon:
+              const Icon(Icons.search_rounded, color: AppColors.secondary),
+          filled: true,
+          fillColor: AppColors.slate800,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── KPI rows (live from ValueNotifiers) ───────────────────────────────────
+  Widget _buildKpiRows() {
+    return ValueListenableBuilder<List<PendingProModel>>(
+      valueListenable: AdminStore.pendingPros,
+      builder: (_, __, ___) {
+        return ValueListenableBuilder<List<ServiceRequest>>(
+          valueListenable: RequestStore.requests,
+          builder: (_, ___, ____) {
+            return ValueListenableBuilder<List<UserModel>>(
+              valueListenable: UserStore.registeredClients,
+              builder: (_, ___, _____) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: _KpiCard(
+                            label: tr(context, fr: 'Clients', ar: 'كليان'),
+                            value: '${AdminStore.totalClients}',
+                            icon: Icons.people_rounded,
+                            color: const Color(0xFF3B82F6),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: _KpiCard(
+                            label: tr(context, fr: 'Pros', ar: 'حرفيون'),
+                            value: '${AdminStore.totalProsCount}',
+                            icon: Icons.engineering_rounded,
+                            color: AppColors.primary,
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: _KpiCard(
+                            label: tr(context,
+                                fr: 'Acceptés (jour)', ar: 'مقبولة اليوم'),
+                            value: '${AdminStore.acceptedOrdersToday}',
+                            icon: Icons.check_circle_rounded,
+                            color: AppColors.success,
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: _KpiCard(
+                            label: tr(context,
+                                fr: 'Refusés (jour)', ar: 'مرفوضة اليوم'),
+                            value: '${AdminStore.refusedOrdersToday}',
+                            icon: Icons.cancel_rounded,
+                            color: AppColors.error,
+                          )),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _KpiCard(
+                              label: tr(context,
+                                  fr: 'Commandes acceptées (total)',
+                                  ar: 'الطلبات المقبولة (الكل)'),
+                              value: '${AdminStore.acceptedOrdersAllTime}',
+                              icon: Icons.receipt_long_rounded,
+                              color: AppColors.secondary,
+                              large: true,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _KpiCard(
+                              label: tr(context,
+                                  fr: '💰 Cash revenue', ar: '💰 مداخيل الكاش'),
+                              value: '${AdminStore.cashRevenueTnd} DT',
+                              icon: Icons.savings_rounded,
+                              color: const Color(0xFFB8860B),
+                              large: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Tab bar (scrollable — never overflows) ────────────────────────────────
+  Widget _buildTabBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: AppColors.slate800,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        indicator: BoxDecoration(
+          color: AppColors.secondary,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: AppColors.textSecondary,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+        dividerColor: Colors.transparent,
+        tabs: [
+          Tab(text: tr(context, fr: 'Professionnels', ar: 'الحرفيون')),
+          Tab(text: tr(context, fr: 'En attente', ar: 'قيد الانتظار')),
+          Tab(text: tr(context, fr: 'Tickets', ar: 'التذاكر')),
+          Tab(text: tr(context, fr: 'Clients', ar: 'العملاء')),
+          Tab(text: tr(context, fr: 'Paramètres', ar: 'الإعدادات')),
+        ],
+      ),
+    );
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB 1 — Pending Professionals
-// ═══════════════════════════════════════════════════════════════════════════
-class _PendingProsTab extends StatefulWidget {
+/// Compact KPI tile used in both metric rows.
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.large = false,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final bool large;
+
   @override
-  State<_PendingProsTab> createState() => _PendingProsTabState();
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: large ? 16 : 10, vertical: large ? 14 : 10),
+      decoration: BoxDecoration(
+        color: AppColors.slate800,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: .35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: large ? 22 : 16),
+          const SizedBox(height: 4),
+          FittedBox(child: Text(
+            value,
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: large ? 20 : 15),
+          )),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: AppColors.slate400, fontSize: 10.5),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _PendingProsTabState extends State<_PendingProsTab> {
-  String _filter = 'all';
-  final _queryController = TextEditingController();
+class _ProsTab extends StatelessWidget {
+  const _ProsTab({required this.query});
+
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<PendingProModel>>(
+      valueListenable: AdminStore.pendingPros,
+      builder: (_, list, __) {
+        final q = query.toLowerCase();
+        final pros = list
+            .where((p) =>
+                p.status == 'approved' &&
+                (q.isEmpty ||
+                    p.name.toLowerCase().contains(q) ||
+                    (p.proCode ?? '').toLowerCase().contains(q)))
+            .toList();
+        if (pros.isEmpty) {
+          return _EmptyView(
+            icon: Icons.engineering_rounded,
+            message: tr(context, fr: 'Aucun professionnel', ar: 'لا يوجد حرفيون'),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          itemCount: pros.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => _ProManageCard(pro: pros[i]),
+        );
+      },
+    );
+  }
+}
+
+class _ProManageCard extends StatelessWidget {
+  const _ProManageCard({required this.pro});
+
+  final PendingProModel pro;
+
+  void _snack(BuildContext context, String fr, String ar) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr(context, fr: fr, ar: ar))));
+  }
+
+  void _showDocument(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: AppColors.slate900,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(tr(context, fr: 'Pièce d\'identité', ar: 'وثيقة الهوية'),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              Container(
+                height: 320,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: (pro.docImage == null)
+                    ? Center(
+                        child: Text(
+                            tr(context, fr: 'Aucune preuve fournie',
+                                ar: 'لا توجد وثيقة'),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary)))
+                    : InteractiveViewer(
+                        maxScale: 4,
+                        child: pro.docImage!.startsWith('assets/')
+                            ? Image.asset(pro.docImage!, fit: BoxFit.contain)
+                            : Image.file(File(pro.docImage!),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Center(
+                                    child: Text('Preuve illisible',
+                                        style: TextStyle(
+                                            color:
+                                                AppColors.textSecondary)))),
+                      ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── build ────────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final proId = pro.proCode ?? pro.id;
+    final orders = RequestStore.forProfessional(proId);
+    const live = [
+      RequestStatus.accepted,
+      RequestStatus.enRoute,
+      RequestStatus.arrived,
+      RequestStatus.inProgress,
+      RequestStatus.completed,
+    ];
+    final accepted = orders.where((r) => live.contains(r.status)).length;
+    final refused =
+        orders.where((r) => r.status == RequestStatus.refused).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primarySurface,
+                child: Text(
+                  pro.name.isNotEmpty ? pro.name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pro.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                    Text(
+                      '${pro.proCode ?? '-'} • ${pro.phone}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    Text(
+                      '${pro.professionFr} • ${pro.city ?? '-'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: tr(context, fr: 'Voir le document', ar: 'عرض الوثيقة'),
+                onPressed: () => _showDocument(context),
+                icon:
+                    const Icon(Icons.badge_rounded, color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _Chip(
+                label: '⭐ ${ProProfileLookup.rating(pro)}/5',
+                color: const Color(0xFFB8860B),
+              ),
+              _Chip(
+                label: tr(context,
+                    fr: 'Acceptées: $accepted', ar: 'مقبولة: $accepted'),
+                color: AppColors.success,
+              ),
+              _Chip(
+                label: tr(context,
+                    fr: 'Refusées: $refused', ar: 'مرفوضة: $refused'),
+                color: AppColors.error,
+              ),
+              _Chip(
+                label: tr(context,
+                    fr: 'Tokens: ${pro.tokens}', ar: 'توكنز: ${pro.tokens}'),
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+          // ── Lifecycle warnings (real-time from the registry) ──────────────
+          // Instant visual cues so the admin spots pros needing a renewal:
+          // expired/never-activated subscription · depleted token balance.
+          if (!pro.isPaid || pro.tokens <= 0) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                if (!pro.isPaid)
+                  _Chip(
+                    label: tr(context,
+                        fr: 'Abonnement Expiré', ar: 'منتهي الاشتراك'),
+                    color: AppColors.warning,
+                  ),
+                if (pro.tokens <= 0)
+                  _Chip(
+                    label: tr(context,
+                        fr: 'Tokens Épuisés', ar: 'نفدت التوكينات'),
+                    color: AppColors.error,
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+
+          // ── Official badges (1-tap toggles — syncs Client & Pro views) ──
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (final b in ProBadges.all)
+                FilterChip(
+                  label: Text(ProBadges.label(context, b)),
+                  selected: pro.badges.contains(b),
+                  onSelected: (_) {
+                    if (pro.badges.contains(b)) {
+                      AdminStore.removeBadge(pro.id, b);
+                      _snack(context, 'Badge retiré à ${pro.name}',
+                          'تم إزالة شارة ${pro.name}');
+                    } else {
+                      AdminStore.addBadge(pro.id, b);
+                      _snack(context, 'Badge ajouté à ${pro.name}',
+                          'تمت إضافة شارة ${pro.name}');
+                    }
+                  },
+                  selectedColor: AppColors.secondary,
+                  checkmarkColor: Colors.white,
+                  labelStyle: TextStyle(
+                    color: pro.badges.contains(b)
+                        ? Colors.white
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                  ),
+                  backgroundColor: AppColors.background,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // ── Subscription controls ──
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // +15 DT is logged on the target pro's own registry
+                    // record: subscription flags + expiry live on the pro,
+                    // the admin's global session store is never touched.
+                    AdminStore.grantSubscription(pro.id);
+                    _snack(context,
+                        'Abonnement activé (+15 DT) pour ${pro.name}',
+                        'تم تفعيل اشتراك ${pro.name} (+15 د.ت)');
+                  },
+                  icon:
+                      const Icon(Icons.check_circle_rounded, size: 15),
+                  label: FittedBox(child: Text(
+                      tr(context, fr: 'Activer 30j (+15DT)',
+                          ar: 'تفعيل 30ي (+15د.ت)'),
+                      maxLines: 1,
+                      style: const TextStyle(fontSize: 11.5))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: ElevatedButton.icon(
+                onPressed: () {
+                  AdminStore.revokeSubscription(pro.id);
+                  _snack(context, 'Abonnement expiré pour ${pro.name}',
+                      'تم إنهاء اشتراك ${pro.name}');
+                },
+                icon: const Icon(Icons.block_rounded, size: 15),
+                label: FittedBox(child: Text(tr(context, fr: 'Expirer', ar: 'إلغاء'),
+                    style: const TextStyle(fontSize: 11.5))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 8, horizontal: 8),
+                ),
+              )),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Suspension controls ──
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: pro.deactivated
+                      ? null
+                      : () {
+                          // Suspends + notifies the pro ("تم تجميد حسابك").
+                          AdminStore.suspendPro(pro.id);
+                          _snack(context,
+                              'Compte de ${pro.name} suspendu',
+                              'تم تجميد حساب ${pro.name}');
+                        },
+                  icon: const Icon(Icons.ac_unit_rounded, size: 15),
+                  label: Text(tr(context, fr: 'Suspendre', ar: 'تجميد'),
+                      style: const TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: !pro.deactivated
+                      ? null
+                      : () {
+                          // Re-activates + notifies ("تم إعادة تفعيل حسابك").
+                          AdminStore.reactivatePro(pro.id);
+                          _snack(context,
+                              'Compte de ${pro.name} réactivé',
+                              'تم إعادة تفعيل حساب ${pro.name}');
+                        },
+                  icon: const Icon(Icons.restart_alt_rounded, size: 15),
+                  label: Text(tr(context, fr: 'Réactiver', ar: 'إعادة تفعيل'),
+                      style: const TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small helper resolving the display rating of a registry pro.
+class ProProfileLookup {
+  ProProfileLookup._();
+
+  static double rating(PendingProModel pro) {
+    final live = ProfessionalsRepository.byId(pro.proCode ?? '');
+    return live?.rating ?? ProProfileStore.rating.value;
+  }
+}
+
+// TAB 2 — EN ATTENTE (verification queue)
+class _PendingTab extends StatelessWidget {
+  const _PendingTab({required this.query});
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<PendingProModel>>(
+      valueListenable: AdminStore.pendingPros,
+      builder: (_, list, __) {
+        final q = query.toLowerCase();
+        final pending = list
+            .where((p) =>
+                p.status == 'pending' &&
+                (q.isEmpty ||
+                    p.name.toLowerCase().contains(q) ||
+                    (p.proCode ?? '').toLowerCase().contains(q)))
+            .toList();
+        if (pending.isEmpty) {
+          return _EmptyView(
+            icon: Icons.hourglass_empty_rounded,
+            message: tr(context,
+                fr: 'Aucune demande en attente 👌',
+                ar: 'لا طلبات قيد الانتظار 👌'),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          itemCount: pending.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => _PendingCard(pro: pending[i]),
+        );
+      },
+    );
+  }
+}
+
+class _PendingCard extends StatelessWidget {
+  const _PendingCard({required this.pro});
+  final PendingProModel pro;
+
+  void _snack(BuildContext context, String fr, String ar) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr(context, fr: fr, ar: ar))));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: AppColors.secondarySurface,
+                child: Text(
+                  pro.name.isNotEmpty ? pro.name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pro.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14.5)),
+                    Text(
+                      '${pro.phone} • ${pro.professionFr} • ${pro.city ?? '-'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (pro.docImage != null)
+                IconButton(
+                  tooltip: tr(context, fr: 'Voir le document', ar: 'الوثيقة'),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => Dialog(
+                        backgroundColor: AppColors.slate900,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              InteractiveViewer(
+                                maxScale: 4,
+                                child: pro.docImage!.startsWith('assets/')
+                                    ? Image.asset(pro.docImage!, fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.broken_image_rounded,
+                                                    color: Colors.white70, size: 48),
+                                                SizedBox(height: 8),
+                                                Text('Image illisible',
+                                                    style: TextStyle(
+                                                        color: Colors.white70)),
+                                              ],
+                                            )))
+                                    : Image.file(File(pro.docImage!),
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.broken_image_rounded,
+                                                    color: Colors.white70, size: 48),
+                                                SizedBox(height: 8),
+                                                Text('Image illisible',
+                                                    style: TextStyle(
+                                                        color: Colors.white70)),
+                                              ],
+                                            ))),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.badge_rounded, color: AppColors.secondary),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+// @@THREAD@@
+          // ── Two-way verification thread (latest 3) ──
+          if (pro.adminMessages.isNotEmpty) ...[
+            for (final m in pro.adminMessages.reversed.take(3))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      m.startsWith('AlloService|')
+                          ? Icons.verified_user_rounded
+                          : Icons.person_rounded,
+                      size: 14,
+                      color: m.startsWith('AlloService|')
+                          ? AppColors.success
+                          : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        m.split('|').length > 1 ? m.split('|')[1] : m,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.slate800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 6),
+          ],
+          _ReplyField(proId: pro.id),
+          const SizedBox(height: 10),
+
+          // ── One-tap approval (auto-grants 'cin') ──
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                AdminStore.approvePro(pro.id);
+                _snack(context,
+                    '${pro.name} approuvé — badge CIN Vérifié attribué',
+                    'تم قبول ${pro.name} — منح شارة الهوية المفعلة');
+              },
+              icon: const Icon(Icons.how_to_reg_rounded),
+              label: FittedBox(child: Text(tr(context, fr: 'Approuver', ar: 'قبول الحساب'),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Admin → pro message composer (sender: AlloService).
+class _ReplyField extends StatefulWidget {
+  const _ReplyField({required this.proId});
+  final String proId;
+
+  @override
+  State<_ReplyField> createState() => _ReplyFieldState();
+}
+
+class _ReplyFieldState extends State<_ReplyField> {
+  final _controller = TextEditingController();
 
   @override
   void dispose() {
-    _queryController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  /// Account lifecycle bucket derived from registry fields.
-  String _accountState(PendingProModel p) {
-    switch (p.status) {
-      case 'pending':
-      case 'rejected':
-        return 'pending';
-      case 'approved':
-        if (p.isPaid) return 'paid';
-        return p.tokens <= 0 ? 'expired' : 'active';
-    }
-    return 'pending';
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: tr(context,
+                  fr: 'Message AlloService (ex: photo illisible…)',
+                  ar: 'رسالة AlloService (مثال: الصورة غير واضحة…)'),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            AdminStore.sendVerificationMessage(widget.proId, _controller.text);
+            _controller.clear();
+          },
+          icon: const Icon(Icons.send_rounded, color: AppColors.primary),
+        ),
+      ],
+    );
   }
+}
 
-  bool _matchesQuery(PendingProModel p, String q) {
-    if (q.isEmpty) return true;
-    final needle = q.toLowerCase();
-    return (p.proCode ?? '').toLowerCase().contains(needle) ||
-        p.name.toLowerCase().contains(needle) ||
-        p.phone.toLowerCase().contains(needle);
+/// Reusable empty-state used across the admin tabs.
+class _EmptyView extends StatelessWidget {
+  const _EmptyView({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: AppColors.slate400),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
   }
+}
 
-  /// Full admin detail modal for a single Pro.
-  void _showProDetail(BuildContext context, PendingProModel pro) {
+/// Small metric chip used in the pros cards.
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: .4)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            color: color, fontSize: 11.5, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+// TAB 3 — TICKETS (support & complaints)
+class _TicketsTab extends StatelessWidget {
+  const _TicketsTab();
+
+  void _showTicket(BuildContext context, SupportTicket ticket) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -254,757 +992,258 @@ class _PendingProsTabState extends State<_PendingProsTab> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.92,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (_, controller) =>
-            ValueListenableBuilder<List<PendingProModel>>(
-          valueListenable: AdminStore.pendingPros,
-          builder: (_, list, ___) {
-            final p =
-                list.firstWhere((e) => e.id == pro.id, orElse: () => pro);
-            return ListView(
-              controller: controller,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(p.name,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 20)),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon:
-                          const Icon(Icons.close_rounded, color: Colors.white),
-                    ),
-                  ],
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    if (p.proCode != null)
-                      _codeChip(p.proCode!, success: p.isPaid),
-                    _stateChip(p),
-                    for (final b in p.badges) _badgeChip(b),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('${p.professionFr} • ${p.city ?? '-'} • ${p.phone}',
-                    style: const TextStyle(color: AppColors.slate400)),
-                const SizedBox(height: 16),
-                Text('Preuve de travail',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: .9),
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Container(
-                  height: 260,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: p.docImage == null
-                      ? const Center(
-                          child: Text('Aucune preuve fournie',
-                              style: TextStyle(color: AppColors.textSecondary)))
-                      : InteractiveViewer(
-                          maxScale: 4,
-                          child: p.docImage!.startsWith('assets/')
-                              ? Image.asset(p.docImage!,
-                                  fit: BoxFit.contain)
-                              : Image.file(File(p.docImage!),
-                                  fit: BoxFit.contain, errorBuilder:
-                                      (_, __, ___) => const Center(
-                                          child: Text('Preuve illisible',
-                                              style: TextStyle(
-                                                  color: AppColors.textSecondary))),
-                                  ),
-                        ),
-                ),
-                const SizedBox(height: 20),
-                // ── Tokens ──
-                Row(
-                  children: [
-                    const Icon(Icons.toll_rounded,
-                        color: AppColors.secondary, size: 20),
-                    const SizedBox(width: 8),
-                    const Text('Tokens',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    IconButton.filledTonal(
-                      onPressed: () =>
-                          AdminStore.adjustTokens(p.id, -10),
-                      icon: const Icon(Icons.remove_rounded,
-                          color: Colors.white),
-                    ),
-                    Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('${p.tokens}',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18)),
-                    ),
-                    IconButton.filledTonal(
-                      onPressed: () =>
-                          AdminStore.adjustTokens(p.id, 10),
-                      icon: const Icon(Icons.add_rounded,
-                          color: Colors.white),
-                    ),
-                  ],
-                ),
-                const Divider(color: AppColors.slate800, height: 28),
-
-                // ── Unlimited plan ──
-                SwitchListTile(
-                  value: p.isPaid,
-                  onChanged: (v) => AdminStore.setPaid(p.id, isPaid: v),
-                  title: const Text('Abonnement illimité (30 jours)',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700)),
-                  subtitle: const Text(
-                      'Confirme sans consommer de tokens',
-                      style:
-                          TextStyle(color: AppColors.slate400, fontSize: 12)),
-                ),
-                const Divider(color: AppColors.slate800, height: 28),
-
-                // ── Badges manuels ──
-                Text('Badges manuels',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: .9),
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final entry in const [
-                      ('verified', 'موثّق'),
-                      ('master', 'خبير'),
-                      ('top_rated', 'الأعلى تقييمًا'),
-                    ])
-                      FilterChip(
-                        selected: p.badges.contains(entry.$1),
-                        onSelected: (_) =>
-                            AdminStore.toggleBadge(p.id, entry.$1),
-                        label: Text(entry.$2),
-                        labelStyle: const TextStyle(
-                            color: Colors.white, fontSize: 12),
-                        backgroundColor: AppColors.slate800,
-                        selectedColor:
-                            AppColors.primary.withValues(alpha: .35),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                // ── Decisions ──
-                if (p.status == 'pending' || p.status == 'rejected') ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        AdminStore.approvePro(p.id);
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.verified_rounded),
-                      label: const Text('Approuver le compte'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final reasonCtrl = TextEditingController();
-                        final reason = await showDialog<String>(
-                          context: context,
-                          builder: (dlgCtx) => AlertDialog(
-                            backgroundColor: AppColors.slate800,
-                            title: const Text('Motif du refus',
-                                style: TextStyle(color: Colors.white)),
-                            content: TextField(
-                              controller: reasonCtrl,
-                              maxLines: 3,
-                              autofocus: true,
-                              style:
-                                  const TextStyle(color: Colors.white),
-                              decoration: const InputDecoration(
-                                hintText: 'Expliquez la raison du refus…',
-                                hintStyle: TextStyle(
-                                    color: AppColors.textSecondary),
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(dlgCtx),
-                                child: const Text('Annuler'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () => Navigator.pop(
-                                    dlgCtx, reasonCtrl.text.trim()),
-                                child: const Text('Confirmer'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (reason != null && reason.isNotEmpty) {
-                          AdminStore.rejectPro(p.id, reason: reason);
-                        }
-                      },
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('Refuser avec motif'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                        side: BorderSide(
-                            color:
-                                AppColors.error.withValues(alpha: .5)),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14),
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Center(
-                    child: Text(
-                      p.status == 'approved'
-                          ? 'Compte approuvé ✓ — accès actif'
-                          : 'Compte refusé',
-                      style: const TextStyle(color: AppColors.slate400),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-
-                // ── Direct WhatsApp ──
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      final msg = AdminStore.whatsappMessage(
-                        name: p.name,
-                        profession: p.professionFr,
-                        proCode: p.proCode ?? '-',
-                      );
-                      final uri = Uri.parse(
-                          'https://wa.me/${SubscriptionStore.whatsappNumber}'
-                          '?text=${Uri.encodeComponent(msg)}');
-                      launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
-                    },
-                    icon: const Icon(Icons.chat_rounded),
-                    label: const Text('Contacter via WhatsApp'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: BorderSide(
-                          color:
-                              AppColors.success.withValues(alpha: .4)),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
+        child: _TicketReplySheet(ticket: ticket),
       ),
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<SupportTicket>>(
+      valueListenable: SupportStore.tickets,
+      builder: (_, tickets, __) {
+        if (tickets.isEmpty) {
+          return _EmptyView(
+            icon: Icons.confirmation_number_outlined,
+            message: tr(context,
+                fr: 'Aucun ticket ouvert', ar: 'لا تذاكر مفتوحة'),
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.all(20),
+          itemCount: tickets.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) {
+            final t = tickets[i];
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(t.subject,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 14)),
+                      ),
+                      _Chip(
+                        label: t.status == 'resolved'
+                            ? tr(context, fr: 'Fermé', ar: 'مغلق')
+                            : tr(context, fr: 'Ouvert', ar: 'مفتوح'),
+                        color: t.status == 'resolved'
+                            ? AppColors.error
+                            : AppColors.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${t.senderName} • ${t.date}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    t.message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(color: AppColors.slate800, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: t.status == 'resolved'
+                              ? null
+                              : () => _showTicket(context, t),
+                          icon: const Icon(Icons.chat_rounded, size: 16),
+                          label: Text(tr(context, fr: 'Répondre', ar: 'رد')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: TextButton.icon(
+                        onPressed: t.status == 'resolved'
+                            ? null
+                            : () {
+                                SupportStore.resolve(t.id);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(tr(context,
+                                        fr: 'Ticket fermé',
+                                        ar: 'هذه التذكرة مغلقة')),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: FittedBox(child: Text(tr(context,
+                            fr: '[Fermer Ticket]', ar: '[إغلاق التذكرة]'))),
+                      )),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _TicketReplySheet extends StatefulWidget {
+  const _TicketReplySheet({required this.ticket});
+  final SupportTicket ticket;
+
+  @override
+  State<_TicketReplySheet> createState() => _TicketReplySheetState();
+}
+
+class _TicketReplySheetState extends State<_TicketReplySheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Search ───────────────────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-          child: TextField(
-            controller: _queryController,
-            onChanged: (_) => setState(() {}),
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: 'PRO-00001 · Nom · Téléphone',
-              hintStyle: const TextStyle(color: AppColors.textSecondary),
-              prefixIcon:
-                  const Icon(Icons.search_rounded, color: AppColors.slate400),
-              filled: true,
-              fillColor: AppColors.slate800,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
+        Text(widget.ticket.subject,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+        const SizedBox(height: 8),
+        for (final m in widget.ticket.conversation)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  m.fromUser
+                      ? Icons.person_rounded
+                      : Icons.support_agent_rounded,
+                  size: 14,
+                  color:
+                      m.fromUser ? AppColors.textSecondary : AppColors.success,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(m.text,
+                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+              ],
             ),
           ),
-        ),
-        // ── Filter chips ─────────────────────────────────────────────────
-        SizedBox(
-          height: 40,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+        const SizedBox(height: 10),
+        if (widget.ticket.status == 'resolved')
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              tr(context, fr: 'Ticket fermé', ar: 'هذه التذكرة مغلقة'),
+              style: const TextStyle(
+                  color: AppColors.error, fontWeight: FontWeight.w800),
+            ),
+          )
+        else
+          Row(
             children: [
-              for (final f in ['all', 'pending', 'active', 'paid', 'expired'])
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(_filterLabel(f)),
-                    selected: _filter == f,
-                    selectedColor: AppColors.secondary,
-                    labelStyle: TextStyle(
-                      color: _filter == f
-                          ? Colors.white
-                          : AppColors.slate400,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                    backgroundColor: AppColors.slate800,
-                    onSelected: (_) => setState(() => _filter = f),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    hintText: 'AlloService',
+                    hintStyle: TextStyle(color: AppColors.slate400),
+                    filled: true,
+                    fillColor: AppColors.slate800,
                   ),
                 ),
+              ),
+              IconButton(
+                onPressed: () {
+                  final text = _controller.text.trim();
+                  if (text.isEmpty) return; // reject blank/whitespace-only replies
+                  SupportStore.addMessage(
+                    widget.ticket.id,
+                    ChatMsg(
+                      text: text,
+                      fromUser: false,
+                      time: 'admin',
+                    ),
+                  );
+                  _controller.clear();
+                },
+                icon: const Icon(Icons.send_rounded, color: AppColors.success),
+              ),
             ],
           ),
-        ),
-        const SizedBox(height: 8),
-
-        // List
-        Expanded(
-          child: ValueListenableBuilder<List<PendingProModel>>(
-            valueListenable: AdminStore.pendingPros,
-            builder: (context, list, _) {
-              final query = _queryController.text.trim().toLowerCase();
-              final filtered = list.where((p) {
-                if (_filter != 'all' && _accountState(p) != _filter) {
-                  return false;
-                }
-                return _matchesQuery(p, query);
-              }).toList();
-
-              if (filtered.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.check_circle_outline_rounded,
-                          color: AppColors.success, size: 48),
-                      const SizedBox(height: 12),
-                      Text(
-                        _filter == 'pending'
-                            ? 'Aucune demande en attente 👌'
-                            : 'Aucun résultat',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: filtered.length,
-                itemBuilder: (_, i) => _ProCard(
-                  pro: filtered[i],
-                  onOpenDetails: () => _showProDetail(context, filtered[i]),
-                ),
-              );
-            },
-          ),
-        ),
       ],
     );
   }
-
-  String _filterLabel(String f) {
-    switch (f) {
-      case 'pending':
-        return '⏳ En attente';
-      case 'active':
-        return '🟢 Actifs';
-      case 'paid':
-        return '💎 Payés';
-      case 'expired':
-        return '⛔ Expirés';
-      default:
-        return '📋 Tous';
-    }
-  }
-  Widget _codeChip(String text, {bool success = false}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: (success ? AppColors.success : AppColors.primary)
-              .withValues(alpha: .15),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: success ? AppColors.success : AppColors.primaryLight,
-            fontWeight: FontWeight.w700,
-            fontSize: 11,
-          ),
-        ),
-      );
-
-  Widget _badgeChip(String b) {
-    final label = switch (b) {
-      'verified' => 'موثّق',
-      'master' => 'خبير',
-      'top_rated' => 'الأعلى تقييمًا',
-      _ => b,
-    };
-    return Chip(
-      visualDensity: VisualDensity.compact,
-      backgroundColor: AppColors.secondary.withValues(alpha: .15),
-      side: BorderSide.none,
-      label: Text(label,
-          style: const TextStyle(color: Colors.white, fontSize: 11)),
-    );
-  }
-
-  Widget _stateChip(PendingProModel p) {
-    final state = _accountState(p);
-    final (label, color) = switch (state) {
-      'paid' => ('اشتراك مدفوع 💎', AppColors.success),
-      'active' => ('نشط 🟢', AppColors.success),
-      'expired' => ('منتهي ⛔', AppColors.error),
-      _ => p.status == 'rejected'
-          ? ('مرفوض ❌', AppColors.error)
-          : ('في انتظار التفعيل ⏳', AppColors.warning),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 11)),
-    );
-  }
 }
 
-class _ProCard extends StatelessWidget {
-  const _ProCard({required this.pro, this.onOpenDetails});
-  final PendingProModel pro;
-  final VoidCallback? onOpenDetails;
+// TAB 4 — CLIENTS (management + suspension)
+class _ClientsTab extends StatelessWidget {
+  const _ClientsTab({required this.query});
+  final String query;
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = switch (pro.status) {
-      'approved' => AppColors.success,
-      'rejected' => AppColors.error,
-      _ => AppColors.warning,
-    };
-
-    final statusLabel = switch (pro.status) {
-      'approved' => 'Approuvé',
-      'rejected' => 'Refusé',
-      _ => 'En attente',
-    };
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.slate800,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                  child: Text(
-                    pro.name.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(
-                        color: AppColors.primaryLight,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pro.name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
-                      ),
-                      Text(
-                        '${pro.professionFr} • ${pro.city}',
-                        style: const TextStyle(
-                            color: AppColors.slate400, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11),
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: onOpenDetails,
-                      tooltip: 'Détails & gestion',
-                      icon: const Icon(Icons.manage_accounts_rounded,
-                          size: 20, color: AppColors.primaryLight),
-                    ),
-                    IconButton(
-                      tooltip: 'WhatsApp',
-                      onPressed: () {
-                        final msg = AdminStore.whatsappMessage(
-                          name: pro.name,
-                          profession: pro.professionFr,
-                          proCode: pro.proCode ?? '-',
-                        );
-                        final uri = Uri.parse(
-                            'https://wa.me/${SubscriptionStore.whatsappNumber}'
-                            '?text=${Uri.encodeComponent(msg)}');
-                        launchUrl(uri,
-                            mode: LaunchMode.externalApplication);
-                      },
-                      icon: const Icon(Icons.chat_rounded,
-                          size: 20, color: AppColors.success),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (pro.proCode != null) ...[
-                  const Icon(Icons.badge_outlined,
-                      size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 4),
-                  Text(pro.proCode!,
-                      style: const TextStyle(
-                          color: AppColors.slate400,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 10),
-                ],
-                const Icon(Icons.phone_outlined,
-                    size: 14, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
-                Text(pro.phone,
-                    style: const TextStyle(
-                        color: AppColors.slate400, fontSize: 12)),
-                const Spacer(),
-                const Icon(Icons.calendar_today_outlined,
-                    size: 14, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
-                Text(pro.submittedAt,
-                    style: const TextStyle(
-                        color: AppColors.slate400, fontSize: 12)),
-              ],
-            ),
-            if (pro.badges.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final b in pro.badges)
-                    Chip(
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor:
-                          AppColors.secondary.withValues(alpha: .15),
-                      side: BorderSide.none,
-                      label: Text(
-                        switch (b) {
-                          'verified' => 'موثّق',
-                          'master' => 'خبير',
-                          'top_rated' => 'الأعلى تقييمًا',
-                          _ => b,
-                        },
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 11),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            if (pro.status == 'pending') ...[
-              const SizedBox(height: 14),
-              if (pro.docImage != null) ...[
-                OutlinedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        backgroundColor: AppColors.slate800,
-                        title: const Text('Document de vérification',
-                            style: TextStyle(color: Colors.white)),
-                        content: Container(
-                          width: double.maxFinite,
-                          height: 300,
-                          decoration: BoxDecoration(
-                            color: Colors.black26,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.description_rounded,
-                                color: AppColors.secondary, size: 64),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Fermer'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.visibility_rounded, size: 18),
-                  label: const Text('Voir Document'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.secondary,
-                    side: const BorderSide(color: AppColors.secondary),
-                    minimumSize: const Size(double.infinity, 44),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        AdminStore.rejectPro(pro.id);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Professionnel refusé.'),
-                              backgroundColor: AppColors.error),
-                        );
-                      },
-                      icon: const Icon(Icons.close_rounded,
-                          color: AppColors.error, size: 18),
-                      label: const Text('Refuser',
-                          style: TextStyle(color: AppColors.error)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.error),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        _showBadgeSelection(context, pro.id);
-                      },
-                      icon: const Icon(Icons.check_rounded,
-                          color: Colors.white, size: 18),
-                      label: const Text('Approuver',
-                          style: TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showBadgeSelection(BuildContext context, String proId) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.slate800,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Attribuer un badge',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            _badgeOption(context, proId, 'verified', 'Vérifié', Icons.verified,
-                Colors.blue),
-            _badgeOption(context, proId, 'expert', 'Expert', Icons.star_rounded,
-                Colors.orange),
-            _badgeOption(context, proId, 'premium', 'Premium',
-                Icons.workspace_premium, Colors.purple),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _badgeOption(BuildContext context, String proId, String badge,
-      String label, IconData icon, Color color) {
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(label, style: const TextStyle(color: Colors.white)),
-      onTap: () {
-        AdminStore.approvePro(proId, badge: badge);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ Professionnel approuvé avec badge $label !'),
-            backgroundColor: AppColors.success,
+    return ValueListenableBuilder<List<UserModel>>(
+      valueListenable: UserStore.registeredClients,
+      builder: (_, clients, __) {
+        final q = query.toLowerCase();
+        final filtered = clients.where((c) {
+          if (q.isEmpty) return true;
+          return c.name.toLowerCase().contains(q) ||
+              c.phone.contains(q) ||
+              c.id.toLowerCase().contains(q);
+        }).toList();
+        if (filtered.isEmpty) {
+          return _EmptyView(
+            icon: Icons.people_outline_rounded,
+            message: tr(context, fr: 'Aucun client', ar: 'لا عملاء'),
+          );
+        }
+        return ValueListenableBuilder<List<String>>(
+          // Reactive suspension: rebuilds the list the instant any client is
+          // banned/unbanned, so the Suspendre/Réactiver toggles reflect the
+          // new state immediately (no pull-to-refresh required).
+          valueListenable: AdminStore.suspendedClients,
+          builder: (_, suspended, __) => ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) =>
+                _ClientCard(client: filtered[i], suspendedIds: suspended),
           ),
         );
       },
@@ -1012,354 +1251,108 @@ class _ProCard extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB 2 — Reports / Réclamations
-// ═══════════════════════════════════════════════════════════════════════════
-class _ReportsTab extends StatelessWidget {
+class _ClientCard extends StatelessWidget {
+  const _ClientCard({required this.client, required this.suspendedIds});
+  final UserModel client;
+  final List<String> suspendedIds;
+
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<ReportModel>>(
-      valueListenable: AdminStore.reports,
-      builder: (context, list, _) {
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: list.length,
-          itemBuilder: (_, i) {
-            final r = list[i];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.slate800,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: r.resolved
-                      ? Colors.green.withValues(alpha: 0.2)
-                      : Colors.red.withValues(alpha: 0.2),
+    final s = suspendedIds.contains(client.id);
+    final orders = RequestStore.forCustomer(client.name).length;
+    void snap(String fr, String ar) => ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(tr(context, fr: fr, ar: ar))));
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.primarySurface,
+                child: Text(
+                  client.name.isNotEmpty ? client.name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.w800),
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.flag_rounded,
-                            color: AppColors.error, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            r.about,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        if (r.resolved)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text('Résolu',
-                                style: TextStyle(
-                                    color: AppColors.success,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
+                    Text(client.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14)),
                     Text(
-                      'Par: ${r.reportedBy}',
+                      '${client.phone} • ${client.id}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: AppColors.textSecondary, fontSize: 12),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      r.reason,
-                      style: const TextStyle(
-                          color: AppColors.slate400, fontSize: 13, height: 1.4),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      r.date,
-                      style: const TextStyle(
-                          color: Color(0xFF475569), fontSize: 11),
-                    ),
-                    if (!r.resolved) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => AdminStore.resolveReport(r.id),
-                          icon: const Icon(Icons.done_all_rounded,
-                              size: 18, color: Colors.white),
-                          label: const Text('Marquer comme résolu',
-                              style: TextStyle(color: Colors.white)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB 3 — Requests Management
-// ═══════════════════════════════════════════════════════════════════════════
-class _RequestsTab extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<ServiceRequest>>(
-      valueListenable: RequestStore.requests,
-      builder: (context, requests, _) {
-        // Every order carrying (or eligible for) a chat room falls under
-        // admin supervision here.
-        final chatOrders = requests
-            .where(
-              (r) =>
-                  r.status == RequestStatus.accepted ||
-                  r.status == RequestStatus.enRoute ||
-                  r.status == RequestStatus.arrived ||
-                  r.status == RequestStatus.inProgress,
-            )
-            .toList();
-
-        if (chatOrders.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.receipt_long_rounded,
-                    color: AppColors.textSecondary, size: 48),
-                const SizedBox(height: 12),
-                const Text(
-                  'Aucune demande acceptée',
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: chatOrders.length,
-          itemBuilder: (_, i) {
-            final request = chatOrders[i];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.slate800,
-                borderRadius: BorderRadius.circular(18),
-                border:
-                    Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              _Chip(
+                label: tr(context,
+                    fr: 'Commandes: $orders', ar: 'طلبات: $orders'),
+                color: AppColors.primary,
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.receipt_long_rounded,
-                            color: AppColors.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            request.serviceTitleFr,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text('Acceptée',
-                              style: TextStyle(
-                                  color: AppColors.success,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Client: ${request.customerName}',
-                      style: const TextStyle(
-                          color: AppColors.slate400, fontSize: 13),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Pro: ${request.professionalName}',
-                      style: const TextStyle(
-                          color: AppColors.slate400, fontSize: 13),
-                    ),
-                    const SizedBox(height: 12),
-                    // ── Admin chat supervision ──
-                    ValueListenableBuilder<Map<String, ChatSession>>(
-                      valueListenable: ChatStore.sessions,
-                      builder: (_, sessions, __) {
-                        final session = sessions[request.id];
-                        final chatActive = session != null &&
-                            session.active &&
-                            !session.isExpired;
-                        return Row(
-                          children: [
-                            Icon(
-                              chatActive
-                                  ? Icons.lock_open_rounded
-                                  : Icons.lock_rounded,
-                              size: 16,
-                              color: chatActive
-                                  ? AppColors.success
-                                  : AppColors.textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              chatActive
-                                  ? 'Chat actif • fenêtre ${session.expiryHours}h'
-                                  : 'Chat clôturé',
-                              style: const TextStyle(
-                                  color: AppColors.slate400, fontSize: 12),
-                            ),
-                            const Spacer(),
-                            if (chatActive)
-                              TextButton.icon(
-                                onPressed: () =>
-                                    _confirmCloseChat(context, request.id),
-                                icon: const Icon(Icons.block_rounded,
-                                    size: 16, color: AppColors.error),
-                                label: const Text('Clôturer',
-                                    style: TextStyle(
-                                        color: AppColors.error,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold)),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              _showResetDialog(context, request.id);
-                            },
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
-                            label: const Text('Réinitialiser'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.secondary,
-                              side:
-                                  const BorderSide(color: AppColors.secondary),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: s
+                      ? null
+                      : () {
+                          AdminStore.suspendClient(client.id);
+                          snap('Client suspendu: ${client.name}',
+                              'تم تجميد حساب ${client.name}');
+                        },
+                  icon: const Icon(Icons.ac_unit_rounded, size: 15),
+                  label: Text(tr(context, fr: 'Suspendre', ar: 'تجميد'),
+                      style: const TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showResetDialog(BuildContext context, String requestId) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.slate800,
-        title: const Text('Réinitialiser l\'acceptation',
-            style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Cela remettra le statut de la demande en attente et déduira 10 tokens supplémentaires du professionnel.',
-          style: TextStyle(color: AppColors.slate400),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              AdminStore.resetRequestAcceptance(requestId);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Demande réinitialisée avec succès'),
-                  backgroundColor: AppColors.success,
+              const SizedBox(width: 6),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: !s
+                      ? null
+                      : () {
+                          AdminStore.reactivateClient(client.id);
+                          snap('Client réactivé: ${client.name}',
+                              'تم إعادة تفعيل ${client.name}');
+                        },
+                  icon: const Icon(Icons.restart_alt_rounded, size: 15),
+                  label: Text(tr(context, fr: 'Réactiver', ar: 'إعادة تفعيل'),
+                      style: const TextStyle(fontSize: 11.5)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.secondary,
-            ),
-            child: const Text('Confirmer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmCloseChat(BuildContext context, String requestId) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        scrollable: true,
-        backgroundColor: AppColors.slate800,
-        title: const Text('Clôturer le chat',
-            style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Le client et le professionnel ne pourront plus échanger sur cette demande sans une nouvelle confirmation (10 tokens).',
-          style: TextStyle(color: AppColors.slate400),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ChatStore.closeByAdmin(requestId);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Chat clôturé'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
-            child: const Text('Clôturer'),
+              ),
+            ],
           ),
         ],
       ),
@@ -1367,368 +1360,193 @@ class _RequestsTab extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TAB 4 — Settings
-// ═══════════════════════════════════════════════════════════════════════════
+// TAB 5 — PARAMÈTRES & BROADCAST
 class _SettingsTab extends StatefulWidget {
+  const _SettingsTab();
+
   @override
   State<_SettingsTab> createState() => _SettingsTabState();
 }
 
 class _SettingsTabState extends State<_SettingsTab> {
-  bool _requestsEnabled = true;
-  bool _newProEnabled = true;
-  bool _maintenanceMode = false;
+  final _broadcastController = TextEditingController();
+  String _broadcastTarget = 'clients';
+
+  @override
+  void dispose() {
+    _broadcastController.dispose();
+    super.dispose();
+  }
+
+  void _sendBroadcast() {
+    final text = _broadcastController.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(tr(context, fr: 'Écrivez un message', ar: 'اكتب رسالة أولاً')),
+      ));
+      return;
+    }
+    final targetRole = _broadcastTarget == 'pros' ? 'professional' : 'client';
+    NotificationStore.add(NotificationModel(
+      id: '${DateTime.now().millisecondsSinceEpoch}_broadcast',
+      title: tr(context, fr: '📣 AlloService', ar: '📣 AlloService'),
+      message: text,
+      type: 'system',
+      recipientId: 'all',
+      targetRole: targetRole,
+      createdAt: DateTime.now(),
+    ));
+    _broadcastController.clear();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+          tr(context, fr: 'Notification envoyée 🚀', ar: 'تم إرسال الإشعار 🚀')),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
       children: [
-        _SectionHeader(label: 'Contrôle de la plateforme'),
-        _ToggleTile(
-          icon: Icons.receipt_long_rounded,
-          label: 'Réception des demandes',
-          subtitle: 'Activer / désactiver les nouvelles demandes',
-          value: _requestsEnabled,
-          color: AppColors.success,
-          onChanged: (v) => setState(() => _requestsEnabled = v),
-        ),
-        _ToggleTile(
-          icon: Icons.person_add_rounded,
-          label: 'Inscription des professionnels',
-          subtitle: 'Bloquer les nouvelles inscriptions pro',
-          value: _newProEnabled,
-          color: AppColors.secondary,
-          onChanged: (v) => setState(() => _newProEnabled = v),
-        ),
-        _ToggleTile(
-          icon: Icons.construction_rounded,
-          label: 'Mode maintenance',
-          subtitle: 'Affiche un écran de maintenance aux utilisateurs',
-          value: _maintenanceMode,
-          color: AppColors.error,
-          onChanged: (v) => setState(() => _maintenanceMode = v),
-        ),
-        const SizedBox(height: 16),
-        _SectionHeader(label: 'Chats'),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Text(
-            'Fermeture automatique des conversations après confirmation :',
-            style: const TextStyle(color: AppColors.slate400, fontSize: 13),
-          ),
-        ),
-        ValueListenableBuilder<Map<String, ChatSession>>(
-          valueListenable: ChatStore.sessions,
-          builder: (_, __, ___) => Row(
-            children: [48, 60, 72]
-                .map((h) => Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(right: h == 72 ? 0 : 8),
-                        child: ChoiceChip(
-                          label: Center(
-                            child: Text(
-                              '${h}h',
-                              style: TextStyle(
-                                color: ChatStore.expiryHours == h
-                                    ? Colors.white
-                                    : AppColors.slate400,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          selected: ChatStore.expiryHours == h,
-                          selectedColor: AppColors.primary,
-                          backgroundColor: AppColors.slate800,
-                          showCheckmark: false,
-                          onSelected: (_) =>
-                              setState(() => ChatStore.setExpiryHours(h)),
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _SectionHeader(label: 'Abonnements'),
+        Text(tr(context, fr: '📢 Diffusion / Broadcast', ar: '📢 إشعار جماعي'),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
         Row(
           children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  SubscriptionStore.renew();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Abonnement activé (1 mois illimité)'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text('Activer',
-                    style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
+            ChoiceChip(
+              label: Text(
+                  tr(context, fr: 'Tous les Clients', ar: 'كل العملاء')),
+              selected: _broadcastTarget == 'clients',
+              onSelected: (_) => setState(() => _broadcastTarget = 'clients'),
+              selectedColor: AppColors.secondary,
+              labelStyle: TextStyle(
+                  color: _broadcastTarget == 'clients'
+                      ? Colors.white
+                      : AppColors.slate400),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  SubscriptionStore.expire();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Abonnement marqué comme expiré'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.block_rounded, size: 18),
-                label: const Text('Expirer',
-                    style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
+            const SizedBox(width: 8),
+            ChoiceChip(
+              label:
+                  Text(tr(context, fr: 'Tous les Pros', ar: 'كل الحرفيين')),
+              selected: _broadcastTarget == 'pros',
+              onSelected: (_) => setState(() => _broadcastTarget = 'pros'),
+              selectedColor: AppColors.secondary,
+              labelStyle: TextStyle(
+                  color: _broadcastTarget == 'pros'
+                      ? Colors.white
+                      : AppColors.slate400),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        _SectionHeader(label: 'Gestion des données'),
-        _ActionTile(
-          icon: Icons.bar_chart_rounded,
-          label: 'Voir les statistiques détaillées',
-          subtitle: 'Rapports complets par région / catégorie',
-          color: AppColors.primary,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const DetailedStatisticsScreen(),
-              ),
-            );
-          },
+        const SizedBox(height: 10),
+        TextField(
+          controller: _broadcastController,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: tr(context, fr: 'Votre message…', ar: 'رسالتك…'),
+            hintStyle: const TextStyle(color: AppColors.slate400),
+            filled: true,
+            fillColor: AppColors.slate800,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+          ),
         ),
-        const SizedBox(height: 16),
-        _SectionHeader(label: 'Session'),
-        _ActionTile(
-          icon: Icons.logout_rounded,
-          label: 'Se déconnecter',
-          subtitle: 'Quitter la session administrateur',
-          color: AppColors.error,
-          onTap: () => Navigator.of(context).pop(),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _sendBroadcast,
+            icon: const Icon(Icons.send_rounded),
+            label: Text(tr(context, fr: 'Envoyer 🚀', ar: 'إرسال 🚀'),
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.secondary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        _Card(
+          title: tr(context,
+              fr: '💰 Récapitulatif recettes cash', ar: '💰 ملخص مداخيل الكاش'),
+          body: ValueListenableBuilder<List<PendingProModel>>(
+            valueListenable: AdminStore.pendingPros,
+            builder: (_, list, __) {
+              final paid = list.where((p) => p.isPaid).length;
+              return Text(
+                '$paid ${tr(context, fr: 'abonnements actifs', ar: 'اشتراك نشط')}'
+                ' × 15 DT = $paid×15 = ${paid * 15} DT',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        _Card(
+          title: tr(context,
+              fr: '⏱ Fermeture auto des chats', ar: '⏱ إغلاق المحادثات'),
+          body: Row(
+            children: [48, 60, 72].map((h) {
+              return Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text('${h}h'),
+                  selected: ChatStore.expiryHours == h,
+                  onSelected: (_) => setState(() => ChatStore.setExpiryHours(h)),
+                  selectedColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                      color: ChatStore.expiryHours == h
+                          ? Colors.white
+                          : AppColors.slate400),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const _Card(
+          title: 'Session',
+          body: Align(
+            alignment: AlignmentDirectional.center,
+            child: LogoutTile(),
+          ),
+        ),
       ],
     );
   }
 }
 
-// ─── Shared widgets ──────────────────────────────────────────────────────────
+/// Simple titled card used inside admin Settings.
+class _Card extends StatelessWidget {
+  const _Card({required this.title, required this.body});
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.gradient,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final LinearGradient gradient;
+  final String title;
+  final Widget body;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 140,
-      constraints: const BoxConstraints(minHeight: 100),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: gradient.colors.first.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: AppColors.slate800,
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white, size: 22),
-          const Spacer(),
           Text(
-            value,
+            title,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18),
+                color: Colors.white, fontWeight: FontWeight.w800),
           ),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
-          ),
+          const SizedBox(height: 8),
+          body,
         ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10, top: 4),
-      child: Text(
-        label.toUpperCase(),
-        style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-class _ToggleTile extends StatelessWidget {
-  const _ToggleTile({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.value,
-    required this.color,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final bool value;
-  final Color color;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.slate800,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600)),
-                Text(subtitle,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 11)),
-              ],
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: color,
-            trackColor: WidgetStateProperty.resolveWith(
-              (s) => s.contains(WidgetState.selected)
-                  ? color.withValues(alpha: 0.3)
-                  : const Color(0xFF334155),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: AppColors.slate800,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textSecondary),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

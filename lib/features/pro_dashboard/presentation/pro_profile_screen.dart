@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/legal/presentation/legal_screens.dart';
+import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
+import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/pro_registration/presentation/pro_registration_screen.dart';
@@ -54,6 +59,56 @@ class ProProfileScreen extends StatelessWidget {
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
+            ),
+            const SizedBox(height: 10),
+            // Trust badge: identity card verified by the admin
+            // (بطاقة هويّة مفعلة / CIN Vérifié).
+            ValueListenableBuilder<ProVerificationStatus>(
+              valueListenable: ProProfileStore.verificationStatus,
+              builder: (_, status, __) =>
+                  status == ProVerificationStatus.approved
+                      ? const _PillBadge(
+                          label: 'بطاقة هويّة مفعلة / CIN Vérifié',
+                          color: Color(0xFF057A55),
+                          icon: Icons.verified_user_rounded,
+                        )
+                      : const SizedBox.shrink(),
+            ),
+            // Admin-assigned badges — global real-time sync: adding or
+            // removing a badge in the admin panel updates this list
+            // instantly via [AdminStore.pendingPros].
+            ValueListenableBuilder<List<PendingProModel>>(
+              valueListenable: AdminStore.pendingPros,
+              builder: (_, list, __) {
+                final session = UserStore.user.value;
+                PendingProModel? entry;
+                for (final p in list) {
+                  if (p.proCode == session?.proCode ||
+                      p.id == session?.id ||
+                      p.proCode == session?.id) {
+                    entry = p;
+                    break;
+                  }
+                }
+                final badges = entry?.badges ?? const <String>[];
+                if (badges.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final b in badges)
+                        _PillBadge(
+                          label: ProBadges.label(context, b),
+                          color: AppColors.primary,
+                          icon: Icons.stars_rounded,
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             ListTile(
@@ -174,6 +229,11 @@ class ProProfileScreen extends StatelessWidget {
                       ),
                     ),
             ),
+            // Legal & about entries (About / Terms / Privacy).
+            const LegalMenuTiles(),
+            const Divider(),
+            // Session: full local wipe + back to the welcome flow.
+            const LogoutTile(),
           ],
         ),
       ),

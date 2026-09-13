@@ -142,7 +142,10 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      frController.dispose();
+      arController.dispose();
+    });
   }
 
   void _showEditCategoryDialog(CatalogCategory category) {
@@ -205,7 +208,10 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      frController.dispose();
+      arController.dispose();
+    });
   }
 
   void _showDeleteCategoryDialog(String categoryId) {
@@ -296,7 +302,10 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      frController.dispose();
+      arController.dispose();
+    });
   }
 }
 

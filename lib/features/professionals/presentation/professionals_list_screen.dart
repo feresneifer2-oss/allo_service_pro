@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/professional/presentation/professional_profile_screen.dart';
-import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart';
+import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart'
+    show allCities;
+import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/professional_card.dart';
@@ -10,9 +12,11 @@ import 'package:allo_service_pro/shared/widgets/professional_card.dart';
 class ProfessionalsListScreen extends StatefulWidget {
   const ProfessionalsListScreen({
     super.key,
-    required this.serviceId,
-    required this.serviceTitleFr,
-    required this.serviceTitleAr,
+    // All params optional: when [serviceId] is empty the screen lists the
+    // whole catalog (used by the home "Voir tout" entry point).
+    this.serviceId = '',
+    this.serviceTitleFr = '',
+    this.serviceTitleAr = '',
   });
 
   final String serviceId;
@@ -32,7 +36,9 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
   double _maxDistance = 20;
 
   List<ProfessionalModel> get _filtered {
-    var list = professionalsForService(widget.serviceId);
+    var list = widget.serviceId.isEmpty
+        ? List<ProfessionalModel>.from(ProfessionalsRepository.all)
+        : ProfessionalsRepository.forService(widget.serviceId);
     if (_city != null) list = list.where((p) => p.city == _city).toList();
     if (_minRating > 0) {
       list = list.where((p) => p.rating >= _minRating).toList();
@@ -146,8 +152,9 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title =
-        tr(context, fr: widget.serviceTitleFr, ar: widget.serviceTitleAr);
+    final title = widget.serviceTitleFr.isEmpty
+        ? tr(context, fr: 'Tous les professionnels', ar: 'كل المحترفين')
+        : tr(context, fr: widget.serviceTitleFr, ar: widget.serviceTitleAr);
     final list = _filtered;
 
     return Scaffold(

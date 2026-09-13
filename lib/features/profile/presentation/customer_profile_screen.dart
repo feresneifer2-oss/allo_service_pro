@@ -7,6 +7,8 @@ import 'package:allo_service_pro/features/chat/models/chat_session.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/notifications/presentation/notifications_screen.dart';
+import 'package:allo_service_pro/features/legal/presentation/legal_screens.dart';
+import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
 import 'package:allo_service_pro/shared/widgets/empty_state_widget.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
@@ -264,6 +266,11 @@ class CustomerProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Legal & about entries (About / Terms / Privacy).
+                const LegalMenuTiles(),
+                const Divider(),
+                // Session: full local wipe + back to the welcome flow.
+                const LogoutTile(),
               ],
             ),
           ),

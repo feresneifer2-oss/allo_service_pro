@@ -14,59 +14,75 @@ class WelcomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                const SizedBox(height: 60),
-                const AlloServiceLogo(showTagline: true),
-                const SizedBox(height: 48),
-                const Text(
-                  'Bienvenue',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Trouvez et réservez des professionnels\nprès de chez vous en Tunisie.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 17,
-                    color: AppColors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 60),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const RegisterScreen(),
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(flex: 2),
+                    const AlloServiceLogo(showTagline: true),
+                    const SizedBox(height: 48),
+                    const Text(
+                      'Bienvenue',
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Trouvez et réservez des professionnels\nprès de chez vous en Tunisie.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        color: AppColors.textSecondary,
+                        height: 1.5,
+                      ),
+                    ),
+                    const Spacer(flex: 3),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
+                          );
+                        },
+                        child: const FittedBox(
+                          child: Text('Inscription'),
                         ),
-                      );
-                    },
-                    child: const Text('Commencer'),
-                  ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        ),
+                        child: const FittedBox(
+                          child: Text('Se connecter'),
+                        ),
+                      ),
+                    ),
+                    const Spacer(flex: 1),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  ),
-                  child: const Text('Se connecter'),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

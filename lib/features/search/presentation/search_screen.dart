@@ -61,6 +61,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(tr(context, fr: 'Recherche', ar: 'بحث')),
@@ -78,7 +79,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   hintText: tr(
                     context,
                     fr: 'plombier, peinture, mécanicien...',
-                    ar: 'سبّاك، دهان، ميكانicien...',
+                    ar: 'سبّاك، دهان، ميكانيكي...',
                   ),
                   prefixIcon: const Icon(Icons.search_rounded,
                       color: AppColors.primary),

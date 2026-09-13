@@ -1,0 +1,21 @@
+﻿Analyzing allo_service_pro...                                   
+
+  error - The named parameter 'latitude' is required, but there's no corresponding argument. Try adding the required argument - lib\core\location\location_service.dart:10:30 - missing_required_argument
+  error - The named parameter 'longitude' is required, but there's no corresponding argument. Try adding the required argument - lib\core\location\location_service.dart:10:30 - missing_required_argument
+  error - The method 'placemarkFromCoordinates' isn't defined for the type 'Location'. Try correcting the name to the name of an existing method, or defining a method named 'placemarkFromCoordinates' - lib\core\location\location_service.dart:30:27 - undefined_method
+
+flutter : 3 issues found. (ran in 
+5.6s)
+Au caractère Ligne:1 : 49
++ ... Users\feres\Documents\allo_se
+rvice_pro'; flutter analyze 2>&1 | 
+Out-F ...
++                                  
+            ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotS 
+   pecified: (3 issues found. (ra  
+  n in 5.6s):String) [], RemoteE   
+ xception
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 

@@ -1,5 +1,5 @@
 /// Kind of content carried by a chat message.
-enum ChatMessageType { text, voice, photo }
+enum ChatMessageType { text, voice, photo, location }
 
 class ChatMessage {
   final String id;
@@ -20,6 +20,10 @@ class ChatMessage {
   /// Recorded duration in seconds (voice notes only; 0 otherwise).
   final int voiceDurationSec;
 
+  /// GPS coordinates for location messages (latitude, longitude).
+  final double? latitude;
+  final double? longitude;
+
   const ChatMessage({
     required this.id,
     required this.requestId,
@@ -31,10 +35,13 @@ class ChatMessage {
     this.type = ChatMessageType.text,
     this.mediaPath,
     this.voiceDurationSec = 0,
+    this.latitude,
+    this.longitude,
   });
 
   bool get isVoice => type == ChatMessageType.voice;
   bool get isPhoto => type == ChatMessageType.photo;
   bool get isText => type == ChatMessageType.text;
+  bool get isLocation => type == ChatMessageType.location;
   bool get hasMedia => type != ChatMessageType.text;
 }

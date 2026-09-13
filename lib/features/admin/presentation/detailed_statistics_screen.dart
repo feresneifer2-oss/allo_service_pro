@@ -98,7 +98,7 @@ class _StatTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsetsDirectional.only(end: 8),
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -128,6 +128,8 @@ class _OverviewStats extends StatelessWidget {
       valueListenable: RequestStore.requests,
       builder: (context, _, __) {
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

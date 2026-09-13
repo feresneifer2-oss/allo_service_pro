@@ -25,6 +25,11 @@ class ProfessionalModel {
   final List<String> servicesAr;
   final int reviewCount;
 
+  /// Admin-assigned badges ('CIN Vérifié', 'Recommandé', 'Top Pro', …),
+  /// synced in real time from [AdminStore.pendingPros] via
+  /// [ProfessionalsRepository].
+  final List<String> badges;
+
   const ProfessionalModel({
     required this.id,
     required this.name,
@@ -51,6 +56,7 @@ class ProfessionalModel {
     required this.servicesFr,
     required this.servicesAr,
     this.reviewCount = 24,
+    this.badges = const [],
   });
 
   String getCityName(String languageCode) {

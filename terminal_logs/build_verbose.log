@@ -1,0 +1,422 @@
+﻿[ +267 ms] Artifact Instance of 'MaterialFonts' is not required, skipping update.
+[   +2 ms] Artifact Instance of 'GradleWrapper' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[   +1 ms] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterSdk' is not required, skipping update.
+[        ] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FontSubsetArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'PubDependencies' is not required, skipping update.
+[        ] executing: [C:\feres\flutter/] git -c log.showSignature=false log HEAD -n 1 --pretty=format:%ad --date=iso
+[ +129 ms] Exit code 0 from: git -c log.showSignature=false log HEAD -n 1 --pretty=format:%ad --date=iso
+[        ] 2026-07-23 10:56:21 -0700
+[  +19 ms] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[   +4 ms] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[  +75 ms] Artifact Instance of 'MaterialFonts' is not required, skipping update.
+[        ] Artifact Instance of 'GradleWrapper' is not required, skipping update.
+[   +3 ms] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterSdk' is not required, skipping update.
+[        ] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FontSubsetArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'PubDependencies' is not required, skipping update.
+[ +109 ms] Skipping pub get: version match.
+[ +102 ms] Found plugin url_launcher at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +7 ms] Found plugin url_launcher_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.6\
+[   +9 ms] Found plugin url_launcher_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[  +31 ms] Found plugin url_launcher_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.6\
+[   +4 ms] Found plugin url_launcher_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.3\
+[   +5 ms] Found plugin url_launcher_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.2\
+[   +3 ms] Found plugin url_launcher_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.33\
+[   +5 ms] Found plugin shared_preferences at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +5 ms] Found plugin shared_preferences_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +6 ms] Found plugin path_provider_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[  +13 ms] Found plugin shared_preferences_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +3 ms] Found plugin shared_preferences_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +4 ms] Found plugin path_provider_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +6 ms] Found plugin shared_preferences_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.7\
+[   +3 ms] Found plugin shared_preferences_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.28\
+[   +4 ms] Found plugin record at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record-7.1.1\
+[   +2 ms] Found plugin record_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_windows-2.2.3\
+[   +5 ms] Found plugin record_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_web-2.1.2\
+[   +2 ms] Found plugin record_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_macos-2.1.1\
+[   +2 ms] Found plugin record_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_linux-2.1.1\
+[   +1 ms] Found plugin record_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_ios-2.1.1\
+[   +1 ms] Found plugin record_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_android-2.1.2\
+[   +3 ms] Found plugin path_provider at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[   +3 ms] Found plugin path_provider_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[  +24 ms] Found plugin path_provider_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +2 ms] Found plugin jni_flutter at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[   +2 ms] Found plugin jni at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +8 ms] Found plugin image_picker at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker-1.2.3\
+[   +2 ms] Found plugin image_picker_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_windows-0.2.2\
+[   +8 ms] Found plugin file_selector_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_windows-0.9.3+6\
+[   +6 ms] Found plugin image_picker_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_macos-0.2.2+1\
+[   +2 ms] Found plugin file_selector_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_macos-0.9.5+1\
+[   +2 ms] Found plugin image_picker_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_linux-0.2.2\
+[   +2 ms] Found plugin file_selector_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_linux-0.9.4+1\
+[   +2 ms] Found plugin image_picker_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_ios-0.8.13+7\
+[   +2 ms] Found plugin image_picker_for_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_for_web-3.1.1\
+[   +4 ms] Found plugin image_picker_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_android-0.8.13+21\
+[   +2 ms] Found plugin flutter_plugin_android_lifecycle at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_plugin_android_lifecycle-2.0.35\
+[   +3 ms] Found plugin geolocator at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator-14.0.3\
+[   +2 ms] Found plugin geolocator_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_windows-0.2.5\
+[   +4 ms] Found plugin geolocator_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_web-4.1.4\
+[   +2 ms] Found plugin geolocator_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_linux-0.2.6\
+[   +2 ms] Found plugin package_info_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\package_info_plus-10.2.1\
+[  +18 ms] Found plugin geolocator_apple at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_apple-2.3.14\
+[   +2 ms] Found plugin geolocator_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_android-5.0.3\
+[   +6 ms] Found plugin geocoding at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding-5.0.0\
+[   +5 ms] Found plugin geocoding_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_darwin-1.0.3\
+[   +2 ms] Found plugin geocoding_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_android-5.1.0\
+[   +8 ms] Found plugin connectivity_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[   +6 ms] Found plugin audioplayers at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers-6.8.1\
+[   +3 ms] Found plugin audioplayers_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_windows-4.4.1\
+[   +3 ms] Found plugin audioplayers_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_web-5.3.0\
+[   +2 ms] Found plugin audioplayers_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_linux-4.3.0\
+[   +3 ms] Found plugin audioplayers_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_darwin-6.5.0\
+[   +3 ms] Found plugin audioplayers_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_android-5.3.0\
+[  +84 ms] Found plugin url_launcher at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +1 ms] Found plugin url_launcher_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.6\
+[   +4 ms] Found plugin url_launcher_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +4 ms] Found plugin url_launcher_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.6\
+[   +2 ms] Found plugin url_launcher_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.3\
+[   +2 ms] Found plugin url_launcher_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.2\
+[   +2 ms] Found plugin url_launcher_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.33\
+[   +1 ms] Found plugin shared_preferences at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms] Found plugin shared_preferences_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +3 ms] Found plugin path_provider_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +8 ms] Found plugin shared_preferences_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +1 ms] Found plugin shared_preferences_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +1 ms] Found plugin path_provider_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +3 ms] Found plugin shared_preferences_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.7\
+[   +2 ms] Found plugin shared_preferences_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.28\
+[   +2 ms] Found plugin record at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record-7.1.1\
+[   +1 ms] Found plugin record_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_windows-2.2.3\
+[   +2 ms] Found plugin record_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_web-2.1.2\
+[   +1 ms] Found plugin record_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_macos-2.1.1\
+[   +1 ms] Found plugin record_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_linux-2.1.1\
+[   +1 ms] Found plugin record_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_ios-2.1.1\
+[   +1 ms] Found plugin record_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_android-2.1.2\
+[   +1 ms] Found plugin path_provider at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[   +1 ms] Found plugin path_provider_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[  +12 ms] Found plugin path_provider_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +1 ms] Found plugin jni_flutter at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[   +1 ms] Found plugin jni at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +6 ms] Found plugin image_picker at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker-1.2.3\
+[   +1 ms] Found plugin image_picker_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_windows-0.2.2\
+[   +7 ms] Found plugin file_selector_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_windows-0.9.3+6\
+[   +4 ms] Found plugin image_picker_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_macos-0.2.2+1\
+[   +1 ms] Found plugin file_selector_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_macos-0.9.5+1\
+[   +1 ms] Found plugin image_picker_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_linux-0.2.2\
+[   +2 ms] Found plugin file_selector_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_linux-0.9.4+1\
+[   +2 ms] Found plugin image_picker_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_ios-0.8.13+7\
+[   +2 ms] Found plugin image_picker_for_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_for_web-3.1.1\
+[   +3 ms] Found plugin image_picker_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_android-0.8.13+21\
+[   +2 ms] Found plugin flutter_plugin_android_lifecycle at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_plugin_android_lifecycle-2.0.35\
+[   +6 ms] Found plugin geolocator at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator-14.0.3\
+[   +2 ms] Found plugin geolocator_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_windows-0.2.5\
+[   +3 ms] Found plugin geolocator_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_web-4.1.4\
+[   +3 ms] Found plugin geolocator_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_linux-0.2.6\
+[   +2 ms] Found plugin package_info_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\package_info_plus-10.2.1\
+[  +11 ms] Found plugin geolocator_apple at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_apple-2.3.14\
+[   +2 ms] Found plugin geolocator_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_android-5.0.3\
+[   +4 ms] Found plugin geocoding at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding-5.0.0\
+[   +2 ms] Found plugin geocoding_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_darwin-1.0.3\
+[   +1 ms] Found plugin geocoding_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_android-5.1.0\
+[   +4 ms] Found plugin connectivity_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[   +4 ms] Found plugin audioplayers at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers-6.8.1\
+[   +3 ms] Found plugin audioplayers_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_windows-4.4.1\
+[   +3 ms] Found plugin audioplayers_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_web-5.3.0\
+[   +1 ms] Found plugin audioplayers_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_linux-4.3.0\
+[   +1 ms] Found plugin audioplayers_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_darwin-6.5.0\
+[   +1 ms] Found plugin audioplayers_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_android-5.3.0\
+[  +13 ms] Skipping generating web_plugin_registrant.dart because it is up-to-date.
+[  +42 ms] Found plugin url_launcher at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +2 ms] Found plugin url_launcher_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.6\
+[   +3 ms] Found plugin url_launcher_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +3 ms] Found plugin url_launcher_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.6\
+[   +1 ms] Found plugin url_launcher_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.3\
+[   +1 ms] Found plugin url_launcher_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.2\
+[   +2 ms] Found plugin url_launcher_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.33\
+[   +1 ms] Found plugin shared_preferences at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms] Found plugin shared_preferences_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +2 ms] Found plugin path_provider_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +5 ms] Found plugin shared_preferences_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +1 ms] Found plugin shared_preferences_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +1 ms] Found plugin path_provider_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +3 ms] Found plugin shared_preferences_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.7\
+[   +1 ms] Found plugin shared_preferences_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.28\
+[   +1 ms] Found plugin record at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record-7.1.1\
+[   +1 ms] Found plugin record_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_windows-2.2.3\
+[   +2 ms] Found plugin record_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_web-2.1.2\
+[   +1 ms] Found plugin record_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_macos-2.1.1\
+[   +1 ms] Found plugin record_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_linux-2.1.1\
+[   +1 ms] Found plugin record_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_ios-2.1.1\
+[   +1 ms] Found plugin record_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\record_android-2.1.2\
+[   +1 ms] Found plugin path_provider at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[   +1 ms] Found plugin path_provider_foundation at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[  +10 ms] Found plugin path_provider_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +1 ms] Found plugin jni_flutter at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[   +1 ms] Found plugin jni at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +5 ms] Found plugin image_picker at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker-1.2.3\
+[   +1 ms] Found plugin image_picker_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_windows-0.2.2\
+[   +5 ms] Found plugin file_selector_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_windows-0.9.3+6\
+[   +2 ms] Found plugin image_picker_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_macos-0.2.2+1\
+[   +1 ms] Found plugin file_selector_macos at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_macos-0.9.5+1\
+[   +2 ms] Found plugin image_picker_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_linux-0.2.2\
+[   +1 ms] Found plugin file_selector_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\file_selector_linux-0.9.4+1\
+[   +1 ms] Found plugin image_picker_ios at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_ios-0.8.13+7\
+[   +1 ms] Found plugin image_picker_for_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_for_web-3.1.1\
+[   +2 ms] Found plugin image_picker_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\image_picker_android-0.8.13+21\
+[   +1 ms] Found plugin flutter_plugin_android_lifecycle at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_plugin_android_lifecycle-2.0.35\
+[   +2 ms] Found plugin geolocator at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator-14.0.3\
+[   +1 ms] Found plugin geolocator_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_windows-0.2.5\
+[   +2 ms] Found plugin geolocator_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_web-4.1.4\
+[   +1 ms] Found plugin geolocator_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_linux-0.2.6\
+[   +2 ms] Found plugin package_info_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\package_info_plus-10.2.1\
+[   +9 ms] Found plugin geolocator_apple at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_apple-2.3.14\
+[   +1 ms] Found plugin geolocator_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geolocator_android-5.0.3\
+[   +3 ms] Found plugin geocoding at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding-5.0.0\
+[   +2 ms] Found plugin geocoding_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_darwin-1.0.3\
+[   +1 ms] Found plugin geocoding_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\geocoding_android-5.1.0\
+[   +4 ms] Found plugin connectivity_plus at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[   +3 ms] Found plugin audioplayers at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers-6.8.1\
+[   +3 ms] Found plugin audioplayers_windows at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_windows-4.4.1\
+[   +3 ms] Found plugin audioplayers_web at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_web-5.3.0\
+[   +1 ms] Found plugin audioplayers_linux at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_linux-4.3.0\
+[   +2 ms] Found plugin audioplayers_darwin at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_darwin-6.5.0\
+[   +1 ms] Found plugin audioplayers_android at C:\Users\feres\AppData\Local\Pub\Cache\hosted\pub.dev\audioplayers_android-5.3.0\
+[  +14 ms] Generating C:\Users\feres\Documents\allo_service_pro\android\app\src\main\java\io\flutter\plugins\GeneratedPluginRegistrant.java
+[   +2 ms] Skipping generating GeneratedPluginRegistrant.java because it is up-to-date.
+[   +5 ms] Skipping generating generated_plugin_registrant.h because it is up-to-date.
+[   +2 ms] Skipping generating generated_plugin_registrant.cc because it is up-to-date.
+[   +2 ms] Skipping generating generated_plugins.cmake because it is up-to-date.
+[   +3 ms] Skipping generating generated_plugin_registrant.h because it is up-to-date.
+[   +1 ms] Skipping generating generated_plugin_registrant.cc because it is up-to-date.
+[   +2 ms] Skipping generating generated_plugins.cmake because it is up-to-date.
+[   +4 ms] Skipping generating GeneratedPluginRegistrant.h because it is up-to-date.
+[   +2 ms] Skipping generating GeneratedPluginRegistrant.m because it is up-to-date.
+[   +4 ms] Skipping generating GeneratedPluginRegistrant.swift because it is up-to-date.
+[ +123 ms] executing: C:\Program Files\Android\Android Studio1\jbr\bin\java -version
+[ +255 ms] Exit code 0 from: C:\Program Files\Android\Android Studio1\jbr\bin\java -version
+[        ] openjdk version "25.0.2" 2026-01-20
+           OpenJDK Runtime Environment (build 25.0.2+-15348964-b329.117)
+           OpenJDK 64-Bit Server VM (build 25.0.2+-15348964-b329.117, mixed mode)
+[   +2 ms] executing: C:\Program Files\Android\Android Studio1\jbr\bin\java -version
+[+1216 ms] Exit code 0 from: C:\Program Files\Android\Android Studio1\jbr\bin\java -version
+[        ] openjdk version "25.0.2" 2026-01-20
+           OpenJDK Runtime Environment (build 25.0.2+-15348964-b329.117)
+           OpenJDK 64-Bit Server VM (build 25.0.2+-15348964-b329.117, mixed mode)
+[  +16 ms] Top-level Gradle build file not found, skipping migration of task "clean".
+[   +4 ms] executing: C:\Program Files\Android\Android Studio1\jbr\bin\java --version
+[ +213 ms] Exit code 0 from: C:\Program Files\Android\Android Studio1\jbr\bin\java --version
+[        ] openjdk 25.0.2 2026-01-20
+           OpenJDK Runtime Environment (build 25.0.2+-15348964-b329.117)
+           OpenJDK 64-Bit Server VM (build 25.0.2+-15348964-b329.117, mixed mode)
+[   +1 ms] Version of Java is different than impacted version, no migration attempted.
+[   +3 ms] CMake project not found, skipping support Android 15 16k page size migration.
+[  +11 ms] The developer has already configured the Built-In Kotlin flag, skipping migration.
+[   +1 ms] The developer has already configured the new DSL flag, skipping migration.
+[   +6 ms] Using gradle from C:\Users\feres\Documents\allo_service_pro\android\gradlew.bat.
+[  +11 ms] LocalFile: 'C:\Users\feres\Documents\allo_service_pro\android\build.gradle.kts' doesn't provide an AGP version. Checking settings.
+[   +1 ms] LocalFile: 'C:\Users\feres\Documents\allo_service_pro\android\settings.gradle.kts' provides AGP version: 8.9.1
+[  +10 ms] Running Gradle task 'assembleDebug'...
+[   +1 ms] executing: [C:\Users\feres\Documents\allo_service_pro\android/] C:\Users\feres\Documents\allo_service_pro\android\gradlew.bat --full-stacktrace --info -Pverbose=true -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDQuOA==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049MDU4ZTBhZjJjMg==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049MGNkNjEwNzE3Yg==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMi4y -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false assembleDebug
+flutter : [+2570 ms] WARNING: A 
+restricted method in 
+java.lang.System has been called
+Au caractère Ligne:1 : 49
++ ... s\allo_service_pro'; flutter 
+build apk --debug --verbose 2>&1 | 
+Out-F ...
++                          ~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotS 
+   pecified: ([+2570 ms] WARN...h  
+  as been called:String) [], Rem   
+ oteException
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 
+[   +2 ms] WARNING: 
+java.lang.System::load has been 
+called by net.rubygrapefruit.platfo
+rm.internal.NativeLibraryLoader in 
+an unnamed module (file:/C:/Users/f
+eres/.gradle/wrapper/dists/gradle-8
+.13-all/54h0s9kvb6g2sinako7ub77ku/g
+radle-8.13/lib/native-platform-0.22
+-milestone-28.jar)
+[        ] WARNING: Use 
+--enable-native-access=ALL-UNNAMED 
+to avoid a warning for callers in 
+this module
+[        ] WARNING: Restricted 
+methods will be blocked in a 
+future release unless native 
+access is enabled
+[   +8 ms] Initialized native services in: C:\Users\feres\.gradle\native
+[  +10 ms] Initialized jansi services in: C:\Users\feres\.gradle\native
+[ +946 ms] Removing 0 daemon stop events from registry
+[ +113 ms] Previous Daemon (18004) stopped at Sun Aug 30 19:50:54 GMT+01:00 2026 stop command received
+[   +1 ms] Previous Daemon (3112) stopped at Sun Aug 30 19:50:54 GMT+01:00 2026 stop command received
+[   +2 ms] Previous Daemon (8600) stopped at Sun Aug 30 19:56:41 GMT+01:00 2026 stop command received
+[        ] Previous Daemon (27432) stopped at Sun Aug 30 20:05:22 GMT+01:00 2026 stop command received
+[        ] Previous Daemon (20676) stopped at Sun Aug 30 20:05:22 GMT+01:00 2026 stop command received
+[        ] Previous Daemon (25916) stopped at Sun Aug 30 19:32:42 GMT+01:00 2026 other compatible daemons were started and after being idle for 0 minutes and not recently used
+[   +1 ms] Previous Daemon (21492) stopped at Sun Aug 30 19:36:48 GMT+01:00 2026 by user or operating system
+[        ] Previous Daemon (16728) stopped at Sun Aug 30 19:38:26 GMT+01:00 2026 by user or operating system
+[        ] Previous Daemon (9676) stopped at Sun Aug 30 19:38:26 GMT+01:00 2026 by user or operating system
+[        ] Previous Daemon (27992) stopped at Sun Aug 30 19:49:50 GMT+01:00 2026 by user or operating system
+[        ] Previous Daemon (18284) stopped at Sun Aug 30 20:00:16 GMT+01:00 2026 by user or operating system
+[        ] Previous Daemon (21284) stopped at Sun Aug 30 20:00:16 GMT+01:00 2026 by user or operating system
+[   +1 ms] Previous Daemon (17172) stopped at Sun Aug 30 20:05:07 GMT+01:00 2026 by user or operating system
+[        ] Starting a Gradle Daemon, 13 stopped Daemons could not be reused, use --status for details
+[  +74 ms] Starting process 'command 'C:\Users\feres\jdk17\bin\java.exe''. Working directory: C:\Users\feres\.gradle\.tmp\tmp-jvm9101629679838726968probe Command: C:\Users\feres\jdk17\bin\java.exe -Xmx32m -Xms32m -cp . JavaProbe
+[ +100 ms] Successfully started process 'command 'C:\Users\feres\jdk17\bin\java.exe''
+[ +200 ms] Received JVM installation metadata from 'C:\Users\feres\jdk17': {JAVA_HOME=C:\Users\feres\jdk17, JAVA_VERSION=17.0.20.1, JAVA_VENDOR=Microsoft, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=17.0.20.1+1-LTS, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=17.0.20.1+1-LTS, VM_VENDOR=Microsoft, OS_ARCH=amd64}
+[ +300 ms] Starting process 'Gradle build daemon'. Working directory: C:\Users\feres\.gradle\daemon\8.13 Command: C:\Users\feres\jdk17\bin\java.exe --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.prefs/java.util.prefs=ALL-UNNAMED --add-opens=java.base/java.nio.charset=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED -XX:MaxMetaspaceSize=4G -XX:ReservedCodeCacheSize=512m -XX:+HeapDumpOnOutOfMemoryError -Xmx8G -Dfile.encoding=UTF-8 -Duser.country=FR -Duser.language=fr -Duser.variant -cp C:\Users\feres\.gradle\wrapper\dists\gradle-8.13-all\54h0s9kvb6g2sinako7ub77ku\gradle-8.13\lib\gradle-daemon-main-8.13.jar -javaagent:C:\Users\feres\.gradle\wrapper\dists\gradle-8.13-all\54h0s9kvb6g2sinako7ub77ku\gradle-8.13\lib\agents\gradle-instrumentation-agent-8.13.jar org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.13
+[+1099 ms] Successfully started process 'Gradle build daemon'
+[+2899 ms] An attempt to start the daemon took 3.956 secs.
+[ +198 ms] The client will now receive all logging from the daemon (pid: 14360). The daemon log file: C:\Users\feres\.gradle\daemon\8.13\daemon-14360.out.log
+[        ] Starting build in new daemon [memory: 8 GiB]
+[ +699 ms] Using 8 worker leases.
+[ +801 ms] Received JVM installation metadata from 'C:\Users\feres\jdk17': {JAVA_HOME=C:\Users\feres\jdk17, JAVA_VERSION=17.0.20.1, JAVA_VENDOR=Microsoft, RUNTIME_NAME=OpenJDK Runtime Environment, RUNTIME_VERSION=17.0.20.1+1-LTS, VM_NAME=OpenJDK 64-Bit Server VM, VM_VERSION=17.0.20.1+1-LTS, VM_VENDOR=Microsoft, OS_ARCH=amd64}
+[ +699 ms] Watching the file system is configured to be enabled if available
+[ +100 ms] Now considering [C:\Users\feres\Documents\allo_service_pro\android] as hierarchies to watch
+[        ] File system watching is active
+[ +898 ms] Starting Build
+[+2037 ms] Now considering [C:\feres\flutter\packages\flutter_tools\gradle, C:\Users\feres\Documents\allo_service_pro\android] as hierarchies to watch
+[   +1 ms] Watched directory hierarchies: []
+[ +393 ms] Running Gradle task 'assembleDebug'... (completed in 14.2s)
+[  +50 ms] "flutter apk" took 17,211ms.
+[ +125 ms] Gradle task 
+assembleDebug failed with exit 
+code 1
+[   +1 ms] 
+           #0      throwToolExit (p
+ackage:flutter_tools/src/base/commo
+n.dart:34:3)
+           #1      AndroidGradleBui
+lder.buildGradleApp (package:flutte
+r_tools/src/android/gradle.dart:595
+:7)
+           <asynchronous 
+suspension>
+           #2      
+AndroidGradleBuilder.buildApk (pack
+age:flutter_tools/src/android/gradl
+e.dart:236:5)
+           <asynchronous 
+suspension>
+           #3      
+BuildApkCommand.runCommand (package
+:flutter_tools/src/commands/build_a
+pk.dart:132:5)
+           <asynchronous 
+suspension>
+           #4      
+FlutterCommand.run.<anonymous 
+closure> (package:flutter_tools/src
+/runner/flutter_command.dart:1630:2
+7)
+           <asynchronous 
+suspension>
+           #5      
+AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/con
+text.dart:154:19)
+           <asynchronous 
+suspension>
+           #6      
+CommandRunner.runCommand (package:a
+rgs/command_runner.dart:212:13)
+           <asynchronous 
+suspension>
+           #7      FlutterCommandRu
+nner.runCommand.<anonymous 
+closure> (package:flutter_tools/src
+/runner/flutter_command_runner.dart
+:496:9)
+           <asynchronous 
+suspension>
+           #8      
+AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/con
+text.dart:154:19)
+           <asynchronous 
+suspension>
+           #9      
+FlutterCommandRunner.runCommand (pa
+ckage:flutter_tools/src/runner/flut
+ter_command_runner.dart:431:5)
+           <asynchronous 
+suspension>
+           #10     FlutterCommandRu
+nner.run.<anonymous closure> (packa
+ge:flutter_tools/src/runner/flutter
+_command_runner.dart:307:33)
+           <asynchronous 
+suspension>
+           #11     run.<anonymous 
+closure>.<anonymous closure> (packa
+ge:flutter_tools/runner.dart:104:11
+)
+           <asynchronous 
+suspension>
+           #12     
+AppContext.run.<anonymous closure> 
+(package:flutter_tools/src/base/con
+text.dart:154:19)
+           <asynchronous 
+suspension>
+           #13     main (package:fl
+utter_tools/executable.dart:103:3)
+           <asynchronous 
+suspension>
+
+
+[   +1 ms] Running 1 shutdown hook
+[   +5 ms] Shutdown hooks complete
+[ +171 ms] exiting with code 1

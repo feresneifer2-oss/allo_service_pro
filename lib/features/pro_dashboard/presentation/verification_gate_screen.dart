@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:allo_service_pro/core/constants/app_constants.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/presentation/welcome_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
@@ -30,7 +32,8 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
       proCode: user.proCode ?? '-',
     );
     final uri = Uri.parse(
-        'https://wa.me/21624449959?text=${Uri.encodeComponent(msg)}');
+        'https://wa.me/${AppConstants.adminWhatsAppNumber}'
+        '?text=${Uri.encodeComponent(msg)}');
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
@@ -67,6 +70,8 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
           ),
           body: SafeArea(
             child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -192,8 +197,22 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
                   ),
                   const SizedBox(height: 24),
                   TextButton(
-                    onPressed: () =>
-                        Navigator.popUntil(context, (r) => r.isFirst),
+                    onPressed: () async {
+                      // Capture the navigator BEFORE the async gap — the
+                      // gate lives INSIDE ProShell (no route to pop), so
+                      // the old popUntil was a silent no-op freeze.
+                      // Wipe the whole session (SharedPreferences keys +
+                      // local stores) and jump to Welcome with an empty
+                      // navigation stack — 100% reliable.
+                      final navigator = Navigator.of(context);
+                      await UserStore.signOutAndReset();
+                      if (!mounted) return;
+                      navigator.pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (_) => const WelcomeScreen()),
+                        (route) => false,
+                      );
+                    },
                     child: Text(tr(context,
                         fr: "Retour à l'accueil", ar: 'العودة للرئيسية')),
                   ),

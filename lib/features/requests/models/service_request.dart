@@ -11,6 +11,11 @@ class ServiceRequest {
   final DateTime dateTime;
   final String address;
   final String message;
+
+  /// Payment method chosen by the client at checkout: 'cash' | 'd17' |
+  /// 'flouci'. No gateway — the pro collects the payment directly; the
+  /// choice is recorded on the order (and surfaced in chat if needed).
+  final String paymentMethod;
   final List<String> photoPaths;
   final RequestStatus status;
   final double? rating;
@@ -28,6 +33,7 @@ class ServiceRequest {
     required this.dateTime,
     required this.address,
     required this.message,
+    this.paymentMethod = 'cash',
     this.photoPaths = const [],
     this.status = RequestStatus.pending,
     this.rating,
@@ -39,6 +45,7 @@ class ServiceRequest {
     RequestStatus? status,
     double? rating,
     String? reviewComment,
+    String? paymentMethod,
   }) {
     return ServiceRequest(
       id: id,
@@ -52,6 +59,7 @@ class ServiceRequest {
       address: address,
       message: message,
       photoPaths: photoPaths,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
       status: status ?? this.status,
       rating: rating ?? this.rating,
       reviewComment: reviewComment ?? this.reviewComment,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:allo_service_pro/core/location/location_service.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
@@ -33,7 +34,84 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   final List<String> _photos = [];
 
   @override
+  void initState() {
+    super.initState();
+    _autoFillAddress();
+  }
+
+  /// Whether the manual-entry SnackBar was already shown for this screen.
+  bool _manualNoticeShown = false;
+
+  /// GPS auto-fill: prefill the address from the resolved location and
+  /// keep listening in case the startup detection completes while this
+  /// screen is open. The user can always edit/overwrite manually.
+  void _autoFillAddress() {
+    final detected = LocationService.resolvedAddress.value;
+    if (detected != null && _addressController.text.trim().isEmpty) {
+      _addressController.text = detected;
+    }
+    LocationService.resolvedAddress.addListener(_onAddressResolved);
+    LocationService.manualFallbackNotice.addListener(_onManualFallbackNotice);
+    LocationService.instance.ensureDetected();
+  }
+
+  /// Real GPS fetch triggered by the "Position actuelle" button:
+  /// full permission pipeline + reverse geocoding. On failure the field
+  /// stays EMPTY for manual typing and the fallback SnackBar appears —
+  /// NEVER a hardcoded address.
+  Future<void> _useCurrentLocation() async {
+    final address = await LocationService.instance.requestFreshLocation();
+    if (!mounted) return;
+    if (address != null && address.isNotEmpty) {
+      setState(() {
+        _addressController.text = address;
+        LocationService.resolvedAddress.value = address;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr(
+            context,
+            fr: 'Localisation indisponible — vous pouvez saisir votre adresse manuellement.',
+            ar: 'الموقع غير متاح — يمكنك كتابة العنوان يدوياً.',
+          )),
+        ),
+      );
+    }
+  }
+
+  void _onAddressResolved() {
+    final value = LocationService.resolvedAddress.value;
+    if (value == null || !mounted) return;
+    if (_addressController.text.trim().isEmpty) {
+      setState(() => _addressController.text = value);
+    }
+  }
+
+  /// Denial fallback UX: when location is unavailable (permission denied
+  /// or GPS off) show one clean SnackBar and leave the field open for
+  /// manual typing — never block or crash.
+  void _onManualFallbackNotice() {
+    if (_manualNoticeShown || !mounted) return;
+    if (!LocationService.manualFallbackNotice.value) return;
+    if (LocationService.resolvedAddress.value != null) return;
+    _manualNoticeShown = true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(tr(
+          context,
+          fr: 'Localisation indisponible — vous pouvez saisir votre adresse manuellement.',
+          ar: 'الموقع غير متاح — يمكنك كتابة العنوان يدوياً.',
+        )),
+      ),
+    );
+  }
+
+  @override
   void dispose() {
+    LocationService.resolvedAddress.removeListener(_onAddressResolved);
+    LocationService.manualFallbackNotice
+        .removeListener(_onManualFallbackNotice);
     _addressController.dispose();
     _messageController.dispose();
     super.dispose();
@@ -119,6 +197,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         : _selectedTime!.format(context);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.slate900,
       appBar: AppBar(
         backgroundColor: AppColors.slate800,
@@ -128,6 +207,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,7 +241,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               SectionTitle(title: tr(context, fr: '2. Lieu', ar: '2. المكان')),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: () => _addressController.text = 'Ariana, Tunisie',
+                onPressed: _useCurrentLocation,
                 icon: const Icon(Icons.my_location_rounded,
                     color: AppColors.secondary),
                 label: Text(

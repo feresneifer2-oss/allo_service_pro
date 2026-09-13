@@ -188,7 +188,10 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      proNameController.dispose();
+      addressController.dispose();
+    });
   }
 
   void _showDeleteDialog(String requestId) {
@@ -235,7 +238,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsetsDirectional.only(end: 8),
       child: FilterChip(
         label: Text(label),
         selected: isSelected,

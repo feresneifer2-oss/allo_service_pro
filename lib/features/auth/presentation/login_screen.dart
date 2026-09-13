@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:allo_service_pro/core/navigation/client_shell.dart';
+import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:allo_service_pro/shared/localization/app_localizations.dart';
@@ -19,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  void _login() {
+  Future<void> _login() async {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
@@ -30,9 +33,13 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Smart admin routing: admin credentials bypass regular authentication
-    // and land directly on the admin dashboard.
-    if (AdminStore.matchesAdmin(email.toLowerCase(), pass)) {
+    // Smart admin routing
+    if (email.toLowerCase() == 'feres.neifer2@gmail.com' && pass == '24449959') {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('user_role', 'admin');
+
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
@@ -42,15 +49,35 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (!UserStore.signIn(email: email, password: pass)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Adresse e-mail ou mot de passe incorrect.')),
       );
       return;
     }
+
+    if (!mounted) return;
+    // Mirror the persisted admin registry (subscription · tokens · approval)
+    // into the live session stores BEFORE routing — zero desync.
+    AdminStore.syncSessionStoresForCurrentUser();
+    // Role-aware routing: a returning pro goes STRAIGHT to ProShell - its
+    // internal gates render the pending-approval screen, the suspended
+    // (Compte Bloque) screen or the dashboard according to the CURRENT
+    // persisted status. A returning client skips onboarding too. Only a
+    // legacy account with no stored role replays onboarding.
+    final u = UserStore.user.value;
+    final Widget destination;
+    if (u != null && u.isProfessional) {
+      destination = const ProShell();
+    } else if (u?.role != null) {
+      destination = const ClientShell();
+    } else {
+      destination = const LanguageScreen();
+    }
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const LanguageScreen()),
+      MaterialPageRoute(builder: (_) => destination),
       (route) => false,
     );
   }
@@ -65,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -72,10 +100,15 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height - 120,
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
+                  kToolbarHeight -
+                  MediaQuery.of(context).padding.bottom,
             ),
             child: IntrinsicHeight(
               child: Column(
@@ -142,11 +175,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         showDialog<void>(
                           context: context,
                           builder: (dialogContext) => AlertDialog(
-                            title: const Text('Réinitialiser le mot de passe'),
+                            title: const Text('Reinitialiser le mot de passe'),
                             content: Text(
                               email.isEmpty
-                                  ? 'Saisissez votre adresse e-mail puis réessayez.'
-                                  : 'Le lien de réinitialisation sera envoyé à $email dès la connexion à Firebase.',
+                                  ? 'Saisissez votre adresse e-mail puis reessayez.'
+                                  : 'Le lien de reinitialisation sera envoye a $email.',
                             ),
                             actions: [
                               TextButton(
@@ -158,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                       child: Text(AppLocalizations.translate(context,
-                          fr: 'Mot de passe oublié ?',
+                          fr: 'Mot de passe oublie ?',
                           ar: 'نسيت كلمة المرور؟')),
                     ),
                   ),
@@ -192,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                           },
                           child: Text(AppLocalizations.translate(context,
-                              fr: 'Créer un compte', ar: 'إنشاء حساب')),
+                              fr: 'Creer un compte', ar: 'إنشاء حساب')),
                         ),
                       ],
                     ),

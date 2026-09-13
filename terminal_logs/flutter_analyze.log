@@ -1,0 +1,21 @@
+﻿Analyzing allo_service_pro...                                   
+
+   info - 'desiredAccuracy' is deprecated and shouldn't be used. use settings parameter with AndroidSettings, AppleSettings, WebSettings, or LocationSettings. Try replacing the use of the deprecated member with the replacement - lib\core\location\location_service.dart:22:11 - deprecated_member_use
+  error - The method 'placemarkFromCoordinates' isn't defined for the type 'LocationService'. Try correcting the name to the name of an existing method, or defining a method named 'placemarkFromCoordinates' - lib\core\location\location_service.dart:29:17 - undefined_method
+   info - 'desiredAccuracy' is deprecated and shouldn't be used. use settings parameter with AndroidSettings, AppleSettings, WebSettings, or LocationSettings. Try replacing the use of the deprecated member with the replacement - lib\features\chat\presentation\chat_screen.dart:170:9 - deprecated_member_use
+
+flutter : 3 issues found. (ran in 
+12.5s)
+Au caractère Ligne:1 : 49
++ ... Users\feres\Documents\allo_se
+rvice_pro'; flutter analyze 2>&1 | 
+Out-F ...
++                                  
+            ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotS 
+   pecified: (3 issues found. (ra  
+  n in 12.5s):String) [], Remote   
+ Exception
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 

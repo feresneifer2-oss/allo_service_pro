@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -34,7 +35,11 @@ class ChatMediaBubble extends StatelessWidget {
       ),
       child: message.isVoice
           ? _VoiceBody(message: message, isMine: isMine)
-          : _PhotoBody(message: message, isMine: isMine),
+          : message.isPhoto
+              ? _PhotoBody(message: message, isMine: isMine)
+              : message.isLocation
+                  ? _LocationBody(message: message, isMine: isMine)
+                  : const SizedBox.shrink(),
     );
   }
 }
@@ -154,6 +159,139 @@ class _PhotoBody extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LocationBody extends StatelessWidget {
+  const _LocationBody({required this.message, required this.isMine});
+
+  final ChatMessage message;
+  final bool isMine;
+
+  @override
+  Widget build(BuildContext context) {
+    final lat = message.latitude;
+    final lng = message.longitude;
+    final hasCoords = lat != null && lng != null;
+
+    return GestureDetector(
+      onTap: hasCoords
+          ? () => openInGoogleMaps(context, lat, lng)
+          : null,
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isMine
+              ? Colors.white.withValues(alpha: .15)
+              : AppColors.primarySurface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isMine ? Colors.white : AppColors.secondary,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.location_on_rounded,
+                color: isMine ? AppColors.primary : Colors.white,
+                size: 26,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tr(context,
+                        fr: 'Position GPS', ar: 'الموقع الجغرافي'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isMine ? Colors.white : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasCoords
+                        ? '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}'
+                        : '—',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isMine
+                          ? Colors.white70
+                          : AppColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.map_rounded,
+                        size: 12,
+                        color:
+                            isMine ? Colors.white : AppColors.secondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        tr(context,
+                            fr: 'Ouvrir Google Maps',
+                            ar: 'فتح خرائط جوجل'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              isMine ? Colors.white : AppColors.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Launches Google Maps with the given coordinates. Falls back to the
+/// `geo:` URI on Android and the Google Maps web URL on other platforms.
+Future<void> openInGoogleMaps(
+  BuildContext context,
+  double latitude,
+  double longitude,
+) async {
+  // Universal Google Maps URL (works on web and mobile).
+  final uri = Uri.parse(
+    'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+  );
+  try {
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr(context,
+            fr: 'Impossible d\'ouvrir Google Maps',
+            ar: 'تعذّر فتح خرائط جوجل')),
+      ));
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr(context,
+            fr: 'Impossible d\'ouvrir Google Maps',
+            ar: 'تعذّر فتح خرائط جوجل')),
+      ));
+    }
   }
 }
 

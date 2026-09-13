@@ -137,6 +137,13 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
         proofPath: registered.docImage,
         verificationStatus: ProVerification.pending,
       );
+      // Persist the credential record (email · password · PRO code ·
+      // pending state) so the pro's email/password login restores the
+      // full profile across app restarts.
+      UserStore.bindProAccount(
+        proCode: registered.proCode,
+        verificationStatus: ProVerification.pending,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -181,6 +188,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
     ];
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
@@ -611,7 +619,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                                         return Container(
                                           width: 80,
                                           margin:
-                                              const EdgeInsets.only(right: 8),
+                                              const EdgeInsetsDirectional.only(end: 8),
                                           decoration: BoxDecoration(
                                             color: AppColors.primarySurface,
                                             borderRadius:
@@ -1014,6 +1022,8 @@ class _Step extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -67,9 +67,17 @@ class ChatStore {
     final request = RequestStore.byId(requestId);
     if (request != null) {
       if (request.customerId.isNotEmpty) {
-        NotificationStore.notifyChatClosed(requestId, request.customerId);
+        NotificationStore.notifyChatClosed(
+          requestId,
+          request.customerId,
+          targetRole: 'client',
+        );
       }
-      NotificationStore.notifyChatClosed(requestId, request.professionalId);
+      NotificationStore.notifyChatClosed(
+        requestId,
+        request.professionalId,
+        targetRole: 'professional',
+      );
     }
   }
 
@@ -151,6 +159,28 @@ class ChatStore {
     );
   }
 
+  /// Sends a GPS location pin. Available to BOTH roles.
+  /// The recipient can tap the bubble to open Google Maps.
+  static void sendLocation({
+    required String requestId,
+    required String senderId,
+    required String senderName,
+    required double latitude,
+    required double longitude,
+    required bool isCustomer,
+  }) {
+    _append(
+      requestId: requestId,
+      senderId: senderId,
+      senderName: senderName,
+      text: '',
+      isCustomer: isCustomer,
+      type: ChatMessageType.location,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
   static int _seq = 0;
 
   /// Single persistence pipeline shared by text / voice / photo messages.
@@ -165,6 +195,8 @@ class ChatStore {
     ChatMessageType type = ChatMessageType.text,
     String? mediaPath,
     int voiceDurationSec = 0,
+    double? latitude,
+    double? longitude,
   }) {
     if (!RequestStore.isChatAllowed(requestId)) return;
 
@@ -179,18 +211,26 @@ class ChatStore {
       type: type,
       mediaPath: mediaPath,
       voiceDurationSec: voiceDurationSec,
+      latitude: latitude,
+      longitude: longitude,
     );
 
     final map = Map<String, List<ChatMessage>>.from(messages.value);
     map[requestId] = [...(map[requestId] ?? []), msg];
     messages.value = map;
 
-    // Send notification about new message
+    // Send notification about new message, routed to the RECEIVING side:
+    // a customer's message alerts the pro, and vice-versa.
     final request = RequestStore.byId(requestId);
     final recipientId =
         isCustomer ? request?.professionalId : request?.customerId;
     if (recipientId != null && recipientId.isNotEmpty) {
-      NotificationStore.notifyChatMessage(requestId, senderName, recipientId);
+      NotificationStore.notifyChatMessage(
+        requestId,
+        senderName,
+        recipientId,
+        targetRole: isCustomer ? 'professional' : 'client',
+      );
     }
   }
 
@@ -210,5 +250,11 @@ class ChatStore {
       text: 'وعليكم السلام، تقريبًا نهار.',
       isCustomer: false,
     );
+  }
+
+  /// Clears every in-memory chat room and session (used on logout).
+  static void reset() {
+    messages.value = {};
+    sessions.value = {};
   }
 }

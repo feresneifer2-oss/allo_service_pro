@@ -224,10 +224,18 @@ class _NewTicketSheetState extends State<_NewTicketSheet> {
   ];
 
   @override
+  void dispose() {
+    _subjectCtrl.dispose();
+    _msgCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
       child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.only(
           left: 20,
@@ -540,6 +548,7 @@ class _TicketChatScreenState extends State<_TicketChatScreen> {
     final resolved = widget.ticket.status == 'resolved';
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -594,6 +603,8 @@ class _TicketChatScreenState extends State<_TicketChatScreen> {
           // Conversation — lazily-built chat bubbles.
           Expanded(
             child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(16),
               itemCount: widget.ticket.conversation.length,
               itemBuilder: (context, index) {

@@ -33,11 +33,14 @@ class NotificationsScreen extends StatelessWidget {
           ValueListenableBuilder<List<NotificationModel>>(
             valueListenable: NotificationStore.notifications,
             builder: (_, list, __) {
-              final hasUnread = list.any((n) => !n.isRead);
+              // Role-routed: mark-as-read / badge only for THIS role's inbox.
+              final visible =
+                  NotificationStore.getNotificationsForCurrentUser();
+              final hasUnread = visible.any((n) => !n.isRead);
               if (!hasUnread) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () async {
-                  for (final n in list.where((n) => !n.isRead)) {
+                  for (final n in visible.where((n) => !n.isRead)) {
                     await Future<void>.delayed(Duration.zero);
                     NotificationStore.markAsRead(n.id);
                   }
@@ -52,7 +55,10 @@ class NotificationsScreen extends StatelessWidget {
       body: ValueListenableBuilder<List<NotificationModel>>(
         valueListenable: NotificationStore.notifications,
         builder: (_, list, __) {
-          if (list.isEmpty) {
+          // Role-routed inbox: clients never see pro-targeted
+          // notifications and vice-versa.
+          final visible = NotificationStore.getNotificationsForCurrentUser();
+          if (visible.isEmpty) {
             return EmptyStateWidget(
               icon: Icons.notifications_none_rounded,
               title: tr(context, fr: 'Aucune notification', ar: 'لا إشعارات'),
@@ -64,10 +70,10 @@ class NotificationsScreen extends StatelessWidget {
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: list.length,
+            itemCount: visible.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
-              final n = list[i];
+              final n = visible[i];
               return Container(
                 decoration: BoxDecoration(
                   color: n.isRead ? Colors.white : AppColors.primarySurface,

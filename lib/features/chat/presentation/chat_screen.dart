@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
@@ -29,6 +30,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   Timer? _recTimer;
+  Timer? _countdownTimer;
   int _recSeconds = 0;
   bool _isRecording = false;
 
@@ -41,11 +43,25 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     VoiceNotePlayer.warmUp();
+    // Housekeeping: drop media files orphaned by older conversations.
+    ChatMediaService.cleanupOrphans();
+    // Live minute-tick so the "closes in Xh Ym" banner stays accurate even
+    // when no messages arrive (previously it froze until a rebuild).
+    _countdownTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted) return;
+      setState(() {}); // re-reads ChatSession time getters on rebuild
+    });
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _recTimer?.cancel();
+    // Release the mic if the user leaves mid-recording; without this the
+    // recorder keeps capturing in the background and the UI gets stuck.
+    if (ChatMediaService.isRecording.value) {
+      ChatMediaService.cancelVoiceRecording();
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -125,6 +141,70 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Fetches the current GPS position and sends a location pin. Available
+  /// to BOTH client and pro roles — the recipient can tap the bubble to
+  /// open Google Maps.
+  Future<void> _sendLocation() async {
+    final isCustomer = _viewerIsCustomer;
+    final request = RequestStore.byId(widget.requestId);
+    if (request == null) return;
+
+    try {
+      // Reuse the permission flow from LocationService — keep this call
+      // self-contained so the chat works even when the user skipped the
+      // startup location prompt.
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr(context,
+                fr: 'Permission de localisation refusée',
+                ar: 'تم رفض إذن الموقع')),
+          ));
+        }
+        return;
+      }
+
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(tr(context,
+                fr: 'Activez la localisation pour partager votre position',
+                ar: 'فعّل خدمة الموقع لمشاركة موقعك')),
+          ));
+        }
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      ChatStore.sendLocation(
+        requestId: widget.requestId,
+        senderId: isCustomer ? 'customer' : 'pro',
+        senderName:
+            isCustomer ? request.customerName : request.professionalName,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        isCustomer: isCustomer,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(tr(context,
+              fr: 'Impossible d\'obtenir la position',
+              ar: 'تعذّر الحصول على الموقع')),
+        ));
+      }
+    }
+  }
+
   void _attachPhoto() async {
     final isCustomer = _viewerIsCustomer;
     final request = RequestStore.byId(widget.requestId);
@@ -186,6 +266,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Check if chat is allowed
     if (request == null || !RequestStore.isChatAllowed(widget.requestId)) {
       return Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text(tr(context, fr: 'Chat', ar: 'محادثة'),
@@ -226,6 +307,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final msgs = ChatStore.forRequest(widget.requestId);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Column(
@@ -277,6 +359,8 @@ class _ChatScreenState extends State<ChatScreen> {
             // cette liste lit simplement l'instantané courant à chaque
             // rebuild (pas d'écoute dupliquée).
             child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(16),
               itemCount: msgs.length,
               itemBuilder: (_, i) {
@@ -399,6 +483,17 @@ class _ChatScreenState extends State<ChatScreen> {
                           backgroundColor: AppColors.primarySurface,
                           child: Icon(Icons.add_photo_alternate_outlined,
                               size: 20, color: AppColors.primary),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: _sendLocation,
+                        customBorder: const CircleBorder(),
+                        child: const CircleAvatar(
+                          radius: 19,
+                          backgroundColor: AppColors.primarySurface,
+                          child: Icon(Icons.location_on_rounded,
+                              size: 20, color: AppColors.secondary),
                         ),
                       ),
                       const SizedBox(width: 6),

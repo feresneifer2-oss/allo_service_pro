@@ -17,12 +17,15 @@ class RequestStore {
     list.insert(0, request);
     requests.value = list;
 
-    // Notify professional of new request
+    // Role-routed notifications:
+    // • PRO-facing alert targeting the professional account only.
     NotificationStore.notifyNewRequest(
       request.id,
       request.customerName,
       request.professionalId,
     );
+    // • CLIENT-facing confirmation ("تم إرسال طلبك بنجاح...").
+    NotificationStore.notifyRequestSent(request.id, request.customerId);
   }
 
   /// Returns true when the transition succeeded.
@@ -140,4 +143,7 @@ class RequestStore {
 
     return statusOk && ChatStore.isActive(requestId);
   }
+
+  /// Clears every in-memory order (used on logout).
+  static void reset() => requests.value = [];
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 
+import 'package:allo_service_pro/shared/app_locale.dart';
 import '../../../booking/presentation/booking_screen.dart';
 
 void showSubServiceSheet(
@@ -29,9 +30,9 @@ void showSubServiceSheet(
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              "Choisissez un service",
-              style: TextStyle(color: Colors.grey),
+            Text(
+              tr(context, fr: "Choisissez un service", ar: "اختر خدمة"),
+              style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),
             ...subServices.map((name) {
@@ -54,7 +55,7 @@ void showSubServiceSheet(
                     ),
                     const SizedBox(width: 10),
                     SizedBox(
-                      width: 90,
+                      width: 96,
                       height: 40,
                       child: ElevatedButton(
                         onPressed: () {
@@ -63,16 +64,18 @@ void showSubServiceSheet(
                           navigator.push(
                             MaterialPageRoute<void>(
                               builder: (_) => BookingScreen(
-                                serviceTitle: '$serviceName - $name',
-                                professionalName: 'À sélectionner',
+                                serviceTitleFr: '$serviceName — $name',
+                                serviceTitleAr: '$serviceName — $name',
                               ),
                             ),
                           );
                         },
                         style:
                             ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                        child: const Text("RÃ©server",
-                            style: TextStyle(fontSize: 12)),
+                        child: Text(
+                          tr(context, fr: "Reserver", ar: "احجز"),
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ],

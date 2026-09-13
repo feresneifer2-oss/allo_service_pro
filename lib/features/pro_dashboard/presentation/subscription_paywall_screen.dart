@@ -7,36 +7,92 @@ import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
-/// Full-screen paywall shown to craftspersons whose monthly subscription
-/// has expired. Blocks every dashboard feature until the 15 TND / 1-month
-/// unlimited plan is re-activated by the admin.
+/// Why the paywall is currently blocking the professional.
+enum PaywallReason {
+  /// Monthly subscription cycle elapsed → admin re-activation needed.
+  subscriptionExpired,
+
+  /// Trial mode with a zero token balance → no confirmations left.
+  tokensExhausted,
+}
+
+/// Full-screen paywall blocking a craftsperson's dashboard until the
+/// 15 TND / 1-month unlimited plan is (re-)activated by the admin.
+///
+/// Two entry points drive it (see [PaywallReason]):
+/// - expired subscription → "Abonnement expiré" copy;
+/// - token exhaustion (trial at 0) → "Solde de tokens épuisé" copy.
+/// Both funnel into the same D17-via-WhatsApp re-activation flow.
 class SubscriptionPaywallScreen extends StatelessWidget {
-  const SubscriptionPaywallScreen({super.key});
+  const SubscriptionPaywallScreen({
+    super.key,
+    this.reason = PaywallReason.subscriptionExpired,
+  });
+
+  final PaywallReason reason;
+
+  String _title(PaywallReason reason, bool isArabic) {
+    if (reason == PaywallReason.tokensExhausted) {
+      return isArabic
+          ? 'تم إيقاف حسابك مؤقتاً لنفاد الرصيد'
+          : 'Compte suspendu : Solde de tokens épuisé';
+    }
+    return isArabic ? 'انتهاء الاشتراك' : 'Abonnement expiré';
+  }
+
+  String _description(PaywallReason reason, bool isArabic) {
+    if (reason == PaywallReason.tokensExhausted) {
+      return isArabic
+          ? 'لقد استهلكت جميع التوكنز المتاحة لك. للحصول على طلبات غير محدودة لمدة شهر كامل، يرجى التفعيل بـ 15 ديناراً تونسياً.'
+          : 'Vous avez consommé tous vos tokens. Pour obtenir des demandes illimitées pendant un mois complet, veuillez activer l\'abonnement à 15 DT.';
+    }
+    return isArabic
+        ? 'انتهت فترة اشتراكك الشهري. تواصل معنا عبر الواتساب لمعرفة رقم الدفع D17 والحصول على حساب غير محدود لمدة شهر كامل مقابل 15 دينار.'
+        : "Votre abonnement mensuel a expiré. Contactez-nous sur WhatsApp pour obtenir le numéro D17 et bénéficier d'un accès illimité pendant un mois pour 15 TND.";
+  }
+
+  String _ctaLabel(PaywallReason reason, bool isArabic) {
+    if (reason == PaywallReason.tokensExhausted) {
+      return isArabic
+          ? 'تفعيل الاشتراك اللامحدود (15 د.ت / شهر)'
+          : "Activer l'abonnement illimité (15 DT / mois)";
+    }
+    return isArabic ? 'التواصل عبر الواتساب' : 'Contacter sur WhatsApp';
+  }
 
   Future<void> _openWhatsApp(
     BuildContext context, {
+    required PaywallReason reason,
+    required bool isArabic,
     required bool askingForReceipt,
   }) async {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
     final user = UserStore.user.value;
     final name = user?.name ?? UserStore.displayName;
-    final accountId =
-        (user?.id.isNotEmpty ?? false) ? user!.id : (user?.phone ?? '-');
-
     final proCode = user?.proCode;
     final codeLine = (proCode == null || proCode.isEmpty)
         ? ''
         : '\n${isArabic ? 'المعرّف المهني' : 'ID Pro'} : $proCode';
 
     final String base;
-    if (isArabic) {
-      base = askingForReceipt
-          ? 'مرحبا، أنا $name (معرّف الحساب: $accountId).\nهذا وصل دفع D17 الخاص بتجديد اشتراكي الشهري (15 دينار) — أرجو تفعيل الحساب غير المحدود. 🙏'
-          : 'مرحبا، أنا $name، معرّف حسابي: $accountId.\nانتهى اشتراكي الشهري وأرجو تزويدي بمعلومات الدفع عبر D17 لتفعيل الحساب غير المحدود لمدة شهر كامل مقابل 15 دينار.\nسأرفق صورة وصل الدفع هنا بعد التحويل 🙏';
+    if (reason == PaywallReason.tokensExhausted) {
+      // Token-exhaustion templates (spec wording, pro name injected
+      // dynamically from UserStore).
+      base = isArabic
+          ? 'مرحباً، أنا $name، تم إغلاق حسابي بسبب نفاد الرصيد. أرغب في دفع 15 ديناراً لتفعيل الحساب اللامحدود لمدة شهر. الرجاء مدي برقم D17 لإرسال المبلغ.'
+          : "Bonjour, je suis $name, mon compte est suspendu pour solde épuisé. Je souhaite payer 15 DT pour activer le compte illimité pendant un mois. Veuillez me fournir le numéro D17 pour effectuer le virement.";
     } else {
-      base = askingForReceipt
-          ? 'Bonjour, je suis $name (ID : $accountId).\nVoici mon reçu de paiement D17 pour le renouvellement mensuel (15 TND) — merci d\'activer mon accès illimité. 🙏'
-          : "Bonjour, je suis $name (ID : $accountId).\nMon abonnement mensuel a expiré ; merci de m'envoyer les informations de paiement D17 pour activer l'accès illimité d'un mois complet pour 15 TND.\nJe joindrai le reçu de paiement ici après le transfert 🙏";
+      // Subscription-expiry templates (existing approved flow).
+      final accountId =
+          (user?.id.isNotEmpty ?? false) ? user!.id : (user?.phone ?? '-');
+      if (isArabic) {
+        base = askingForReceipt
+            ? 'مرحبا، أنا $name (معرّف الحساب: $accountId).\nهذا وصل دفع D17 الخاص بتجديد اشتراكي الشهري (15 دينار) — أرجو تفعيل الحساب غير المحدود. 🙏'
+            : 'مرحبا، أنا $name، معرّف حسابي: $accountId.\nانتهى اشتراكي الشهري وأرجو تزويدي بمعلومات الدفع عبر D17 لتفعيل الحساب غير المحدود لمدة شهر كامل مقابل 15 دينار.\nسأرفق صورة وصل الدفع هنا بعد التحويل 🙏';
+      } else {
+        base = askingForReceipt
+            ? 'Bonjour, je suis $name (ID : $accountId).\nVoici mon reçu de paiement D17 pour le renouvellement mensuel (15 TND) — merci d\'activer mon accès illimité. 🙏'
+            : "Bonjour, je suis $name (ID : $accountId).\nMon abonnement mensuel a expiré ; merci de m'envoyer les informations de paiement D17 pour activer l'accès illimité d'un mois complet pour 15 TND.\nJe joindrai le reçu de paiement ici après le transfert 🙏";
+      }
     }
 
     final String message = '$base$codeLine';
@@ -67,20 +123,20 @@ class SubscriptionPaywallScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
-
-    final explanation = tr(
-      context,
-      fr: "Votre abonnement mensuel a expiré. Contactez-nous sur WhatsApp pour obtenir le numéro D17 et bénéficier d'un accès illimité pendant un mois pour 15 TND.",
-      ar: 'انتهت فترة اشتراكك الشهري. تواصل معنا عبر الواتساب لمعرفة رقم الدفع D17 والحصول على حساب غير محدود لمدة شهر كامل مقابل 15 دينار.',
-    );
-
     return Scaffold(
       backgroundColor: AppColors.slate900,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-          child: Column(
+        // Dynamic locale: the AR/FR copy re-renders the instant appLocale
+        // flips — no need to reopen the screen.
+        child: ValueListenableBuilder<Locale>(
+          valueListenable: appLocale,
+          builder: (context, locale, _) {
+            final isArabic = locale.languageCode == 'ar';
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
@@ -104,7 +160,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                tr(context, fr: 'Abonnement expiré', ar: 'انتهاء الاشتراك'),
+                _title(reason, isArabic),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
@@ -122,7 +178,7 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                       color: AppColors.secondary.withValues(alpha: 0.35)),
                 ),
                 child: Text(
-                  explanation,
+                  _description(reason, isArabic),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Color(0xFFCBD5E1),
@@ -188,15 +244,17 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 58,
                 child: ElevatedButton.icon(
-                  onPressed: () =>
-                      _openWhatsApp(context, askingForReceipt: false),
+                  onPressed: () => _openWhatsApp(
+                    context,
+                    reason: reason,
+                    isArabic: isArabic,
+                    askingForReceipt: false,
+                  ),
                   icon: const Icon(Icons.chat_rounded, size: 24),
                   label: Text(
-                    tr(context,
-                        fr: 'Contacter sur WhatsApp',
-                        ar: 'التواصل عبر الواتساب'),
+                    _ctaLabel(reason, isArabic),
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                        fontSize: 15.5, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF25D366),
@@ -250,8 +308,12 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _openWhatsApp(context, askingForReceipt: true),
+                        onPressed: () => _openWhatsApp(
+                          context,
+                          reason: reason,
+                          isArabic: isArabic,
+                          askingForReceipt: true,
+                        ),
                         icon: const Icon(Icons.attach_file_rounded, size: 18),
                         label: Text(
                           tr(context,
@@ -285,9 +347,11 @@ class SubscriptionPaywallScreen extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
+              ), // Column
+            ); // SingleChildScrollView
+          }, // appLocale builder
+        ), // ValueListenableBuilder
+      ), // SafeArea
     );
   }
 }

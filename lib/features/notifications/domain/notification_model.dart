@@ -3,7 +3,14 @@ class NotificationModel {
   final String title;
   final String message;
   final String type; // 'request', 'chat', 'system'
+
+  /// Account the notification is addressed to (used for audit/debug).
   final String recipientId;
+
+  /// Strict role routing: 'client' | 'professional'. Clients NEVER see
+  /// professional-targeted notifications and vice-versa (enforced by
+  /// [NotificationStore.getNotificationsForUser]).
+  final String targetRole;
   final String? requestId;
   final DateTime createdAt;
   final bool isRead;
@@ -14,6 +21,7 @@ class NotificationModel {
     required this.message,
     required this.type,
     required this.recipientId,
+    this.targetRole = 'client',
     this.requestId,
     required this.createdAt,
     this.isRead = false,
@@ -25,6 +33,7 @@ class NotificationModel {
     String? message,
     String? type,
     String? recipientId,
+    String? targetRole,
     String? requestId,
     DateTime? createdAt,
     bool? isRead,
@@ -35,6 +44,7 @@ class NotificationModel {
       message: message ?? this.message,
       type: type ?? this.type,
       recipientId: recipientId ?? this.recipientId,
+      targetRole: targetRole ?? this.targetRole,
       requestId: requestId ?? this.requestId,
       createdAt: createdAt ?? this.createdAt,
       isRead: isRead ?? this.isRead,

@@ -6,13 +6,19 @@ import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/requests/presentation/request_sent_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
-class ConfirmRequestScreen extends StatelessWidget {
+class ConfirmRequestScreen extends StatefulWidget {
   const ConfirmRequestScreen({super.key, required this.request});
 
   final ServiceRequest request;
 
   @override
+  State<ConfirmRequestScreen> createState() => _ConfirmRequestScreenState();
+}
+
+class _ConfirmRequestScreenState extends State<ConfirmRequestScreen> {
+  @override
   Widget build(BuildContext context) {
+    final request = widget.request;
     final service =
         tr(context, fr: request.serviceTitleFr, ar: request.serviceTitleAr);
     final date =
@@ -30,6 +36,8 @@ class ConfirmRequestScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,13 +64,59 @@ class ConfirmRequestScreen extends StatelessWidget {
                   tr(context, fr: 'Photos', ar: 'الصور'),
                   '${request.photoPaths.length}',
                 ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              // ── Payment: STRICTLY CASH (non-interactive badge) ─────────
+              // D17 / Flouci selectors were removed: the professional
+              // collects the payment in cash at the end of the service.
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.slate800,
+                  borderRadius: BorderRadius.circular(16),
+                  border:
+                      Border.all(color: AppColors.secondary.withValues(alpha: .4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.payments_rounded,
+                        color: AppColors.secondary, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tr(context, fr: 'Mode de paiement', ar: 'طريقة الدفع'),
+                            style: const TextStyle(
+                                color: AppColors.slate400, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            tr(context,
+                                fr: 'Paiement en espèces',
+                                ar: 'نقداً عند التنفيذ'),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    RequestStore.add(request);
+                    // Cash-only policy: the method is hardcoded server-side
+                    // (locally) — no interactive selection anymore.
+                    RequestStore.add(
+                      request.copyWith(paymentMethod: 'cash'),
+                    );
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(

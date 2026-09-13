@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/shared/validators.dart';
 
 import '../application/user_store.dart';
 import 'login_screen.dart';
@@ -39,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final registered = UserStore.register(
       name: _nameController.text.trim(),
-      phone: _phoneController.text.trim(),
+      phone: AppValidators.normalizePhone(_phoneController.text),
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
@@ -53,7 +55,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OtpScreen(phone: _phoneController.text.trim()),
+        builder: (_) => OtpScreen(
+          phone: AppValidators.normalizePhone(_phoneController.text),
+        ),
       ),
     );
   }
@@ -61,6 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -68,6 +73,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(24),
           child: Form(
             key: _formKey,
@@ -110,16 +117,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(8),
+                  ],
                   decoration: const InputDecoration(
-                    hintText: 'Numéro de téléphone',
+                    hintText: 'Numéro de téléphone (8 chiffres)',
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
-                  validator: (v) {
-                    if (v == null || v.trim().length < 8) {
-                      return 'Entrez un numéro valide';
-                    }
-                    return null;
-                  },
+                  validator: (v) => AppValidators.tunisianPhone(v, context),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

@@ -32,6 +32,8 @@ class ProDashboardScreen extends StatelessWidget {
               valueListenable: ProProfileStore.isAvailable,
               builder: (context, available, _) {
                 return SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

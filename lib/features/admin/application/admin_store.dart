@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
+import 'package:allo_service_pro/features/notifications/domain/notification_model.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
@@ -28,10 +34,10 @@ class ReportModel {
 class AdminStore {
   AdminStore._();
 
-  // Smart routing credentials used by the standard login screen.
+  // Admin credentials (single admin session).
   // (Demo-grade: production should authenticate against Firebase/backend.)
-  static const String adminEmail = 'admin@alloservice.tn';
-  static const String adminPassword = 'admin2026';
+  static const String adminEmail = 'feres.neifer2@gmail.com';
+  static const String adminPassword = '24449959';
 
   static bool matchesAdmin(String email, String password) =>
       email == adminEmail && password == adminPassword;
@@ -68,30 +74,142 @@ class AdminStore {
     ),
   ]);
 
-  // Reports
-  static final reports = ValueNotifier<List<ReportModel>>([
-    ReportModel(
-      id: 'r_1',
-      reportedBy: 'Client Hedi B.',
-      about: 'Pro: Karim Jebali',
-      reason: 'Le professionnel ne s\'est pas présenté au rendez-vous.',
-      date: '10/08/2026',
-    ),
-    ReportModel(
-      id: 'r_2',
-      reportedBy: 'Client Sara M.',
-      about: 'Pro: Hatem Trabelsi',
-      reason: 'Prix facturé différent du devis initial.',
-      date: '09/08/2026',
-    ),
-    ReportModel(
-      id: 'r_3',
-      reportedBy: 'Client Nabil K.',
-      about: 'Pro: Ahmed Ben Ali',
-      reason: 'Travail non terminé, le pro est parti sans finir.',
-      date: '08/08/2026',
-    ),
-  ]);
+  // ─── Live KPI metrics (derived from RequestStore / registry) ──────────
+  static const List<RequestStatus> _liveStatuses = [
+    RequestStatus.accepted,
+    RequestStatus.enRoute,
+    RequestStatus.arrived,
+    RequestStatus.inProgress,
+    RequestStatus.completed,
+  ];
+
+  static bool _isToday(DateTime d) {
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  /// All-time accepted (live or completed) orders.
+  static int get acceptedOrdersAllTime => RequestStore.requests.value
+      .where((r) => _liveStatuses.contains(r.status))
+      .length;
+
+  /// Orders accepted today (created today and still/completed accepted).
+  static int get acceptedOrdersToday => RequestStore.requests.value
+      .where((r) =>
+          _liveStatuses.contains(r.status) && _isToday(r.createdAt))
+      .length;
+
+  /// Orders refused today.
+  static int get refusedOrdersToday => RequestStore.requests.value
+      .where((r) =>
+          r.status == RequestStatus.refused && _isToday(r.createdAt))
+      .length;
+
+  /// 💰 Cash revenue log: paid/renewed subscriptions × 15 DT.
+  static int get cashRevenueTnd =>
+      pendingPros.value.where((p) => p.isPaid).length * 15;
+
+  static int get totalClients => UserStore.registeredClients.value.length;
+
+  static int get totalProsCount =>
+      pendingPros.value.where((p) => p.status == 'approved').length;
+
+  // ─── Client suspension registry (persisted) ───────────────────────────
+  static final suspendedClients = ValueNotifier<List<String>>([]);
+  static const String _kSuspendedClients = 'admin_suspended_clients';
+
+  static bool isClientSuspended(String? clientId) =>
+      clientId != null && suspendedClients.value.contains(clientId);
+
+  static Future<void> suspendClient(String clientId) async {
+    if (suspendedClients.value.contains(clientId)) return;
+    suspendedClients.value = [...suspendedClients.value, clientId];
+    await _persistSuspendedClients();
+  }
+
+  static Future<void> reactivateClient(String clientId) async {
+    suspendedClients.value =
+        suspendedClients.value.where((c) => c != clientId).toList();
+    await _persistSuspendedClients();
+  }
+
+  static Future<void> _persistSuspendedClients() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_kSuspendedClients, suspendedClients.value);
+    } catch (_) {
+      // Best-effort persistence.
+    }
+  }
+
+  // ─── Pro suspension with notification (persisted via registry) ────────
+  static void suspendPro(String id) {
+    // Guard: unknown proId → exit safely instead of throwing a
+    // StateError from an unguarded firstWhere.
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final target = pendingPros.value[idx];
+    setDeactivated(id, deactivated: true);
+    NotificationStore.add(
+      NotificationModel(
+        id: '${DateTime.now().millisecondsSinceEpoch}_susp',
+        title: 'تم تجميد حسابك',
+        message: 'تم تجميد حسابك من طرف الإدارة. تواصل مع الدعم للمزيد.',
+        type: 'system',
+        recipientId: target.proCode ?? target.id,
+        targetRole: 'professional',
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  static void reactivatePro(String id) {
+    // Guard: unknown proId → exit safely instead of throwing a
+    // StateError from an unguarded firstWhere.
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final target = pendingPros.value[idx];
+    setDeactivated(id, deactivated: false);
+    NotificationStore.add(
+      NotificationModel(
+        id: '${DateTime.now().millisecondsSinceEpoch}_react',
+        title: 'تم إعادة تفعيل حسابك',
+        message: 'تم إعادة تفعيل حسابك بنجاح. مرحباً بعودتك!',
+        type: 'system',
+        recipientId: target.proCode ?? target.id,
+        targetRole: 'professional',
+        createdAt: DateTime.now(),
+      ),
+    );
+  }
+
+  // ─── Two-way verification messaging (AlloService ↔ Pro) ───────────────
+  /// Messages are stored on the pro registry entry as "sender|text" lines.
+  static void sendVerificationMessage(String proId, String text) {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    final idx = pendingPros.value.indexWhere((p) => p.id == proId);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(
+      adminMessages: [...list[idx].adminMessages, 'AlloService|$t'],
+    );
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  static void proReply(String proId, String text) {
+    final t = text.trim();
+    if (t.isEmpty) return;
+    final idx = pendingPros.value.indexWhere((p) => p.id == proId);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(
+      adminMessages: [...list[idx].adminMessages, 'pro|$t'],
+    );
+    pendingPros.value = list;
+    persistToPrefs();
+  }
 
   static void setBadge(String id, String badge) {
     final list = List<PendingProModel>.from(pendingPros.value);
@@ -102,20 +220,8 @@ class AdminStore {
     }
   }
 
-  static void resolveReport(String id) {
-    final list = List<ReportModel>.from(reports.value);
-    final idx = list.indexWhere((r) => r.id == id);
-    if (idx != -1) {
-      list[idx].resolved = true;
-      reports.value = list;
-    }
-  }
-
   static int get pendingCount =>
       pendingPros.value.where((p) => p.status == 'pending').length;
-
-  static int get openReportsCount =>
-      reports.value.where((r) => !r.resolved).length;
 
   // Admin function to reset request acceptance and deduct tokens again
   static void resetRequestAcceptance(String requestId) {
@@ -161,15 +267,41 @@ class AdminStore {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
     final list = List<PendingProModel>.from(pendingPros.value);
+    // Official badge #1 is granted automatically on first approval.
+    final badges = List<String>.from(list[idx].badges);
+    if (!badges.contains('cin')) badges.add('cin');
     list[idx] = list[idx].copyWith(
       status: 'approved',
       tokens: 150,
       rejectionReason: null,
       badge: badge,
+      badges: badges,
     );
     pendingPros.value = list;
     totalPros.value++;
     persistToPrefs();
+    // Sync the credential record: a returning pro whose account has just
+    // been approved logs in straight to the dashboard (no pending gate).
+    UserStore.syncAccountVerificationByPhone(
+      list[idx].phone,
+      status: ProVerification.approved,
+    );
+    // Live session sync: if THIS pro is the currently logged-in user, flip
+    // their verification state + grant the 150 starter tokens instantly —
+    // any pending-approval gate on screen disappears without a re-login.
+    final session = UserStore.user.value;
+    final isCurrentSession = session != null &&
+        (session.proCode == list[idx].proCode ||
+            session.id == list[idx].id ||
+            session.proCode == list[idx].id);
+    if (isCurrentSession) {
+      UserStore.updateProVerification(
+        status: ProVerification.approved,
+        proofPath: list[idx].docImage,
+      );
+      ProProfileStore.tokens.value = list[idx].tokens;
+      ProProfileStore.persistToPrefs();
+    }
   }
 
   /// Rejects with a visible reason; the Pro can re-upload proof later.
@@ -180,6 +312,10 @@ class AdminStore {
     list[idx] = list[idx].copyWith(status: 'rejected', rejectionReason: reason);
     pendingPros.value = list;
     persistToPrefs();
+    UserStore.syncAccountVerificationByPhone(
+      list[idx].phone,
+      status: ProVerification.rejected,
+    );
   }
 
   /// Pro re-submits proof after a rejection — back to the review queue.
@@ -194,6 +330,10 @@ class AdminStore {
     );
     pendingPros.value = list;
     persistToPrefs();
+    UserStore.syncAccountVerificationByPhone(
+      list[idx].phone,
+      status: ProVerification.pending,
+    );
   }
 
   /// Manual token adjustment from the admin detail modal (+/-).
@@ -208,11 +348,195 @@ class AdminStore {
   }
 
   /// Toggles the 30-day unlimited paid plan for a specific Pro.
+  /// Low-level registry toggle kept for tests/legacy callers that do not
+  /// carry an expiry timestamp (the preserved-cycle path is used on sync).
   static void setPaid(String id, {required bool isPaid}) {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(isPaid: isPaid);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Grants a full [days]-day paid cycle for ONE pro (default 30d). The
+  /// expiration timestamp is stored on the pro's own registry record, so the
+  /// admin never mutates the logged-in session's global subscription store —
+  /// and [syncSessionStoresForCurrentUser] preserves this exact expiry on
+  /// every later login (no stacking of +30 days per sync).
+  static void grantSubscription(String id, {int days = 30}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final until = DateTime.now().add(Duration(days: days));
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(
+      isPaid: true,
+      paidUntilMs: until.millisecondsSinceEpoch,
+    );
+    pendingPros.value = list;
+    persistToPrefs();
+    _syncSubscriptionForSession(list[idx]);
+  }
+
+  /// Reverts/expires the paid cycle of ONE pro — removes the paid flag and
+  /// the expiry so the pro drops back to trial mode on next sync.
+  static void revokeSubscription(String id) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(isPaid: false, paidUntilMs: null);
+    pendingPros.value = list;
+    persistToPrefs();
+    _syncSubscriptionForSession(list[idx]);
+  }
+
+  /// Live-session mirror for the pro that is CURRENTLY logged in on this
+  /// device: opening the cycle at the persisted start date keeps the exact
+  /// expiration (never extends it); revoking drops straight to trial mode.
+  /// No-op for any other registry entry (incl. the admin's own session).
+  static void _syncSubscriptionForSession(PendingProModel entry) {
+    final u = UserStore.user.value;
+    if (u == null || !u.isProfessional) return;
+    if (entry.proCode != u.proCode && entry.id != u.id && entry.proCode != u.id) {
+      return;
+    }
+    if (entry.isPaid && entry.paidUntilMs != null) {
+      final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
+      final start =
+          until.subtract(const Duration(days: SubscriptionStore.durationDays));
+      SubscriptionStore.renew(at: start);
+    } else {
+      SubscriptionStore.reset();
+    }
+  }
+
+  /// Admin deactivation switch: a deactivated pro loses dashboard access
+  /// and disappears from client listings until re-activated.
+  static void setDeactivated(String id, {required bool deactivated}) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(deactivated: deactivated);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  // ─── Real-time session sync (Admin ↔ Pro lifecycle) ────────────────────
+  // Single source of truth: the persisted registry [admin_pending_pros_json]
+  // (account status · subscription · tokens · badges). The live session
+  // stores (UserStore / SubscriptionStore / ProProfileStore) are MIRRORS of
+  // the current pro's record — refreshed on login, on auto-login restore and
+  // on every admin mutation touching the current session.
+
+  /// Finds the registry entry matching the CURRENT pro session
+  /// (matched by PRO code or account id).
+  static PendingProModel? entryForUser(UserModel? u) {
+    if (u == null || !u.isProfessional) return null;
+    for (final p in pendingPros.value) {
+      if (p.proCode == u.proCode ||
+          p.id == u.id ||
+          p.proCode == u.id) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  /// Mirrors the persisted registry record into the LIVE session stores.
+  /// Called on every pro login and on auto-login restore, so a
+  /// paid/activated pro always lands with the right subscription, token
+  /// balance and approval state — even when the previous session on this
+  /// device belonged to another account (e.g. the admin).
+  static void syncSessionStoresForCurrentUser() {
+    final u = UserStore.user.value;
+    final entry = entryForUser(u);
+    if (u == null || entry == null) return;
+
+    // Subscription: paid → mirror the paid state WITHOUT extending the
+    // existing cycle (the persisted paidUntil/expiration timestamp is
+    // preserved across syncs). Not paid → trial mode.
+    if (entry.isPaid && entry.paidUntilMs != null) {
+      // Exact expiry on the record → re-open the same cycle at its original
+      // start date so the expiration is NEVER shifted by a re-login/sync.
+      final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
+      final start =
+          until.subtract(const Duration(days: SubscriptionStore.durationDays));
+      SubscriptionStore.renew(at: start);
+    } else if (entry.isPaid) {
+      // Legacy granted flag without an expiry timestamp → preserve whatever
+      // cycle already exists in the session (or seed one from now).
+      SubscriptionStore.markPaidPreservingCycle();
+    } else {
+      SubscriptionStore.reset();
+    }
+
+    // Tokens: mirror the registry balance into the session store.
+    if (ProProfileStore.tokens.value != entry.tokens) {
+      ProProfileStore.tokens.value = entry.tokens;
+      ProProfileStore.persistToPrefs();
+    }
+
+    // Verification: the registry is authoritative. If the admin approved or
+    // re-queued the account since the session snapshot was saved, the live
+    // session follows immediately (no re-login required).
+    final approved = entry.status == 'approved';
+    if (approved && !u.verificationStatus.isApproved) {
+      UserStore.updateProVerification(
+        status: ProVerification.approved,
+        proofPath: entry.docImage,
+      );
+    } else if (!approved &&
+        u.verificationStatus.isApproved &&
+        entry.status == 'pending') {
+      UserStore.updateProVerification(status: ProVerification.pending);
+    }
+  }
+
+  // Live-token bridge: whenever the session pro's balance changes (order
+  // acceptance deduction, admin grant…), the registry is updated so the
+  // admin "Professionnels" tab reflects depletion in real time.
+  static bool _tokensBridgeBound = false;
+
+  /// Binds the one-time listener that pushes live token changes from the
+  /// session store into the admin registry. Called from [loadFromPrefs].
+  static void bindLiveTokenBridge() {
+    if (_tokensBridgeBound) return;
+    _tokensBridgeBound = true;
+    ProProfileStore.tokens.addListener(_pushLiveTokensToRegistry);
+  }
+
+  static void _pushLiveTokensToRegistry() {
+    final entry = entryForUser(UserStore.user.value);
+    if (entry == null) return; // no pro session (or admin) → nothing to sync
+    if (entry.tokens == ProProfileStore.tokens.value) return;
+    final idx = pendingPros.value.indexWhere((p) => p.id == entry.id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(tokens: ProProfileStore.tokens.value);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Adds a badge to the pro (no-op if already present).
+  static void addBadge(String id, String badge) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    final badges = List<String>.from(list[idx].badges);
+    if (badges.contains(badge)) return;
+    badges.add(badge);
+    list[idx] = list[idx].copyWith(badges: badges);
+    pendingPros.value = list;
+    persistToPrefs();
+  }
+
+  /// Removes a badge from the pro (no-op if absent).
+  static void removeBadge(String id, String badge) {
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    final badges = List<String>.from(list[idx].badges)..remove(badge);
+    list[idx] = list[idx].copyWith(badges: badges);
     pendingPros.value = list;
     persistToPrefs();
   }
@@ -255,8 +579,15 @@ class AdminStore {
   }
 
   static Future<void> loadFromPrefs() async {
+    // Bind the live-token bridge once so session token changes flow into
+    // the admin registry in real time.
+    bindLiveTokenBridge();
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Restore the suspended/banned client list FIRST — bans must survive
+      // restarts even when the pro registry itself is empty or missing.
+      suspendedClients.value =
+          prefs.getStringList(_kSuspendedClients) ?? const <String>[];
       final raw = prefs.getString(_kRegistry);
       if (raw == null) return;
       final decoded = (jsonDecode(raw) as List)

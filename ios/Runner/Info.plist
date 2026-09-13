@@ -53,6 +53,8 @@
 	<string>Allo Service Pro utilise le microphone pour enregistrer des notes vocales dans le chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Allo Service Pro accède à la galerie pour envoyer des photos dans le chat.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Allo Service Pro utilise votre position pour remplir automatiquement votre adresse et vous proposer des professionnels proches de vous.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

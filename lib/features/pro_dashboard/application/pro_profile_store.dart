@@ -32,6 +32,13 @@ class ProProfileStore {
   // Service zones (governorates)
   static final serviceZones = ValueNotifier<List<String>>(['Ariana', 'Tunis']);
 
+  /// True once the account has ACTUALLY consumed part of its supply (an order
+  /// accepted on the trial plan spent real tokens). The ProShell lock uses
+  /// this so a brand-new trial account never gets locked just because its
+  /// balance was manually adjusted to 0 — only a trial that has been USED and
+  /// ran dry is shown the "Tokens Épuisés" paywall.
+  static final tokensConsumed = ValueNotifier<bool>(false);
+
   // Token management
 
   /// Unlimited mode: paid subscribers never spend tokens.
@@ -67,6 +74,7 @@ class ProProfileStore {
     if (hasUnlimitedTokens) return true;
     if (tokens.value >= amount) {
       tokens.value -= amount;
+      tokensConsumed.value = true; // real usage: depletion may lock later
       persistToPrefs();
       return true;
     }
@@ -80,6 +88,38 @@ class ProProfileStore {
 
   static void updateServiceZones(List<String> zones) {
     serviceZones.value = zones;
+  }
+
+  /// Restores the default trial profile state and clears the persisted
+  /// token balance (used on logout). EVERY mutable field, notifier and
+  /// cached property is reset so a previously logged-in professional can
+  /// never leak data (tokens, pricing, photos, ratings, zones, badges…)
+  /// into the next account on this device.
+  static Future<void> reset() async {
+    tokens.value = 150;
+    isAvailable.value = true;
+    completedServices.value = 127;
+    rating.value = 4.9;
+    verificationStatus.value = ProVerificationStatus.approved;
+    selectedSpecialties.value = [];
+    pricingType.value = 'fixed';
+    priceFrom.value = 50;
+    workImages.value = [];
+    punctualityRate.value = 0.98;
+    acceptanceRate.value = 0.96;
+    responseTimeMin.value = 15;
+    hasBrandedUniform.value = true;
+    serviceZones.value = ['Ariana', 'Tunis'];
+    zones = ['Ariana', 'Tunis'];
+    professionFr = null;
+    professionAr = null;
+    tokensConsumed.value = false; // fresh trial: manual 0 never locks
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kTokens);
+    } catch (_) {
+      // Best-effort cleanup.
+    }
   }
 }
 

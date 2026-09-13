@@ -19,7 +19,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
   void _continue() {
     if (_selected == null) return;
 
-    appLocale.value = Locale(_selected!);
+    setLocale(Locale(_selected!));
 
     Navigator.pushReplacement(
       context,

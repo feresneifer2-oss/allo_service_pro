@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
-import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart';
+import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
@@ -18,7 +19,7 @@ class ProfessionalProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pro = professionalById(professionalId);
+    final pro = ProfessionalsRepository.byId(professionalId);
     if (pro == null) {
       return Scaffold(
         appBar: AppBar(),
@@ -118,11 +119,11 @@ class ProfessionalProfileScreen extends StatelessWidget {
                       children: [
                         if (finalPro.verified)
                           _BadgeTile(
-                            icon: Icons.verified_rounded,
-                            color: Colors.blue.shade700,
-                            bgColor: Colors.blue.shade50,
-                            label:
-                                tr(context, fr: 'Certifié', ar: 'موثّق معتمد'),
+                            icon: Icons.verified_user_rounded,
+                            color: const Color(0xFF057A55),
+                            bgColor: const Color(0xFFECFDF5),
+                            label: tr(context,
+                                fr: 'CIN Vérifié', ar: 'بطاقة هويّة مفعلة'),
                           ),
                         if (finalPro.servicesCount >= 100)
                           _BadgeTile(
@@ -149,6 +150,15 @@ class ProfessionalProfileScreen extends StatelessWidget {
                             label: tr(context,
                                 fr: 'Équipé (Uniforme officiel)',
                                 ar: 'مرتدي الزي الرسمي'),
+                          ),
+                        // Admin-assigned badges — real-time synced from
+                        // AdminStore via ProfessionalsRepository.
+                        for (final b in finalPro.badges)
+                          _BadgeTile(
+                            icon: Icons.stars_rounded,
+                            color: AppColors.primary,
+                            bgColor: AppColors.primarySurface,
+                            label: ProBadges.label(context, b),
                           ),
                       ],
                     ),
