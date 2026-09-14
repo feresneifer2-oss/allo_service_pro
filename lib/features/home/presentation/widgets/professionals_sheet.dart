@@ -68,8 +68,11 @@ void showProfessionalsSheet(
                   profession:
                       tr(context, fr: pro.professionFr, ar: pro.professionAr),
                   rating: pro.rating,
-                  location: pro.cityFr,
+                  location:
+                      tr(context, fr: pro.cityFr, ar: pro.city),
                   verified: pro.verified,
+                  priceFrom: pro.priceFrom,
+                  pricingType: pro.pricingType,
                   buttonText: tr(context, fr: "Reserver", ar: "احجز"),
                   onPressed: () {
                     final nav = Navigator.of(context, rootNavigator: true);

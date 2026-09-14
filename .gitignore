@@ -63,3 +63,5 @@ Thumbs.db
 # =========================
 Downloaded Installations/
 *.msi
+# Gradle OOM heap dumps
+*.hprof

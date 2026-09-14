@@ -42,14 +42,15 @@ class LegalTexts {
 
   // ── Politique de confidentialité / سياسة الخصوصية ─────────────────────
   static const String privacyAr =
-      '1. البيانات الجمعة: نجمع فقط الاسم، رقم الهاتف، والموقع الجغرافي (GPS) '
+      '1. البيانات المجموعة: نجمع فقط الاسم، رقم الهاتف، والموقع الجغرافي (GPS) '
       'لتقديم الخدمة.\n'
       '2. استخدام البيانات: تُستخدم البيانات حصرياً لتوصيل الطلبات وتسهيل '
       'التواصل بين العميل والمهني.\n'
       '3. حماية البيانات: بياناتك مخزنة محلياً بأمان ولا يتم بيعها أو '
       'مشاركتها مع أي طرف ثالث.\n'
-      '4. حقوق المستخدم: يمكنك تعديل بياناتك أو حذف حسابك في أي وقت من '
-      'إعدادات البروفايل.';
+      '4. حقوق المستخدم: يمكنك تعديل بياناتك في أي وقت من إعدادات '
+      'البروفايل، ومسح جلستك وبياناتك المحلية المخزنة على هذا الجهاز عبر '
+      'خيار «تسجيل الخروج».';
 
   static const String privacyFr =
       "1. Données collectées: Nom, numéro de téléphone et position GPS "
@@ -58,6 +59,7 @@ class LegalTexts {
       "client-professionnel.\n"
       "3. Protection: Vos données sont stockées localement et ne sont jamais "
       "vendues à des tiers.\n"
-      "4. Vos droits: Vous pouvez modifier ou supprimer votre compte à tout "
-      "moment depuis votre profil.";
+      "4. Vos droits: Vous pouvez modifier vos données à tout moment depuis "
+      "votre profil, et effacer votre session ainsi que vos données locales "
+      "stockées sur cet appareil via l'option « Déconnexion ».";
 }

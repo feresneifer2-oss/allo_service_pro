@@ -210,6 +210,8 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
                   rating: pro.rating,
                   location: pro.city,
                   verified: pro.verified,
+                  priceFrom: pro.priceFrom,
+                  pricingType: pro.pricingType,
                   buttonText: tr(context, fr: 'Voir', ar: 'عرض'),
                   onPressed: () {
                     Navigator.push(

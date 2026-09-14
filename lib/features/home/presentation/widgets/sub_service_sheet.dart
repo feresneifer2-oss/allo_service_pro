@@ -7,8 +7,13 @@ import '../../../booking/presentation/booking_screen.dart';
 void showSubServiceSheet(
   BuildContext context,
   String serviceName,
-  List<String> subServices,
-) {
+  List<String> subServices, {
+  /// Arabic service title — when omitted the FR [serviceName] is reused
+  /// (legacy call sites). Prevents French text leaking into AR labels.
+  String? serviceNameAr,
+  /// Arabic sub-service labels, parallel to [subServices].
+  List<String>? subServicesAr,
+}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -26,7 +31,11 @@ void showSubServiceSheet(
           padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + bottomPadding),
           children: [
             Text(
-              serviceName,
+              tr(
+                context,
+                fr: serviceName,
+                ar: serviceNameAr ?? serviceName,
+              ),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
@@ -35,7 +44,16 @@ void showSubServiceSheet(
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),
-            ...subServices.map((name) {
+            ...subServices.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final name = entry.value;
+              final display = tr(
+                context,
+                fr: name,
+                ar: (subServicesAr != null && idx < subServicesAr.length)
+                    ? subServicesAr[idx]
+                    : name,
+              );
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding:
@@ -48,7 +66,7 @@ void showSubServiceSheet(
                   children: [
                     Expanded(
                       child: Text(
-                        name,
+                        display,
                         style: const TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w600),
                       ),
@@ -65,7 +83,8 @@ void showSubServiceSheet(
                             MaterialPageRoute<void>(
                               builder: (_) => BookingScreen(
                                 serviceTitleFr: '$serviceName — $name',
-                                serviceTitleAr: '$serviceName — $name',
+                                serviceTitleAr:
+                                    '${serviceNameAr ?? serviceName} — ${subServicesAr?[subServices.indexOf(name)] ?? name}',
                               ),
                             ),
                           );

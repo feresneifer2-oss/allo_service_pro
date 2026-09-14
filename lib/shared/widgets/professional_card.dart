@@ -12,6 +12,7 @@ class ProfessionalCard extends StatelessWidget {
     this.verified = true,
     this.buttonText = "Voir",
     this.priceFrom,
+    this.pricingType = 'fixed',
     this.onPressed,
   });
 
@@ -24,6 +25,10 @@ class ProfessionalCard extends StatelessWidget {
 
   /// Starting price in TND — rendered as a gold-bordered price chip.
   final int? priceFrom;
+
+  /// How the price is charged: 'hourly', 'fixed' or 'quote'. Only 'hourly'
+  /// appends the per-hour unit (DT/h / د.ت/ساعة) to the badge.
+  final String pricingType;
   final VoidCallback? onPressed;
 
   @override
@@ -178,7 +183,18 @@ class ProfessionalCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          'dès $priceFrom DT',
+                          // Localized price badge: "dès X DT" / FR,
+                          // "ابتداءً من X د.ت" / AR — with the per-hour unit
+                          // appended only for hourly pricing.
+                          tr(
+                            context,
+                            fr: pricingType == 'hourly'
+                                ? 'dès $priceFrom DT/h'
+                                : 'dès $priceFrom DT',
+                            ar: pricingType == 'hourly'
+                                ? 'ابتداءً من $priceFrom د.ت/ساعة'
+                                : 'ابتداءً من $priceFrom د.ت',
+                          ),
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,

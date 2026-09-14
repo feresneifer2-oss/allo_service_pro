@@ -19,7 +19,7 @@ android {
         applicationId = "com.example.allo_service_pro"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(23, flutter.minSdkVersion)
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
