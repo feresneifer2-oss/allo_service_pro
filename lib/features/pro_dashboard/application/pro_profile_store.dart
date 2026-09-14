@@ -47,8 +47,10 @@ class ProProfileStore {
 
   // ─── Local persistence (SharedPreferences) ──────────────────────────
   static const String _kTokens = 'pro_tokens';
+  static const String _kTokensConsumed = 'pro_tokens_consumed';
 
-  /// Writes the token balance to SharedPreferences.
+  /// Writes the token balance AND the consumption flag to SharedPreferences
+  /// so the trial-lock state survives app restarts exactly like the balance.
   ///
   /// Failures are swallowed so gameplay mutations never break because
   /// storage happens to be unavailable.
@@ -56,25 +58,34 @@ class ProProfileStore {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_kTokens, tokens.value);
+      await prefs.setBool(_kTokensConsumed, tokensConsumed.value);
     } catch (_) {
       // Storage unavailable (e.g. tests without platform binding): ignore.
     }
   }
 
-  /// Restores the persisted token balance at app startup.
+  /// Restores the persisted token balance and consumption flag at app
+  /// startup.
   ///
   /// Falls back to the default trial balance (150) when nothing is saved.
+  /// The consumption flag is restored BEFORE the balance so any listener
+  /// fired by the balance update already observes the final state.
   static Future<void> loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey(_kTokens)) return;
+    if (prefs.containsKey(_kTokensConsumed)) {
+      tokensConsumed.value = prefs.getBool(_kTokensConsumed) ?? false;
+    }
     tokens.value = prefs.getInt(_kTokens) ?? 150;
   }
 
   static bool deductTokens(int amount) {
     if (hasUnlimitedTokens) return true;
     if (tokens.value >= amount) {
-      tokens.value -= amount;
+      // Flag is flipped BEFORE the balance change so every listener woken
+      // by the balance notification already sees the fresh consumed state.
       tokensConsumed.value = true; // real usage: depletion may lock later
+      tokens.value -= amount;
       persistToPrefs();
       return true;
     }
@@ -117,6 +128,7 @@ class ProProfileStore {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kTokens);
+      await prefs.remove(_kTokensConsumed);
     } catch (_) {
       // Best-effort cleanup.
     }

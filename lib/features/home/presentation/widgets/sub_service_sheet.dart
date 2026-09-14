@@ -4,6 +4,22 @@ import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import '../../../booking/presentation/booking_screen.dart';
 
+/// Bilingual-safe Arabic resolution for sub-service labels: the Arabic list
+/// may be missing, shorter than the French one, or mismatched — this falls
+/// back safely by INDEX (never via indexOf(), which can return -1 and throw
+/// a RangeError against the Arabic list).
+String resolveArSubServiceName(
+  List<String> subServices,
+  List<String>? subServicesAr,
+  int index,
+) {
+  String fallbackAt(int i) =>
+      (i >= 0 && i < subServices.length) ? subServices[i] : subServices.first;
+  if (subServicesAr == null || subServicesAr.isEmpty) return fallbackAt(index);
+  if (index < 0 || index >= subServicesAr.length) return fallbackAt(index);
+  return subServicesAr[index];
+}
+
 void showSubServiceSheet(
   BuildContext context,
   String serviceName,
@@ -47,12 +63,17 @@ void showSubServiceSheet(
             ...subServices.asMap().entries.map((entry) {
               final idx = entry.key;
               final name = entry.value;
+              // Safe Arabic lookup: never out of bounds (see
+              // [resolveArSubServiceName]).
+              final arName = resolveArSubServiceName(
+                subServices,
+                subServicesAr,
+                idx,
+              );
               final display = tr(
                 context,
                 fr: name,
-                ar: (subServicesAr != null && idx < subServicesAr.length)
-                    ? subServicesAr[idx]
-                    : name,
+                ar: arName,
               );
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -84,7 +105,7 @@ void showSubServiceSheet(
                               builder: (_) => BookingScreen(
                                 serviceTitleFr: '$serviceName — $name',
                                 serviceTitleAr:
-                                    '${serviceNameAr ?? serviceName} — ${subServicesAr?[subServices.indexOf(name)] ?? name}',
+                                    '${serviceNameAr ?? serviceName} — $arName',
                               ),
                             ),
                           );

@@ -462,10 +462,23 @@ class AdminStore {
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
       SubscriptionStore.renew(at: start);
+      // An ALREADY-ELAPSED cycle must stay expired: renew() flips the status
+      // back to 'active' unconditionally, which would silently un-paywall a
+      // pro whose 30 days are over. Restore the truthful 'expired' state.
+      if (SubscriptionStore.isCycleOver(start, DateTime.now())) {
+        SubscriptionStore.expire();
+      }
     } else if (entry.isPaid) {
       // Legacy granted flag without an expiry timestamp → preserve whatever
       // cycle already exists in the session (or seed one from now).
       SubscriptionStore.markPaidPreservingCycle();
+    } else if (SubscriptionStore.status.value ==
+        SubscriptionStatus.expired) {
+      // Trial downgrade of a session whose previous paid cycle already ran
+      // out: keep the 'expired' status (the paywall stays honest) instead of
+      // letting reset() stomp it back to the default 'active' state.
+      SubscriptionStore.isPaidSubscriber.value = false;
+      SubscriptionStore.persistToPrefs();
     } else {
       SubscriptionStore.reset();
     }

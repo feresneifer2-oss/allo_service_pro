@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/presentation/welcome_screen.dart';
 import 'package:allo_service_pro/features/home/presentation/home_screen.dart';
 import 'package:allo_service_pro/features/profile/presentation/customer_profile_screen.dart';
 import 'package:allo_service_pro/features/requests/presentation/request_list_screen.dart';
@@ -133,6 +134,38 @@ class _AccountLockedScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style:
                       const TextStyle(color: AppColors.slate400, fontSize: 14),
+                ),
+                const SizedBox(height: 32),
+                // Escape hatch: a suspended user is NOT trapped — they can
+                // always wipe the local session and land back on the auth
+                // entry point (same flow as the settings LogoutTile).
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await UserStore.signOutAndReset();
+                    if (!context.mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                      (route) => false,
+                    );
+                  },
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: Text(
+                    tr(context, fr: 'Déconnexion', ar: 'تسجيل الخروج'),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
               ],
             ),

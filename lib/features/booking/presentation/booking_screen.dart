@@ -248,7 +248,12 @@ class _BookingScreenState extends State<BookingScreen> {
     // never null/empty and is the SAME pro shown in the summary card above
     // (cached in _resolvedPro), so the order can always be traced back to
     // the intended professional even after a rebuild or navigation change.
-    final resolvedProId = widget.professionalId ?? pro.id;
+    // Strict guard: an explicitly-passed-but-EMPTY id (e.g. from a stale
+    // widget reconstruction) must never win over the cached resolution.
+    final resolvedProId =
+        (widget.professionalId != null && widget.professionalId!.isNotEmpty)
+            ? widget.professionalId!
+            : pro.id;
     final proName = widget.professionalName.isNotEmpty
         ? widget.professionalName
         : pro.name;
