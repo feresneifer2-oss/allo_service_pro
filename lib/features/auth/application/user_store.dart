@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:allo_service_pro/features/anti_abuse/application/anti_abuse_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/home/application/governorate_filter_store.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
@@ -125,6 +126,15 @@ class UserStore {
   static String _roleKey(UserRole role) =>
       role == UserRole.professional ? 'professionnel' : 'client';
 
+  /// Normalized credential-registry key for [email] (trimmed, lower-case).
+  static String _accountKey(String email) => email.trim().toLowerCase();
+
+  /// Whether a registry KEY is a legacy phone-keyed entry — i.e. it is not a
+  /// valid e-mail address, so the record predates the Email-OTP migration.
+  /// ONLY such entries may be reached by the phone-fallback sync.
+  static bool _isLegacyPhoneKey(String key) =>
+      !AppValidators.isValidEmail(key);
+
   static UserRole? _roleFromKey(String? key) {
     switch (key) {
       case 'client':
@@ -165,6 +175,7 @@ class UserStore {
     required String name,
     required String phone,
     String? email,
+    bool clearEmail = false,
     String? id,
     UserRole? role,
     String? proCode,
@@ -178,7 +189,13 @@ class UserStore {
       id: id ?? 'user_${DateTime.now().microsecondsSinceEpoch}',
       name: name,
       phone: phone,
-      email: email,
+      // IMMUTABLE by default: an omitted (or blank) [email] PRESERVES the
+      // e-mail already bound to the session. The e-mail is the Email-OTP
+      // identity AND the credential-registry key, so a session rebuild — a
+      // pro re-submitting the registration wizard, a profile refresh, a role
+      // switch — must never be able to drop it. Only an explicit
+      // `clearEmail: true` removes it.
+      email: clearEmail ? null : (_cleanEmail(email) ?? user.value?.email),
       role: role,
       proCode: proCode ?? user.value?.proCode,
       // Explicit semantics: passing null CLEARS the governorate (the old
@@ -192,12 +209,33 @@ class UserStore {
       rejectionReason: rejectionReason ?? user.value?.rejectionReason,
     );
     persistToPrefs();
+    _syncAntiAbuseBinding();
+  }
+
+  /// Binds (or clears) the silent anti-abuse counter to this session.
+  /// Professionals never own a cancellation tally — only clients do.
+  static void _syncAntiAbuseBinding() {
+    final u = user.value;
+    if (u == null || u.isProfessional) {
+      AntiAbuseStore.clearActiveClient();
+      return;
+    }
+    AntiAbuseStore.bindSession(id: u.id, email: u.email);
   }
 
   // --- Governorate sanitization -----------------------------------------
   /// Treats null / empty / whitespace-only governorate values as null so a
   /// blank selection can never be stored or rendered.
   static String? _cleanGov(String? raw) {
+    if (raw == null) return null;
+    final v = raw.trim();
+    return v.isEmpty ? null : v;
+  }
+
+  /// Normalizes an optional e-mail: null / blank → null. The value keeps its
+  /// original casing (it is display data); the registry key is normalized
+  /// separately by [_accountKey], which keeps the two in sync for lookups.
+  static String? _cleanEmail(String? raw) {
     if (raw == null) return null;
     final v = raw.trim();
     return v.isEmpty ? null : v;
@@ -228,7 +266,9 @@ class UserStore {
       await prefs.setString(_kId, u.id);
       await prefs.setString(_kName, u.name);
       await prefs.setString(_kPhone, u.phone);
-      if (u.email != null) await prefs.setString(_kEmail, u.email!);
+      // Null OR blank → the key is stripped (never an empty string) so a
+      // cleared e-mail cannot linger in storage and be restored later.
+      await _writeOrRemove(prefs, _kEmail, u.email);
       if (u.role != null) await prefs.setInt(_kRoleIdx, u.role!.index);
       if (u.proCode != null) await prefs.setString(_kProCode, u.proCode!);
       // Null OR blank → the key is stripped entirely (never an empty
@@ -275,6 +315,11 @@ class UserStore {
             verificationStatus: ProVerification
                 .values[verIdx
                     .clamp(0, ProVerification.values.length - 1)],
+            // Migration rule: registrations ALWAYS persist this flag, so a
+            // MISSING value can only mean a record written by a pre-OTP-gate
+            // build — those are grandfathered (no lock-out on upgrade). A
+            // fresh registration is written with `false` and stays locked.
+            isVerified: (m['isVerified'] as bool?) ?? true,
           );
         }
       }
@@ -311,31 +356,92 @@ class UserStore {
         verificationStatus: ProVerification.values[verIdx.clamp(0, ProVerification.values.length - 1)],
         rejectionReason: prefs.getString(_kVerReason),
       );
+      _syncAntiAbuseBinding();
     } catch (_) {
       // Corrupted session: fall back to guest state.
     }
   }
 
+  /// Registers a new credential record keyed by the (normalized) EMAIL
+  /// address — the app's authentication identity.
+  ///
+  /// [phone] is OPTIONAL now: the auth flow is email-first (Email OTP),
+  /// a phone is only kept when the user provides one (pro contact info
+  /// entered later at pro registration).
   static bool register({
     required String name,
-    required String phone,
     required String email,
     required String password,
+    String? phone,
   }) {
-    final key = email.trim().toLowerCase();
-    if (key.isEmpty || _accounts.containsKey(key)) return false;
-    // Defense-in-depth: normalize the phone HERE as well so any caller path
-    // (screens, future imports) persists a canonical 8-digit number and
-    // account lookups never mismatch on formatting variants ("+216 22 123
-    // 456" and "22123456" are the same subscriber).
-    final normalizedPhone = AppValidators.normalizePhone(phone);
-    final account =
-        _LocalAccount(name: name, phone: normalizedPhone, password: password);
+    final key = _accountKey(email);
+    // Defense-in-depth: the form already validates the format, but no
+    // malformed address may ever become a credential key.
+    if (!AppValidators.isValidEmail(key) || _accounts.containsKey(key)) {
+      return false;
+    }
+    // Defense-in-depth: normalize the OPTIONAL phone as well so any caller
+    // path persists a canonical 8-digit number (or an empty string when
+    // the user registers with email only).
+    final normalizedPhone =
+        (phone == null || phone.trim().isEmpty) ? '' : AppValidators.normalizePhone(phone);
+    // Credentials start LOCKED (`isVerified: false`): the 6-digit OTP must be
+    // validated and consumed (see [markEmailVerified]) before this account can
+    // ever be signed into. The flag is persisted explicitly — that is what
+    // makes the "missing flag ⇒ grandfathered legacy" migration rule safe.
+    final account = _LocalAccount(
+      name: name,
+      phone: normalizedPhone,
+      password: password,
+      isVerified: false,
+    );
     _accounts[key] = account;
     _persistAccounts();
     set(name: name, phone: normalizedPhone, email: key);
     _registerClient(name: name, phone: normalizedPhone, email: key);
     return true;
+  }
+
+  // ─── E-mail (OTP) verification gate ───────────────────────────────────
+
+  /// Whether the credential record of [email] completed OTP verification.
+  static bool isEmailVerified(String email) =>
+      _accounts[_accountKey(email)]?.isVerified ?? false;
+
+  /// Whether a credential record exists but is still waiting for the OTP —
+  /// the login screen uses this to show a targeted "verify your e-mail"
+  /// message instead of a generic "wrong password".
+  static bool isAccountAwaitingVerification(String email) {
+    final account = _accounts[_accountKey(email)];
+    return account != null && !account.isVerified;
+  }
+
+  /// Unlocks the credential record of [email] (or of the current session when
+  /// [email] is omitted): sets `isVerified = true` and persists it.
+  ///
+  /// MUST only be called after [EmailOtpService.verifyOtp] returned true — i.e.
+  /// once the token has been validated AND consumed. Returns false when no
+  /// matching record exists.
+  static bool markEmailVerified({String? email}) {
+    final key = _accountKey(email ?? user.value?.email ?? '');
+    final account = _accounts[key];
+    if (account == null || account.isVerified) return account != null;
+    _accounts[key] = account.copyWith(isVerified: true);
+    _persistAccounts();
+    return true;
+  }
+
+  /// Whether a persisted credential record exists for [email].
+  ///
+  /// Used by the OTP screen to distinguish a genuine unlock failure
+  /// (record present but could not be released — corrupted storage,
+  /// inconsistent state) from a benign absence of record (fresh
+  /// registration flows where the account is created after the OTP
+  /// handshake completes). Absence of record is NOT a security
+  /// failure: the OTP token itself was already validated & consumed.
+  static bool hasCredentialRecord({String? email}) {
+    final key = _accountKey(email ?? user.value?.email ?? '');
+    return _accounts.containsKey(key);
   }
 
   /// Registers the new account in the persisted client registry
@@ -399,10 +505,31 @@ class UserStore {
     }
   }
 
+  /// True when [password] matches the stored credential for [email].
+  ///
+  /// Deliberately DIFFERENT from [signIn]: it neither opens a session nor
+  /// applies the OTP gate (an unverified record answers `true` here, while
+  /// [signIn] refuses it). Its only purpose is to prove that the caller owns an
+  /// ABANDONED registration before its OTP handshake is resumed — without this
+  /// proof, anyone could claim an unverified e-mail and, in demo mode, read the
+  /// freshly issued code straight off the screen.
+  static bool matchesPassword({
+    required String email,
+    required String password,
+  }) {
+    final account = _accounts[_accountKey(email)];
+    return account != null && account.password == password;
+  }
+
   static bool signIn({required String email, required String password}) {
-    final key = email.trim().toLowerCase();
+    final key = _accountKey(email);
     final account = _accounts[key];
     if (account == null || account.password != password) return false;
+    // OTP gate (security invariant): an account whose e-mail was never
+    // verified keeps its credentials LOCKED — a correct password alone is not
+    // enough to open it. The record is unlocked by [markEmailVerified] once the
+    // 6-digit token has been validated and consumed.
+    if (!account.isVerified) return false;
     // Restore the FULL profile (role · PRO code · verification state) from
     // the persisted credential record — a returning pro lands straight on
     // ProShell instead of replaying onboarding / registration.
@@ -427,19 +554,15 @@ class UserStore {
       final account =
           (emailKey == null) ? null : _accounts[emailKey];
       if (emailKey != null && account != null) {
-        _accounts[emailKey] = _LocalAccount(
-          name: account.name,
-          phone: account.phone,
-          password: account.password,
-          role: role,
-          proCode: account.proCode,
-          verificationStatus: account.verificationStatus,
-        );
+        // copyWith preserves `isVerified` — rebuilding a record must never
+        // unlock (or re-lock) it as a side effect of picking a role.
+        _accounts[emailKey] = account.copyWith(role: role);
         _persistAccounts();
       }
       // Persist immediately so a restart routes straight to the right shell.
       persistToPrefs();
     }
+    _syncAntiAbuseBinding();
   }
 
   /// Binds the professional identity (PRO-XXXXX + verification state) to the
@@ -452,47 +575,63 @@ class UserStore {
   }) {
     final key = user.value?.email?.trim().toLowerCase();
     if (key == null || !_accounts.containsKey(key)) return;
-    final account = _accounts[key]!;
-    _accounts[key] = _LocalAccount(
-      name: account.name,
-      phone: account.phone,
-      password: account.password,
+    _accounts[key] = _accounts[key]!.copyWith(
       role: UserRole.professional,
-      proCode: proCode ?? account.proCode,
+      proCode: proCode,
       verificationStatus: verificationStatus,
     );
     _persistAccounts();
   }
 
-  /// Admin-side sync: updates the verification state of every account whose
-  /// phone matches [phone] (the admin approves / rejects / re-queues a pro —
-  /// the credential record must follow so the next login reflects it).
+  /// Admin-side sync — PHONE FALLBACK, LEGACY RECORDS ONLY.
+  ///
+  /// Reaches a credential record by its (canonical) phone number, which is
+  /// meaningful ONLY for pre-Email-OTP entries whose registry key is itself a
+  /// phone number. E-mail-keyed records are deliberately EXCLUDED, so a phone
+  /// match can never cross-talk with an e-mail account (two different users may
+  /// legitimately share a household or office number).
+  ///
+  /// Use [syncAccountVerificationByEmail] whenever the e-mail is known — it is
+  /// the primary path since the e-mail is the authentication identity.
   static void syncAccountVerificationByPhone(
     String phone, {
     required ProVerification status,
   }) {
+    final target = AppValidators.normalizePhone(phone);
+    if (target.isEmpty) return;
     final matches = _accounts.entries
-        .where((e) => e.value.phone.trim() == phone.trim())
+        .where((e) =>
+            _isLegacyPhoneKey(e.key) &&
+            AppValidators.normalizePhone(e.value.phone) == target)
         .toList();
+    if (matches.isEmpty) return;
     for (final e in matches) {
-      final a = e.value;
-      _accounts[e.key] = _LocalAccount(
-        name: a.name,
-        phone: a.phone,
-        password: a.password,
-        role: a.role ?? UserRole.professional,
-        proCode: a.proCode,
-        verificationStatus: status,
-      );
+      _accounts[e.key] = e.value.copyWith(verificationStatus: status);
     }
-    if (matches.isNotEmpty) _persistAccounts();
+    _persistAccounts();
+  }
+
+  /// Email-identity twin of [syncAccountVerificationByPhone] — the PRIMARY
+  /// path since the e-mail is the authentication key (Email OTP). Updates
+  /// the credential record keyed by the normalized [email] so a returning
+  /// pro's next sign-in restores the current verification state.
+  static void syncAccountVerificationByEmail(
+    String? email, {
+    required ProVerification status,
+  }) {
+    final key = _accountKey(email ?? '');
+    if (key.isEmpty) return;
+    final account = _accounts[key];
+    if (account == null) return;
+    _accounts[key] = account.copyWith(verificationStatus: status);
+    _persistAccounts();
   }
 
   // --- Credential registry persistence (SharedPreferences) --------------
   static const String _kAccounts = 'user_accounts_json';
 
   /// Flushes the full credential registry (email · password · role ·
-  /// PRO code · verification state) so credentials survive app restarts.
+  /// PRO code · OTP verification state) so credentials survive app restarts.
   static Future<void> _persistAccounts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -505,6 +644,10 @@ class UserStore {
                 'role': e.value.role == null ? null : _roleKey(e.value.role!),
                 'proCode': e.value.proCode,
                 'verIdx': e.value.verificationStatus.index,
+                // The OTP gate is ALWAYS written explicitly — a record whose
+                // flag is missing in storage is therefore a genuine legacy
+                // entry (see [loadFromPrefs]), never a brand-new registration.
+                'isVerified': e.value.isVerified,
               })
           .toList();
       await prefs.setString(_kAccounts, jsonEncode(list));
@@ -532,6 +675,7 @@ class UserStore {
   /// lands on the welcome screen instead of silently restoring the session.
   static Future<void> signOut() async {
     user.value = null;
+    AntiAbuseStore.clearActiveClient();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kId);
@@ -587,6 +731,7 @@ class _LocalAccount {
     this.role,
     this.proCode,
     this.verificationStatus = ProVerification.none,
+    this.isVerified = false,
   });
 
   final String name;
@@ -602,6 +747,38 @@ class _LocalAccount {
 
   /// Verification lifecycle snapshot, synced by the admin panel.
   final ProVerification verificationStatus;
+
+  /// E-mail (OTP) verification state — the account's ACTIVE flag.
+  ///
+  /// A freshly registered record starts `false` ("credentials locked") and is
+  /// only flipped by [UserStore.markEmailVerified], which runs right after the
+  /// 6-digit OTP has been validated AND consumed. [UserStore.signIn] refuses
+  /// any record that is still locked, so a leaked/guessed password alone can
+  /// never open an unverified account.
+  final bool isVerified;
+
+  /// Copy helper — every mutation site must go through it so no field
+  /// (role · PRO code · verification state · [isVerified]) is ever dropped by
+  /// accident while rebuilding the record.
+  _LocalAccount copyWith({
+    String? name,
+    String? phone,
+    String? password,
+    UserRole? role,
+    String? proCode,
+    ProVerification? verificationStatus,
+    bool? isVerified,
+  }) {
+    return _LocalAccount(
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      password: password ?? this.password,
+      role: role ?? this.role,
+      proCode: proCode ?? this.proCode,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      isVerified: isVerified ?? this.isVerified,
+    );
+  }
 }
 
 

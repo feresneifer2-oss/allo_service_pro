@@ -236,7 +236,7 @@ void main() {
     );
   });
 
-  test('8 · suspended clients persist across app restarts', () async {
+test('8 · suspended clients persist across app restarts', () async {
     await AdminStore.suspendClient('client_ban_1');
     await AdminStore.suspendClient('client_ban_2');
 
@@ -248,5 +248,58 @@ void main() {
         containsAll(['client_ban_1', 'client_ban_2']));
     expect(AdminStore.isClientSuspended('client_ban_1'), isTrue);
     expect(AdminStore.isClientSuspended('client_ban_2'), isTrue);
+  });
+  test('9 · an expired status never leaks into another pro session', () {
+    // ── Previous session on this device: a pro whose 30 days ran out ──────
+    SubscriptionStore.expire();
+    expect(SubscriptionStore.status.value, SubscriptionStatus.expired);
+
+    // ── A DIFFERENT pro logs in: their record carries NO paid cycle ───────
+    loginAsPro(); // PRO-00777, entry().isPaid == false, paidUntilMs == null
+    AdminStore.syncSessionStoresForCurrentUser();
+
+    // Trial, not "expired": a status left behind by the previous session is
+    // never attributed to the pro logging in now.
+    expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active,
+        reason: 'a foreign expired state must not leak across sessions');
+
+    // ── But THIS pro's own elapsed cycle still reports the truth ──────────
+    AdminStore.grantSubscription('pp_sync_1', days: -1); // cycle already over
+    expect(entry().isPaid, isTrue);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.expired,
+        reason: "expired only ever comes from this pro's own paid stamp");
+  });
+
+  test('10 · renew() attributes the cycle to the LIVE session account', () {
+    loginAsPro();
+    SubscriptionStore.renew();
+
+    // An UNATTRIBUTED cycle is indistinguishable from legacy data and would
+    // therefore be adoptable by whichever account logs in next. renew() must
+    // stamp the live session account instead of leaving it owner-less, which is
+    // what makes the ownership guard in markPaidPreservingCycle trustworthy.
+    expect(SubscriptionStore.debugCycleOwnerId, UserStore.user.value!.id);
+    expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+  });
+
+  test('11 · a legacy paid flag re-syncs the cycle for the CURRENT account only',
+      () {
+    loginAsPro();
+    final u = UserStore.user.value!;
+
+    // The pro opens a cycle on this device…
+    SubscriptionStore.renew();
+    final ownCycleStart = SubscriptionStore.activatedAt.value;
+
+    // …admin re-grants the legacy flag (paid, no expiry stamp) → sync re-opens
+    // THIS account's own cycle: never a +30-day extension, never a foreign one.
+    AdminStore.setPaid('pp_sync_1', isPaid: true);
+    AdminStore.syncSessionStoresForCurrentUser();
+
+    expect(SubscriptionStore.activatedAt.value, ownCycleStart,
+        reason: 'the sync never extends (or shifts) an existing cycle');
+    expect(SubscriptionStore.debugCycleOwnerId, u.id);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
   });
 }

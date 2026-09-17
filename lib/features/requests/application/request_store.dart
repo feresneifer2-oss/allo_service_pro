@@ -1,7 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/service_request.dart';
+import '../../../core/error/app_error_handler.dart';
 import '../../../core/models/request_status.dart';
+import '../../../core/network/connectivity_store.dart';
+import '../../../core/queue/offline_queue.dart';
+import '../../../core/queue/queued_action.dart';
+import '../../anti_abuse/application/anti_abuse_store.dart';
 import '../../chat/application/chat_store.dart';
 import '../../notifications/application/notification_store.dart';
 import '../../pro_dashboard/application/pro_profile_store.dart';
@@ -28,12 +35,19 @@ class RequestStore {
     NotificationStore.notifyRequestSent(request.id, request.customerId);
   }
 
+  /// True while a queued replay is applying a status — skips re-enqueueing.
+  static bool _replaying = false;
+
   /// Returns true when the transition succeeded.
   ///
   /// Confirming a pending order (`accepted`) deducts exactly 10 tokens from
   /// the professional's balance and unlocks the chat for both parties inside
   /// the admin-defined time window. Without enough tokens the confirmation
   /// is refused (returns false).
+  ///
+  /// When the device is offline the local state is still applied (optimistic
+  /// UI) and the transition is persisted on [OfflineQueue] for automatic
+  /// replay once connectivity returns.
   static bool updateStatus(String id, RequestStatus status) {
     final request = byId(id);
     if (request == null) return false;
@@ -70,17 +84,66 @@ class RequestStore {
         request.professionalName,
         request.customerId,
       );
-    } else if ((status == RequestStatus.cancelled ||
+        }
+
+    final endingLiveJob = (status == RequestStatus.cancelled ||
             status == RequestStatus.completed) &&
-        request.status == RequestStatus.accepted) {
-      // Ending the job also ends its chat window.
+        (request.status == RequestStatus.accepted ||
+            request.status == RequestStatus.enRoute ||
+            request.status == RequestStatus.arrived ||
+            request.status == RequestStatus.inProgress);
+    if (endingLiveJob) {
       ChatStore.deactivate(id);
+    }
+
+    // Anti-abuse: silently record every client cancellation (`annulée`).
+    // Never shown in the UI — the counter lives only in AntiAbuseStore.
+    if (status == RequestStatus.cancelled &&
+        request.status != RequestStatus.cancelled) {
+      // Invoked (not awaited) so the in-memory tally updates synchronously
+      // for the caller, while persistence continues in the background.
+      unawaited(AntiAbuseStore.recordCancellation(
+        clientId: request.customerId,
+      ));
     }
 
     requests.value = requests.value
         .map((r) => r.id == id ? r.copyWith(status: status) : r)
         .toList();
+
+    if (!_replaying && !ConnectivityStore.isOnline.value) {
+      unawaited(_enqueueStatusUpdate(id, status));
+    }
     return true;
+  }
+
+  /// Applies a queued status transition without re-enqueueing it.
+  static bool applyReplayedStatus(String id, RequestStatus status) {
+    _replaying = true;
+    try {
+      return updateStatus(id, status);
+    } finally {
+      _replaying = false;
+    }
+  }
+
+  static Future<void> _enqueueStatusUpdate(
+    String requestId,
+    RequestStatus status,
+  ) async {
+    await AppErrorHandler.runGuarded('RequestStore.enqueueStatusUpdate', () {
+      return OfflineQueue.enqueue(
+        QueuedAction(
+          id: '${requestId}_${status.name}_${DateTime.now().microsecondsSinceEpoch}',
+          type: QueuedActionType.updateOrderStatus,
+          payload: <String, dynamic>{
+            'requestId': requestId,
+            'status': status.name,
+          },
+          createdAtMs: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+    });
   }
 
   // Admin reset reopens the order as pending: the chat locks again until

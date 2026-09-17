@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 
@@ -89,6 +90,101 @@ void main() {
       SubscriptionStore.renew();
       expect(SubscriptionStore.status.value, SubscriptionStatus.active);
       expect(SubscriptionStore.isExpired, isFalse);
+    });
+  });
+
+  // ─── Ownership guard: a cycle is never inherited blindly ────────────────
+  group('SubscriptionStore · cycle ownership guard', () {
+    const proA = 'account_A';
+    const proB = 'account_B';
+
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
+    test('the same account re-applies its OWN cycle (explicit owner match)',
+        () async {
+      await SubscriptionStore.reset();
+      final start = DateTime(2026, 8, 1, 12);
+      SubscriptionStore.renew(at: start, ownerId: proA);
+
+      SubscriptionStore.markPaidPreservingCycle(ownerId: proA);
+
+      expect(SubscriptionStore.activatedAt.value, start);
+      expect(SubscriptionStore.debugCycleOwnerId, proA);
+      expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+    });
+
+    test('a cycle owned by ANOTHER account is never inherited', () async {
+      await SubscriptionStore.reset();
+      final foreignStart = DateTime(2026, 8, 1, 12);
+      SubscriptionStore.renew(at: foreignStart, ownerId: proA);
+
+      SubscriptionStore.markPaidPreservingCycle(ownerId: proB);
+
+      expect(SubscriptionStore.activatedAt.value, isNot(foreignStart),
+          reason: "another account's remaining time is never adopted");
+      expect(SubscriptionStore.debugCycleOwnerId, proB);
+      expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+      expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+    });
+
+    test('an UNOWNED legacy cycle is REFUSED without the explicit opt-in',
+        () async {
+      await SubscriptionStore.reset();
+      final legacyStart = DateTime(2026, 8, 1, 12);
+      // Legacy fixture: a cycle on this device that recorded no owner at all.
+      SubscriptionStore.activatedAt.value = legacyStart;
+      expect(SubscriptionStore.debugCycleOwnerId, isNull);
+
+      SubscriptionStore.markPaidPreservingCycle(ownerId: proB);
+
+      expect(SubscriptionStore.activatedAt.value, isNot(legacyStart),
+          reason: 'an unowned cycle is never inherited blindly');
+      expect(SubscriptionStore.debugCycleOwnerId, proB,
+          reason: 'the fresh cycle belongs to the account logging in now');
+    });
+
+    test('an UNOWNED legacy cycle is adopted ONLY with the validated opt-in',
+        () async {
+      await SubscriptionStore.reset();
+      final legacyStart = DateTime(2026, 8, 1, 12);
+      SubscriptionStore.activatedAt.value = legacyStart;
+
+      // Registry-validated caller (AdminStore.syncSessionStoresForCurrentUser).
+      SubscriptionStore.markPaidPreservingCycle(
+        ownerId: proB,
+        adoptUnownedLegacyCycle: true,
+      );
+
+      expect(SubscriptionStore.activatedAt.value, legacyStart);
+      expect(SubscriptionStore.debugCycleOwnerId, proB);
+      expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
+    });
+
+    test('an UNATTRIBUTED writer keeps an unattributed cycle (no account '
+        'identity is involved)', () async {
+      await SubscriptionStore.reset();
+      final start = DateTime(2026, 8, 1, 12);
+      SubscriptionStore.activatedAt.value = start;
+
+      SubscriptionStore.markPaidPreservingCycle();
+
+      expect(SubscriptionStore.activatedAt.value, start);
+      expect(SubscriptionStore.debugCycleOwnerId, isNull);
+    });
+
+    test('an UNATTRIBUTED writer never inherits an OWNED cycle', () async {
+      await SubscriptionStore.reset();
+      final start = DateTime(2026, 8, 1, 12);
+      SubscriptionStore.renew(at: start, ownerId: proA);
+
+      SubscriptionStore.markPaidPreservingCycle();
+
+      expect(SubscriptionStore.activatedAt.value, isNot(start),
+          reason: 'no ownerId means no claim on an attributed cycle');
+      expect(SubscriptionStore.debugCycleOwnerId, isNull);
     });
   });
 }

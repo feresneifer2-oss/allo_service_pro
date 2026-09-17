@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
@@ -10,7 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 
-// ─── Admin Credentials ──────────────────────────────────────────────────────
+// ─── Admin identity ────────────────────────────────────────────────────────
+// SECURITY: AdminStore holds NO credentials, NO comparison and NO fallback —
+// it delegates every check to the AdminAuth boundary
+// (see features/admin/data/admin_auth_repository.dart), which owns the
+// environment configuration and the production server-side target.
 // ─── Reported-content model ──────────────────────────────────────────────────
 class ReportModel {
   final String id;
@@ -34,13 +39,23 @@ class ReportModel {
 class AdminStore {
   AdminStore._();
 
-  // Admin credentials (single admin session).
-  // (Demo-grade: production should authenticate against Firebase/backend.)
-  static const String adminEmail = 'feres.neifer2@gmail.com';
-  static const String adminPassword = '24449959';
+  /// Delegates to the auth boundary — AdminStore never sees credentials.
+  /// (Async by design: the production Supabase implementation is an RPC.)
+  static Future<bool> matchesAdmin(String email, String password) =>
+      AdminAuth.instance.verify(email: email, password: password);
 
-  static bool matchesAdmin(String email, String password) =>
-      email == adminEmail && password == adminPassword;
+  /// Whether the active auth boundary has a configured admin identity.
+  /// An unconfigured build keeps the gate CLOSED by design.
+  static bool get isAdminGateArmed => AdminAuth.instance.isConfigured;
+
+  /// Test hooks delegating to the local seam (debug/test builds only).
+  @visibleForTesting
+  static void debugSetAdminCredentials({String? email, String? password}) =>
+      AdminAuth.debugSetCredentials(email: email, password: password);
+
+  @visibleForTesting
+  static void debugResetAdminCredentials() =>
+      AdminAuth.debugResetCredentials();
 
   // Global stats
   static final totalUsers = ValueNotifier<int>(1240);
@@ -234,6 +249,13 @@ class AdminStore {
   static const String _kRegistry = 'admin_pending_pros_json';
   static const String _kSeq = 'admin_pro_seq';
 
+  /// Whether a registry record carries a usable authentication e-mail.
+  ///
+  /// Drives the credential-sync boundary: a record WITH an identity is synced
+  /// through it; only a legacy record without one may use the phone fallback.
+  static bool _hasEmail(String? email) =>
+      email != null && email.trim().isNotEmpty;
+
   /// Generates the next unique non-repeating identifier (PRO-00001…).
   static String _nextProCode() {
     final used = pendingPros.value.map((p) => p.proCode).toSet();
@@ -282,10 +304,23 @@ class AdminStore {
     persistToPrefs();
     // Sync the credential record: a returning pro whose account has just
     // been approved logs in straight to the dashboard (no pending gate).
-    UserStore.syncAccountVerificationByPhone(
-      list[idx].phone,
-      status: ProVerification.approved,
-    );
+    //
+    // The e-mail is the authentication identity (Email OTP), so it is the
+    // PRIMARY lookup. The phone sync is a LEGACY-ONLY fallback: it may run
+    // exclusively when the record carries NO e-mail identity, so an e-mail
+    // account can never be reached — or cross-matched — through a phone
+    // number that happens to be shared.
+    if (_hasEmail(list[idx].email)) {
+      UserStore.syncAccountVerificationByEmail(
+        list[idx].email,
+        status: ProVerification.approved,
+      );
+    } else {
+      UserStore.syncAccountVerificationByPhone(
+        list[idx].phone,
+        status: ProVerification.approved,
+      );
+    }
     // Live session sync: if THIS pro is the currently logged-in user, flip
     // their verification state + grant the 150 starter tokens instantly —
     // any pending-approval gate on screen disappears without a re-login.
@@ -312,10 +347,17 @@ class AdminStore {
     list[idx] = list[idx].copyWith(status: 'rejected', rejectionReason: reason);
     pendingPros.value = list;
     persistToPrefs();
-    UserStore.syncAccountVerificationByPhone(
-      list[idx].phone,
-      status: ProVerification.rejected,
-    );
+    if (_hasEmail(list[idx].email)) {
+      UserStore.syncAccountVerificationByEmail(
+        list[idx].email,
+        status: ProVerification.rejected,
+      );
+    } else {
+      UserStore.syncAccountVerificationByPhone(
+        list[idx].phone,
+        status: ProVerification.rejected,
+      );
+    }
   }
 
   /// Pro re-submits proof after a rejection — back to the review queue.
@@ -330,10 +372,17 @@ class AdminStore {
     );
     pendingPros.value = list;
     persistToPrefs();
-    UserStore.syncAccountVerificationByPhone(
-      list[idx].phone,
-      status: ProVerification.pending,
-    );
+    if (_hasEmail(list[idx].email)) {
+      UserStore.syncAccountVerificationByEmail(
+        list[idx].email,
+        status: ProVerification.pending,
+      );
+    } else {
+      UserStore.syncAccountVerificationByPhone(
+        list[idx].phone,
+        status: ProVerification.pending,
+      );
+    }
   }
 
   /// Manual token adjustment from the admin detail modal (+/-).
@@ -393,7 +442,8 @@ class AdminStore {
   /// Live-session mirror for the pro that is CURRENTLY logged in on this
   /// device: opening the cycle at the persisted start date keeps the exact
   /// expiration (never extends it); revoking drops straight to trial mode.
-  /// No-op for any other registry entry (incl. the admin's own session).
+  /// No-op for any other registry entry (incl. the admin's own session), so a
+  /// mutation can never touch a state that belongs to another account.
   static void _syncSubscriptionForSession(PendingProModel entry) {
     final u = UserStore.user.value;
     if (u == null || !u.isProfessional) return;
@@ -404,7 +454,13 @@ class AdminStore {
       final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
-      SubscriptionStore.renew(at: start);
+      SubscriptionStore.renew(at: start, ownerId: u.id);
+      // Same rule as [syncSessionStoresForCurrentUser]: an ALREADY-ELAPSED
+      // stamp must report 'expired' instead of silently re-opening a cycle
+      // that is over (renew() flips the status back to 'active').
+      if (SubscriptionStore.isCycleOver(start, DateTime.now())) {
+        SubscriptionStore.expire();
+      }
     } else {
       SubscriptionStore.reset();
     }
@@ -452,34 +508,50 @@ class AdminStore {
     final entry = entryForUser(u);
     if (u == null || entry == null) return;
 
-    // Subscription: paid → mirror the paid state WITHOUT extending the
-    // existing cycle (the persisted paidUntil/expiration timestamp is
-    // preserved across syncs). Not paid → trial mode.
+    // Subscription: scoped STRICTLY to THIS pro's registry record.
+    //
+    // The session store is device-global (its prefs carry no account key), so
+    // a status left behind by a PREVIOUS session on this device - the admin's
+    // own session, or another pro whose 30 days ran out - must never be
+    // attributed to the pro logging in now. The registry entry is the only
+    // truth: a paid stamp opens that exact cycle, anything else means trial.
     if (entry.isPaid && entry.paidUntilMs != null) {
-      // Exact expiry on the record → re-open the same cycle at its original
+      // Exact expiry on the record -> re-open the same cycle at its original
       // start date so the expiration is NEVER shifted by a re-login/sync.
       final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
-      SubscriptionStore.renew(at: start);
+      SubscriptionStore.renew(at: start, ownerId: u.id);
       // An ALREADY-ELAPSED cycle must stay expired: renew() flips the status
       // back to 'active' unconditionally, which would silently un-paywall a
-      // pro whose 30 days are over. Restore the truthful 'expired' state.
+      // pro whose 30 days are over. Restore the truthful 'expired' state -
+      // derived from THIS pro's own stamp, never from the session notifier.
       if (SubscriptionStore.isCycleOver(start, DateTime.now())) {
         SubscriptionStore.expire();
       }
     } else if (entry.isPaid) {
-      // Legacy granted flag without an expiry timestamp → preserve whatever
-      // cycle already exists in the session (or seed one from now).
-      SubscriptionStore.markPaidPreservingCycle();
-    } else if (SubscriptionStore.status.value ==
-        SubscriptionStatus.expired) {
-      // Trial downgrade of a session whose previous paid cycle already ran
-      // out: keep the 'expired' status (the paywall stays honest) instead of
-      // letting reset() stomp it back to the default 'active' state.
-      SubscriptionStore.isPaidSubscriber.value = false;
-      SubscriptionStore.persistToPrefs();
+      // Legacy granted flag without an expiry timestamp -> preserve the cycle
+      // ONLY when its ownership is validated for THIS account. A cycle left
+      // behind by a previous session on this device (the admin's own, or
+      // another pro) is never inherited: it belongs to that account, not to the
+      // pro logging in now. See [SubscriptionStore.markPaidPreservingCycle].
+      //
+      // The opt-in below is the EXPLICIT owner validation guard required for
+      // UNOWNED/legacy cycles: [entry] was matched to this session by
+      // [entryForUser] (PRO code / account id) and carries the paid stamp, so
+      // the registry - the authoritative source - confirms this account owns
+      // the granted access. Without it the guard refuses and seeds a fresh
+      // cycle rather than inheriting unattributed time.
+      SubscriptionStore.markPaidPreservingCycle(
+        ownerId: u.id,
+        adoptUnownedLegacyCycle: true,
+      );
     } else {
+      // Trial: this pro owns NO paid cycle, so the session must show the clean
+      // trial defaults. Any leftover 'expired' status is deliberately
+      // discarded: 'expired' is only ever derived from the CURRENT pro's own
+      // paid stamp (branch above), so a foreign session can never leak a
+      // paywall into this one.
       SubscriptionStore.reset();
     }
 

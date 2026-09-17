@@ -28,14 +28,40 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
   String _governorate = 'تونس';
   String? _city;
 
+  /// The authentication e-mail captured ONCE when the form mounts.
+  ///
+  /// It is the Email-OTP identity and must survive every rebuild / wizard step
+  /// / resubmission unchanged: reading it back from the live session at submit
+  /// time risked resolving it AFTER a state reload (or a `null` session),
+  /// which silently degraded the pro's record to a phone-only legacy account.
+  late final String _email;
+
   @override
   void initState() {
     super.initState();
+    // Immutable capture — taken before any rebuild can mutate the session.
+    _email = _resolveSessionEmail();
     // Set default governorate based on language
     final isArabic = appLocale.value.languageCode == 'ar';
     _governorate = isArabic ? 'تونس' : 'Tunis';
     _city = isArabic ? 'تونس المدينة' : 'Tunis Ville';
     _selectedCategory = ServicesCatalog.categories.first;
+  }
+
+  /// Snapshots the session e-mail and normalizes it (trim + lowercase) so the
+  /// value bound to the credential registry is byte-identical to the key used
+  /// by login / OTP verification.
+  String _resolveSessionEmail() {
+    final raw = UserStore.user.value?.email ?? '';
+    return raw.trim().toLowerCase();
+  }
+
+  /// The e-mail actually committed with the registration: the immutable
+  /// snapshot, falling back to the live session only if the snapshot was empty
+  /// (e.g. the screen was opened without a hydrated session).
+  String get _committedEmail {
+    if (_email.isNotEmpty) return _email;
+    return _resolveSessionEmail();
   }
 
   List<String> get _governorates {
@@ -101,10 +127,15 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
         return;
       }
 
+      // The authenticated e-mail (Email-OTP identity) is bound to the draft so
+      // the admin panel can sync the credential record by identity. It comes
+      // from the immutable snapshot, never from a re-read of the live session.
+      final committedEmail = _committedEmail;
       final newPro = PendingProModel(
         id: 'pro_${DateTime.now().millisecondsSinceEpoch}',
         name: _nameController.text,
-        phone: '+216 20 123 456', // Mock phone
+        phone: '+216 20 123 456', // Mock phone (contact info only)
+        email: committedEmail.isEmpty ? null : committedEmail,
         professionFr: _selectedCategory?.fr ?? 'Peintre',
         professionAr: _selectedCategory?.ar ?? 'دهّان',
         city: _city ?? _governorate,
@@ -129,9 +160,12 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
 
       // Bind the professional identity to the local session, then land on
       // the verification gate (pending approval / WhatsApp inquiry).
+      // The e-mail is re-bound explicitly from the immutable snapshot so a
+      // session rebuild cannot drop the Email-OTP identity.
       UserStore.set(
         name: registered.name,
         phone: registered.phone,
+        email: committedEmail.isEmpty ? null : committedEmail,
         role: UserRole.professional,
         proCode: registered.proCode,
         proofPath: registered.docImage,

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
+import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/validators.dart';
 
 import '../application/user_store.dart';
@@ -18,7 +19,6 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
@@ -29,7 +29,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
@@ -39,13 +38,63 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
+    // The e-mail address is the authentication identity since the switch to
+    // Email OTP: it keys the credential record and receives the 6-digit
+    // code. No phone is collected here — a pro's contact number is entered
+    // later at pro registration.
+    final email = _emailController.text.trim();
+
+    // Release gate: refuse to mint a credential record when no OTP delivery
+    // channel exists for this build (release/profile without a wired SMTP
+    // provider). A record whose code could never arrive must never exist.
+    try {
+      EmailOtpService.requireDeliveryChannel();
+    } on EmailOtpUnavailableException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr(context,
+              fr: 'Inscription indisponible : service e-mail non configuré.',
+              ar: 'التسجيل غير متاح: خدمة البريد غير مهيأة.')),
+        ),
+      );
+      return;
+    }
+
     final registered = UserStore.register(
       name: _nameController.text.trim(),
-      phone: AppValidators.normalizePhone(_phoneController.text),
-      email: _emailController.text.trim(),
+      email: email,
       password: _passwordController.text,
     );
     if (!registered) {
+      // Account already exists. Recovery path for abandoned registrations:
+      // when the record was never verified AND the submitted password matches
+      // it, the user most likely dropped off at the OTP step — resume the
+      // handshake (same OTP screen) instead of dead-ending them with a generic
+      // duplicate error.
+      //
+      // The password proof is mandatory: without it anyone could claim an
+      // unverified e-mail and, in demo mode, read the issued code off screen.
+      // The e-mail must also still be unverified, so a REAL account can never
+      // be re-registered over.
+      //
+      // NO code is issued here (CodeRabbit): [OtpScreen] owns the very first
+      // send and ADOPTS a still-valid code instead of burning it. Issuing one
+      // at this point would be invalidated one frame later by that screen's
+      // initState — the user would then hold a code (mailbox, demo banner) the
+      // app no longer accepts. The delivery channel was already proven above
+      // by [EmailOtpService.requireDeliveryChannel].
+      final resumable = !UserStore.isEmailVerified(email) &&
+          UserStore.matchesPassword(
+              email: email, password: _passwordController.text);
+      if (resumable) {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => OtpScreen(email: email)),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cet e-mail est déjà utilisé.')),
       );
@@ -55,9 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OtpScreen(
-          phone: AppValidators.normalizePhone(_phoneController.text),
-        ),
+        builder: (_) => OtpScreen(email: email),
       ),
     );
   }
@@ -115,33 +162,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  decoration: const InputDecoration(
-                    hintText: 'Numéro de téléphone (8 chiffres)',
-                    prefixIcon: Icon(Icons.phone_outlined),
-                  ),
-                  validator: (v) => AppValidators.tunisianPhone(v, context),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
                   decoration: const InputDecoration(
-                    hintText: 'Email (optionnel)',
+                    hintText: 'Adresse e-mail',
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) {
-                      return 'L\'e-mail est obligatoire pour se connecter';
-                    }
-                    if (!v.contains('@')) return 'Email invalide';
-                    return null;
-                  },
+                  validator: (v) => AppValidators.email(v, context),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

@@ -41,3 +41,15 @@ String tr(BuildContext context, {required String fr, required String ar}) {
 
   return fr;
 }
+
+/// Context-FREE localization lookup.
+///
+/// Needed by widgets that must render OUTSIDE any `Localizations` ancestor —
+/// the global error fallback (`ErrorWidget.builder`) and any pre-`MaterialApp`
+/// surface. It reads the live [appLocale] notifier directly, so it stays correct
+/// after a language switch without a rebuild from above.
+String trGlobal({required String fr, required String ar}) {
+  if (appLocale.value.languageCode != 'ar') return fr;
+  final v = ar.trim();
+  return v.isEmpty ? fr : v;
+}

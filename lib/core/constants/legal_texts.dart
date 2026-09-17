@@ -42,8 +42,9 @@ class LegalTexts {
 
   // ── Politique de confidentialité / سياسة الخصوصية ─────────────────────
   static const String privacyAr =
-      '1. البيانات المجموعة: نجمع فقط الاسم، رقم الهاتف، والموقع الجغرافي (GPS) '
-      'لتقديم الخدمة.\n'
+      '1. البيانات المجموعة: نجمع الاسم، البريد الإلكتروني المهني (يُستخدم '
+      'كمعرّف لتسجيل الدخول وإرسال رمز التحقق OTP)، رقم الهاتف (اختياري)، '
+      'والموقع الجغرافي (GPS) لغرض تقديم الخدمة فقط.\n'
       '2. استخدام البيانات: تُستخدم البيانات حصرياً لتوصيل الطلبات وتسهيل '
       'التواصل بين العميل والمهني.\n'
       '3. حماية البيانات: بياناتك مخزنة محلياً بأمان ولا يتم بيعها أو '
@@ -53,8 +54,10 @@ class LegalTexts {
       'خيار «تسجيل الخروج».';
 
   static const String privacyFr =
-      "1. Données collectées: Nom, numéro de téléphone et position GPS "
-      "uniquement pour exécuter le service.\n"
+      "1. Données collectées: Nom, adresse e-mail professionnelle (utilisée "
+      "comme identifiant de connexion et pour la vérification par code OTP), "
+      "numéro de téléphone facultatif et position GPS — uniquement pour "
+      "exécuter le service.\n"
       "2. Usage: Utilisation exclusive pour la mise en relation "
       "client-professionnel.\n"
       "3. Protection: Vos données sont stockées localement et ne sont jamais "

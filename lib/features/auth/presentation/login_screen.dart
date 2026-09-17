@@ -6,6 +6,7 @@ import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:allo_service_pro/shared/localization/app_localizations.dart';
+import 'package:allo_service_pro/shared/validators.dart';
 import '../application/user_store.dart';
 import 'language_screen.dart';
 import 'register_screen.dart';
@@ -33,8 +34,21 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Smart admin routing
-    if (email.toLowerCase() == 'feres.neifer2@gmail.com' && pass == '24449959') {
+    // The e-mail is the authentication identity (Email-OTP sign-up): reject a
+    // malformed address before it reaches the credential registry.
+    if (!AppValidators.isValidEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.translate(context,
+              fr: 'Adresse e-mail invalide.', ar: 'بريد إلكتروني غير صالح.')),
+        ),
+      );
+      return;
+    }
+
+    // Smart admin routing — delegated to AdminAuthRepository (async by
+    // design: the production implementation is a server-side RPC).
+    if (await AdminStore.matchesAdmin(email, pass)) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('user_role', 'admin');

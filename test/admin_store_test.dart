@@ -5,63 +5,80 @@ import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 
 void main() {
+  const testAdminEmail = 'admin@allo.test';
+  const testAdminPassword = 'test-pass-1234';
+
+  setUp(() {
+    // Explicit fixture injection: the repository has NO source defaults.
+    AdminStore.debugSetAdminCredentials(
+      email: testAdminEmail,
+      password: testAdminPassword,
+    );
+  });
+
+  tearDown(AdminStore.debugResetAdminCredentials);
   group('AdminStore · credential constants', () {
-    test('exposes the expected admin credentials', () {
-      expect(AdminStore.adminEmail, 'feres.neifer2@gmail.com');
-      expect(AdminStore.adminPassword, '24449959');
+    test('verifies the injected admin pair', () async {
+      expect(
+        await AdminStore.matchesAdmin(
+          testAdminEmail,
+          testAdminPassword,
+        ),
+        isTrue,
+      );
     });
   });
 
   group('AdminStore.matchesAdmin · smart matching logic', () {
-    test('accepts the exact admin pair', () {
+    test('accepts the exact admin pair', () async {
       expect(
-        AdminStore.matchesAdmin(
-          AdminStore.adminEmail,
-          AdminStore.adminPassword,
+        await AdminStore.matchesAdmin(
+          testAdminEmail,
+          testAdminPassword,
         ),
         isTrue,
       );
     });
 
-    test('accepts literal expected values', () {
+    test('accepts literal expected values', () async {
       expect(
-        AdminStore.matchesAdmin('feres.neifer2@gmail.com', '24449959'),
+        await AdminStore.matchesAdmin(testAdminEmail, testAdminPassword),
         isTrue,
       );
     });
 
-    test('rejects a wrong password', () {
+    test('rejects a wrong password', () async {
       expect(
-        AdminStore.matchesAdmin('feres.neifer2@gmail.com', 'wrong-pass'),
+        await AdminStore.matchesAdmin(testAdminEmail, 'wrong-pass'),
         isFalse,
       );
     });
 
-    test('rejects a wrong email', () {
+    test('rejects a wrong email', () async {
       expect(
-        AdminStore.matchesAdmin('user@alloservice.tn', '24449959'),
+        await AdminStore.matchesAdmin('user@alloservice.tn', testAdminPassword),
         isFalse,
       );
     });
 
-    test('rejects empty credentials', () {
-      expect(AdminStore.matchesAdmin('', ''), isFalse);
+    test('rejects empty credentials', () async {
+      expect(await AdminStore.matchesAdmin('', ''), isFalse);
     });
 
-    test('rejects a non-admin email even with the right password', () {
+    test('rejects a non-admin email even with the right password', () async {
       expect(
-        AdminStore.matchesAdmin('feres@example.com', '24449959'),
+        await AdminStore.matchesAdmin('feres@example.com', testAdminPassword),
         isFalse,
       );
     });
 
-    test('matching is strict (case-sensitive) by design', () {
+    test('matching is strict (case-sensitive) by design', () async {
       expect(
-        AdminStore.matchesAdmin('FERES.NEIFER2@GMAIL.COM', '24449959'),
+        await AdminStore.matchesAdmin('ADMIN@ALLO.TEST', testAdminPassword),
         isFalse,
       );
       expect(
-        AdminStore.matchesAdmin('feres.neifer2@gmail.com', '24449959A'),
+        await AdminStore.matchesAdmin(testAdminEmail, 'test-pass-1234X'),
         isFalse,
       );
     });

@@ -6,6 +6,7 @@ class PendingProModel {
     required this.id,
     required this.name,
     required this.phone,
+    this.email,
     required this.professionFr,
     required this.professionAr,
     this.city,
@@ -26,6 +27,11 @@ class PendingProModel {
   final String id;
   final String name;
   final String phone;
+
+  /// Authentication e-mail of the pro (Email-OTP identity). Optional so
+  /// legacy / admin-seeded records stay valid; admin approval syncs the
+  /// credential record through it.
+  final String? email;
   final String professionFr;
   final String professionAr;
   final String? city;
@@ -60,6 +66,7 @@ class PendingProModel {
     String? id,
     String? name,
     String? phone,
+    String? email,
     String? professionFr,
     String? professionAr,
     String? city,
@@ -80,6 +87,7 @@ class PendingProModel {
       id: id ?? this.id,
       name: name ?? this.name,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
       professionFr: professionFr ?? this.professionFr,
       professionAr: professionAr ?? this.professionAr,
       city: city ?? this.city,
@@ -107,6 +115,7 @@ class PendingProModel {
         'id': id,
         'name': name,
         'phone': phone,
+        'email': email,
         'professionFr': professionFr,
         'professionAr': professionAr,
         'city': city,
@@ -129,6 +138,7 @@ class PendingProModel {
         id: json['id'] as String,
         name: json['name'] as String,
         phone: json['phone'] as String,
+        email: json['email'] as String?,
         professionFr: json['professionFr'] as String,
         professionAr: json['professionAr'] as String,
         city: json['city'] as String?,
