@@ -114,7 +114,7 @@ class LocationService {
           timeLimit: Duration(seconds: 12),
         ),
       );
-      return _resolveAddress(position);
+      return await _resolveAddress(position);
     } catch (_) {
       // Any plugin/geocoder failure → manual entry fallback.
       return null;
@@ -167,7 +167,7 @@ class LocationService {
   Future<Position?> getCurrentLocation() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return _lastKnownFallback();
+      if (!serviceEnabled) return await _lastKnownFallback();
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -177,7 +177,7 @@ class LocationService {
           permission == LocationPermission.deniedForever) {
         // Smooth manual fallback: still try the OS-cached fix (stale
         // beats empty), otherwise the user types their address.
-        return _lastKnownFallback();
+        return await _lastKnownFallback();
       }
 
       return await Geolocator.getCurrentPosition(

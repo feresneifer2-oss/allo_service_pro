@@ -77,7 +77,7 @@ class DocumentMediaService {
         imageQuality: imageQuality,
       );
       if (xfile == null) return null;
-      return _persist(File(xfile.path), prefix);
+      return await _persist(File(xfile.path), prefix);
     } catch (_) {
       return null;
     }

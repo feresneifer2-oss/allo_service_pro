@@ -7,6 +7,43 @@
 
 # The following line activates a set of recommended lints for Flutter apps,
 # packages, and plugins designed to encourage good coding practices.
+#
+# SCOPE OF `analyzer.exclude` (review remediation)
+# ---------------------------------------------------------------------------
+# Everything listed below is generated output, a build/tooling artifact, or the
+# vendored local Flutter SDK checkout. Application source is NEVER excluded:
+# `lib/**` and `test/**` are intentionally absent from this list so that all
+# hand-written code is always analyzed.
+analyzer:
+  exclude:
+    # Generated code (build_runner / json_serializable / freezed output).
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+    # Build output and tooling caches — regenerated on every build/pub get.
+    - build/**
+    - .dart_tool/**
+    - .widget_preview/**
+    # Local Flutter SDK clone that this machine uses as its toolchain
+    # (`flutter.bat` resolves to `./flutter/bin/flutter.bat`). It is a vendored
+    # dependency of the environment, not application source: it holds ~7.7k Dart
+    # files (packages/flutter, dev, examples, engine tooling) that must never be
+    # analyzed as part of this project.
+    - flutter/**
+    # Platform scaffolding directories. These are required to stay listed:
+    # Flutter's own `AnalysisOptionsMigration`
+    # (flutter_tools/lib/src/migrations/analysis_options_migration.dart) injects
+    # `build/**` + every existing platform directory into `analyzer.exclude` on
+    # each `flutter analyze` run of an app that depends on `flutter`, and there
+    # is no opt-out flag. Dropping them would make the working tree dirty after
+    # every analyzer run — the exact noisy-diff churn this remediation removes.
+    # Verified safe: these folders contain zero Dart files in this project.
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+
 include: package:flutter_lints/flutter.yaml
 
 linter:
