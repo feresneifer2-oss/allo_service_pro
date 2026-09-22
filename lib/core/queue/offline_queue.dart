@@ -63,6 +63,16 @@ class OfflineQueue {
   /// Transient failures tolerated per entry before it is dropped.
   static const int maxAttempts = 5;
 
+  /// Hard cap on simultaneously PENDING operations (audit remediation).
+  ///
+  /// Without a bound, a long offline stretch (or a poison payload that keeps
+  /// re-enqueueing) grows the queue — and its SharedPreferences payload —
+  /// without limit. When the cap is reached, [enqueue] REFUSES the new entry
+  /// and logs loudly: dropping the OLDEST queued work would silently lose a
+  /// provider's confirmed actions, and the newest refusal surfaces in the
+  /// diagnostics the moment the operator looks.
+  static const int maxPending = 200;
+
   /// Operations still waiting for a successful replay (oldest first).
   static final ValueNotifier<List<QueuedAction>> pending =
       ValueNotifier<List<QueuedAction>>(<QueuedAction>[]);
@@ -134,6 +144,16 @@ class OfflineQueue {
       AppLogger.error(
         'OfflineQueue',
         'refused to queue ${action.type.name}: no executor registered',
+      );
+      return false;
+    }
+    // BOUNDED QUEUE (audit remediation): refuse beyond [maxPending] instead
+    // of silently dropping the oldest confirmed work.
+    if (pending.value.length >= maxPending) {
+      AppLogger.error(
+        'OfflineQueue',
+        'queue full (${pending.value.length} >= $maxPending) — '
+            'refused to queue ${action.type.name}',
       );
       return false;
     }

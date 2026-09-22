@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
@@ -9,6 +10,23 @@ import 'package:crypto/crypto.dart';
 ///
 /// Deterministic and side-effect free: hex-encoded lower-case digest.
 String sha256Hex(String input) => sha256.convert(utf8.encode(input)).toString();
+
+/// Cryptographically strong RANDOM SALT generation (audit remediation).
+///
+/// Every newly persisted credential gets a fresh, unpredictable salt —
+/// never a deterministic (e.g. e-mail-derived) one — so two accounts sharing
+/// a password never produce the same digest and pre-computed rainbow tables
+/// keyed on a known namespace are useless. `Random.secure()` sources from the
+/// platform CSPRNG on every supported target (iOS / Android / Web / desktop).
+///
+/// 128 bits of entropy: above NIST SP 800-132's minimum salt length for
+/// PBKDF2, with collision probability negligible for any realistic registry.
+String randomSaltHex({int bytes = 16}) {
+  final rng = Random.secure();
+  return List<int>.generate(bytes, (_) => rng.nextInt(256))
+      .map((b) => b.toRadixString(16).padLeft(2, '0'))
+      .join();
+}
 
 /// PBKDF2-HMAC-SHA256 (CodeRabbit): a real PASSWORD key-derivation function.
 ///

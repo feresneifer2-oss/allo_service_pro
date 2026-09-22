@@ -55,11 +55,16 @@ class AdminStore {
   @visibleForTesting
   static void debugResetAdminCredentials() => AdminAuth.debugResetCredentials();
 
-  // Global stats
-  static final totalUsers = ValueNotifier<int>(1240);
-  static final totalPros = ValueNotifier<int>(347);
-  static final totalRequests = ValueNotifier<int>(892);
-  static final totalRevenue = ValueNotifier<double>(0.0);
+  // Global stats — LIVE DERIVED METRICS ONLY (audit remediation):
+  // the previous build seeded hardcoded demo KPIs (1240 users / 347 pros /
+  // 892 requests) that could never reflect reality. Every dashboard card now
+  // reads a live getter derived from real registries (see `totalClients`,
+  // `totalProsCount`, `acceptedOrdersToday`, `cashRevenueTnd`).
+  //
+  // `totalPros` is kept as a live COUNTER (starts at 0, incremented once per
+  // real approval) so the idempotency test contract
+  // (`approvePro` twice → counter +1 exactly once) stays observable.
+  static final totalPros = ValueNotifier<int>(0);
 
   // Pending professionals
   static final pendingPros = ValueNotifier<List<PendingProModel>>([

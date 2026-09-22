@@ -72,10 +72,18 @@ Future<void> main() async {
     // error on a broken device. The failure must degrade to the SAME
     // local-only boot as a missing .env (never crash the app at startup).
     try {
+      // INITIALIZATION TIMEOUT (audit remediation): `Supabase.initialize` can
+      // hang on a stalled first round-trip (captive portal, dead DNS). A hard
+      // ceiling degrades to LOCAL-ONLY mode instead of freezing the splash.
       await Supabase.initialize(
         url: supaUrl,
         publishableKey: supaKey,
-      );
+      ).timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
+          'Connexion au serveur impossible — mode local uniquement';
+      debugPrint('main(): Supabase.initialize timed out — starting in '
+          'LOCAL-ONLY mode.');
     } catch (e, st) {
       configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
           'Connexion au serveur impossible — mode local uniquement';

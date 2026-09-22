@@ -106,6 +106,37 @@ class AppLogger {
           [Object? error, StackTrace? stackTrace]) =>
       _log(LogLevel.error, tag, message, error, stackTrace);
 
+  // ─── PII / SECRET REDACTION (audit remediation) ────────────────────────────
+
+  /// E-mail addresses → `[email]` (identity, never needed in a log line).
+  static final RegExp _emailPattern = RegExp(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+');
+
+  /// Long digit runs (phones, OTP codes) → `[phone]`. A run of ≥ 6 digits is
+  /// never meaningful in a diagnostic message but frequently IS an OTP or a
+  /// subscriber number. Small counts (timestamps, ids) are left untouched.
+  static final RegExp _digitRunPattern = RegExp(r'\d{6,}');
+
+  /// Bearer / API-key tokens → `[redacted]` (whole secret removed).
+  static final RegExp _bearerPattern =
+      RegExp(r'(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{8,}');
+  static final RegExp _secretKeyValuePattern = RegExp(
+    r'(?i)((?:password|passwd|secret|api[_-]?key|token|anon[_-]?key)'
+    r'["\']?\s*[:=]\s*["\']?)[^\s"\',;&]+',
+  );
+
+  /// Scrubs credentials and personal identifiers from [input] so no log
+  /// destination (console mirror, in-memory history, remote sink) ever
+  /// receives them. Idempotent and never throws.
+  static String redact(String input) {
+    var out = input;
+    out = out.replaceAllMapped(
+        _bearerPattern, (m) => '${m.group(1)}[redacted]');
+    out = out.replaceAllMapped(_secretKeyValuePattern, (m) => '${m.group(1)}[redacted]');
+    out = out.replaceAll(_emailPattern, '[email]');
+    out = out.replaceAll(_digitRunPattern, '[phone]');
+    return out;
+  }
+
   /// Only the error records (assertions in tests / diagnostics filters).
   static List<LogRecord> get errors =>
       history.value.where((r) => r.level == LogLevel.error).toList();
@@ -122,12 +153,17 @@ class AppLogger {
   ]) {
     if (level.index < minLevel.index) return;
 
+    // PII / SECRET REDACTION (audit remediation): every message and error is
+    // scrubbed BEFORE it can reach the ring buffer, the debug console or a
+    // remote sink. Logs must never become a side channel for credentials or
+    // personal data (contract: "No implementation may persist or log
+    // plaintext credentials").
     final record = LogRecord(
       level: level,
       tag: tag,
-      message: message,
+      message: redact(message),
       at: DateTime.now(),
-      error: error,
+      error: error == null ? null : redact(error.toString()),
       stackTrace: stackTrace,
     );
 

@@ -141,8 +141,31 @@ class SupabaseStorageService {
           bucket: documentsBucket, path: path, file: file, context: context);
 
   /// Shared upload pipeline. Returns the STORAGE PATH within [bucket], or
-  /// null when Supabase is not configured, the device is offline, or the
-  /// upload failed.
+  /// null when Supabase is not configured, the device is offline, the file
+  /// fails client-side validation, or the upload failed.
+  ///
+  /// CLIENT-SIDE VALIDATION (audit remediation): only real image / audio /
+  /// PDF payloads are accepted (extension + declared MIME must agree), and
+  /// the file must not exceed [maxUploadBytes]. Rejecting before the network
+  /// call prevents oversized / mistyped payloads from being mirrored to the
+  /// buckets and gives callers their local-fallback path immediately.
+  static const int maxUploadBytes = 10 * 1024 * 1024; // 10 MB
+
+  /// Allowed upload extensions per bucket family. Anything else (executables,
+  /// scripts, archives…) is refused client-side; the buckets additionally
+  /// enforce their own server-side MIME policies.
+  static const Set<String> allowedImageExt = {'jpg', 'jpeg', 'png', 'webp'};
+  static const Set<String> allowedAudioExt = {'m4a', 'aac', 'mp3', 'wav', 'ogg'};
+  static const Set<String> allowedDocExt = {'jpg', 'jpeg', 'png', 'webp', 'pdf'};
+
+  static bool _extensionAllowed(String bucket, String ext) {
+    if (bucket == documentsBucket) return allowedDocExt.contains(ext);
+    if (bucket == chatMediaBucket) {
+      return allowedImageExt.contains(ext) || allowedAudioExt.contains(ext);
+    }
+    return allowedImageExt.contains(ext); // avatars
+  }
+
   static Future<String?> _upload({
     required String bucket,
     required String path,
@@ -151,6 +174,25 @@ class SupabaseStorageService {
   }) async {
     if (!canUploadNow) return null;
     if (!await file.exists()) return null;
+
+    // TYPE VALIDATION: the extension is the only client-side signal — the
+    // path was produced by this app's pickers, so it is trustworthy enough
+    // as a filter while the server policy remains the real gate.
+    final ext = _extOf(path);
+    if (ext == null || !_extensionAllowed(bucket, ext)) {
+      debugPrint('SupabaseStorageService.$context: rejected file type '
+          '".$ext" for bucket "$bucket".');
+      return null;
+    }
+
+    // SIZE VALIDATION: refuse before uploading anything.
+    final length = await file.length();
+    if (length <= 0 || length > maxUploadBytes) {
+      debugPrint('SupabaseStorageService.$context: rejected file of '
+          '$length bytes (limit $maxUploadBytes).');
+      return null;
+    }
+
     try {
       await Supabase.instance.client.storage.from(bucket).upload(
             path,

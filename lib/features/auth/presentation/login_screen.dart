@@ -23,7 +23,21 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
+  /// Double-tap guard (audit remediation): a second tap while a sign-in /
+  /// admin-verification round-trip is in flight must be a no-op.
+  bool _busy = false;
+
   Future<void> _login() async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      await _loginInner();
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<void> _loginInner() async {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
