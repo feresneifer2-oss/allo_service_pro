@@ -92,8 +92,7 @@ void main() {
   });
 
   group('AdminStore · pro registration sync (Pro → Admin)', () {
-    test('registerPro lands a PENDING entry the En-attente tab can see',
-        () {
+    test('registerPro lands a PENDING entry the En-attente tab can see', () {
       final before = AdminStore.pendingCount;
 
       final pro = AdminStore.registerPro(PendingProModel(
@@ -114,7 +113,7 @@ void main() {
       expect(AdminStore.pendingCount, before + 1);
     });
 
-    test('approval removes the pro from the pending counter', () {
+    test('approval removes the pro from the pending counter', () async {
       final pro = AdminStore.registerPro(PendingProModel(
         id: 'sync-test-2',
         name: 'Amel Jlassi',
@@ -126,13 +125,13 @@ void main() {
       ));
       final before = AdminStore.pendingCount;
 
-      AdminStore.approvePro(pro.id);
+      // AWAITED (CodeRabbit): `approvePro` persists + syncs the credential
+      // record asynchronously — settle it before asserting the registry.
+      await AdminStore.approvePro(pro.id);
 
       expect(AdminStore.pendingCount, before - 1);
       expect(
-        AdminStore.pendingPros.value
-            .firstWhere((p) => p.id == pro.id)
-            .status,
+        AdminStore.pendingPros.value.firstWhere((p) => p.id == pro.id).status,
         'approved',
       );
     });

@@ -57,8 +57,8 @@ class LegalMenuTiles extends StatelessWidget {
     return Column(
       children: [
         ListTile(
-          leading: const Icon(Icons.info_outline_rounded,
-              color: AppColors.primary),
+          leading:
+              const Icon(Icons.info_outline_rounded, color: AppColors.primary),
           title: Text(tr(context, fr: 'À propos', ar: 'من نحن')),
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => _open(context, LegalDoc.about),
@@ -71,8 +71,7 @@ class LegalMenuTiles extends StatelessWidget {
           onTap: () => _open(context, LegalDoc.terms),
         ),
         ListTile(
-          leading:
-              const Icon(Icons.shield_outlined, color: AppColors.primary),
+          leading: const Icon(Icons.shield_outlined, color: AppColors.primary),
           title: Text(tr(context,
               fr: 'Politique de confidentialité', ar: 'سياسة الخصوصية')),
           trailing: const Icon(Icons.chevron_right_rounded),
@@ -169,8 +168,7 @@ class _LegalFooter extends StatelessWidget {
   String _label(BuildContext context, LegalDoc doc) => switch (doc) {
         LegalDoc.about => tr(context, fr: 'À propos', ar: 'من نحن'),
         LegalDoc.terms => tr(context, fr: 'Conditions', ar: 'الشروط'),
-        LegalDoc.privacy =>
-          tr(context, fr: 'Confidentialité', ar: 'الخصوصية'),
+        LegalDoc.privacy => tr(context, fr: 'Confidentialité', ar: 'الخصوصية'),
       };
 
   @override

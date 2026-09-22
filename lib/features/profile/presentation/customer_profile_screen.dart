@@ -9,6 +9,7 @@ import 'package:allo_service_pro/features/notifications/application/notification
 import 'package:allo_service_pro/features/notifications/presentation/notifications_screen.dart';
 import 'package:allo_service_pro/features/legal/presentation/legal_screens.dart';
 import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
+import 'package:allo_service_pro/shared/widgets/support_info.dart';
 import 'package:allo_service_pro/shared/widgets/empty_state_widget.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
@@ -121,9 +122,8 @@ class CustomerProfileScreen extends StatelessWidget {
         final phone = user?.phone ?? '+216 XX XXX XXX';
         final email =
             user?.email ?? tr(context, fr: 'Non renseigné', ar: 'غير محدد');
-        final accountId = (user?.id.trim().isNotEmpty ?? false)
-            ? user!.id.trim()
-            : '—';
+        final accountId =
+            (user?.id.trim().isNotEmpty ?? false) ? user!.id.trim() : '—';
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -169,7 +169,8 @@ class CustomerProfileScreen extends StatelessWidget {
                 ),
                 InfoTile(
                   icon: Icons.badge_rounded,
-                  label: tr(context, fr: 'Identifiant de compte', ar: 'معرّف الحساب'),
+                  label: tr(context,
+                      fr: 'Identifiant de compte', ar: 'معرّف الحساب'),
                   value: accountId,
                 ),
                 const SizedBox(height: 24),
@@ -230,8 +231,8 @@ class CustomerProfileScreen extends StatelessWidget {
                             ),
                         ],
                       ),
-                      title: Text(tr(context,
-                          fr: 'Notifications', ar: 'الإشعارات')),
+                      title: Text(
+                          tr(context, fr: 'Notifications', ar: 'الإشعارات')),
                       subtitle: unread > 0
                           ? Text(tr(context,
                               fr: '$unread non lue(s)',
@@ -269,6 +270,13 @@ class CustomerProfileScreen extends StatelessWidget {
                 // Legal & about entries (About / Terms / Privacy).
                 const LegalMenuTiles(),
                 const Divider(),
+                // Static, non-clickable support info — directly above
+                // Sign-Out so contact details are always reachable from here.
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: const SupportInfo(),
+                ),
                 // Session: full local wipe + back to the welcome flow.
                 const LogoutTile(),
               ],

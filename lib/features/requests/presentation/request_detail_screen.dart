@@ -68,8 +68,8 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     request.professionalName,
-                    style:
-                        const TextStyle(color: AppColors.slate400, fontSize: 16),
+                    style: const TextStyle(
+                        color: AppColors.slate400, fontSize: 16),
                   ),
                   const SizedBox(height: 20),
                   // Uber-style live progress: Pending ➔ Accepted ➔ En Route
@@ -99,8 +99,8 @@ class RequestDetailScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   if (RequestStore.isChatAllowed(request.id))
                     PrimaryActionButton(
-                      label: tr(
-                          context, fr: 'Ouvrir le chat', ar: 'فتح المحادثة'),
+                      label:
+                          tr(context, fr: 'Ouvrir le chat', ar: 'فتح المحادثة'),
                       icon: Icons.chat_rounded,
                       onPressed: () {
                         ChatStore.seedDemo(request.id);

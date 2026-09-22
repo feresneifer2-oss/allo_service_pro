@@ -11,7 +11,7 @@ class ProfessionalModel {
   final bool verified;
   final bool availableNow;
   final double distanceKm;
-  final int priceFrom;
+  final int? priceFrom;
   final String pricingType; // 'hourly', 'fixed', 'quote'
   final List<String> workImages;
   final double punctualityRate;
@@ -43,7 +43,7 @@ class ProfessionalModel {
     this.verified = true,
     this.availableNow = false,
     this.distanceKm = 5.0,
-    this.priceFrom = 50,
+    this.priceFrom,
     this.pricingType = 'fixed',
     this.workImages = const [],
     this.punctualityRate = 0.95,

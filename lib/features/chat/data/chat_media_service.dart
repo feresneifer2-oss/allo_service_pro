@@ -5,6 +5,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../../core/services/supabase_storage_service.dart';
+import '../application/chat_store.dart';
+
+/// Outcome of the recorder startup handshake.
+enum VoiceRecordingStartResult { started, permissionDenied, recorderError }
+
 /// Captures chat media (photos & voice notes) and stores the files inside
 /// the app documents directory so message paths remain valid across app
 /// restarts. All plugin calls are isolated here — [ChatStore] stays pure
@@ -14,17 +20,38 @@ class ChatMediaService {
   ChatMediaService._();
 
   static final ImagePicker _picker = ImagePicker();
-  static final AudioRecorder _recorder = AudioRecorder();
+  static AudioRecorder? _recorder;
+  static AudioRecorder get _activeRecorder => _recorder ??= AudioRecorder();
 
   /// True while a voice-recording session is running.
   static final isRecording = ValueNotifier<bool>(false);
 
+  /// True while [stopVoiceRecording] is finalizing a take (recorder stop +
+  /// metadata flush).
+  ///
+  /// STOP-vs-CANCEL GUARD (CodeRabbit): [cancelVoiceRecording] DELETES the
+  /// pending take, so running it while a stop is in flight would unlink the
+  /// very file the caller is about to send — a data-loss race that the UI-level
+  /// guard alone cannot fully prevent (two entry points, one shared recorder).
+  /// The service therefore refuses to cancel during a stop, at the layer that
+  /// actually performs the deletion.
+  static bool get isStopping => _stoppingVoice;
+  static bool _stoppingVoice = false;
+
   static DateTime? _startedAt;
   static String? _pendingPath;
 
-  /// Picks a photo from the gallery or camera and copies it into the
-  /// persistent chat-media folder. Returns null when the user cancels or
-  /// the picker fails.
+  /// Picks a photo from the gallery or camera, copies it into the persistent
+  /// chat-media folder AND — when online with Supabase configured — uploads
+  /// it to the shared `chat-media` bucket.
+  ///
+  /// RETURN VALUE:
+  ///   • upload success → the PUBLIC URL: the message row (and therefore the
+  ///     counterpart's device through Realtime) renders the remote copy via
+  ///     [AppImage] — no path translation needed on either side;
+  ///   • upload failure / offline → the LOCAL absolute path (graceful
+  ///     fallback: the message still works on this device; the remote copy
+  ///     is simply deferred to a future re-send).
   static Future<String?> pickPhoto({required bool fromCamera}) async {
     try {
       final xfile = await _picker.pickImage(
@@ -33,22 +60,67 @@ class ChatMediaService {
         maxWidth: 1440,
       );
       if (xfile == null) return null;
-      return _copyToChatDir(File(xfile.path), 'photo', '.jpg');
-    } catch (_) {
+      final localPath = await _copyToChatDir(File(xfile.path), 'photo', '.jpg');
+      if (localPath == null) return null;
+
+      // SUPABASE STORAGE MIRROR: shared bucket copy so the other party can
+      // render it. Failure → null → the local path is returned unchanged.
+      final url = await SupabaseStorageService.uploadChatMedia(
+        _currentRequestId ?? 'unbound',
+        File(localPath),
+      );
+      return url ?? localPath;
+    } catch (e) {
+      debugPrint('ChatMediaService.pickPhoto failed: $e');
       return null;
     }
   }
 
-  /// Starts a voice recording. Returns false when the microphone permission
-  /// is denied or the recorder fails to start.
-  static Future<bool> startVoiceRecording() async {
-    if (isRecording.value) return false;
+  /// Uploads a voice note (called by the chat screen BEFORE the message is
+  /// appended, so the message row carries the renderable URL when the
+  /// upload succeeded — same contract as [pickPhoto]).
+  ///
+  /// NEVER returns null: an offline/failed upload falls back to [localPath]
+  /// so the note always plays on the sending device.
+  static Future<String> uploadVoiceNote(
+    String requestId,
+    String localPath,
+  ) async {
     try {
-      if (!await _recorder.hasPermission()) return false;
+      final url = await SupabaseStorageService.uploadChatMedia(
+        requestId,
+        File(localPath),
+        kind: 'voice',
+      );
+      return url ?? localPath;
+    } catch (e) {
+      debugPrint('ChatMediaService.uploadVoiceNote failed: $e');
+      return localPath;
+    }
+  }
+
+  /// The chat room the CURRENT photo pick belongs to (set by the chat screen
+  /// right before opening the picker; null outside an active chat).
+  static String? _currentRequestId;
+  static set currentRequestId(String? value) => _currentRequestId = value;
+
+  /// Starts a voice recording.
+  ///
+  /// [AudioRecorder.hasPermission] is deliberately the only permission
+  /// mechanism here. Its default `request: true` asks the native platform for
+  /// permission when the status is undecided, so adding permission_handler
+  /// would create a second, competing permission flow.
+  static Future<VoiceRecordingStartResult> startVoiceRecording() async {
+    if (isRecording.value) return VoiceRecordingStartResult.recorderError;
+    try {
+      // Keep this before start(): record owns the runtime microphone dialog.
+      if (!await _activeRecorder.hasPermission()) {
+        return VoiceRecordingStartResult.permissionDenied;
+      }
       final dir = await _chatDir();
       final path =
           '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(
+      await _activeRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 96000,
@@ -59,42 +131,63 @@ class ChatMediaService {
       _pendingPath = path;
       _startedAt = DateTime.now();
       isRecording.value = true;
-      return true;
-    } catch (_) {
+      return VoiceRecordingStartResult.started;
+    } catch (e) {
+      debugPrint('ChatMediaService.startVoiceRecording failed: $e');
       isRecording.value = false;
-      return false;
+      return VoiceRecordingStartResult.recorderError;
     }
   }
 
   /// Stops the recording and returns `(path, durationSec)`. The path is null
   /// when the recording failed. Duration is clamped to 1–600 seconds.
+  ///
+  /// The take is NOT deleted (unlike [cancelVoiceRecording]): its file is what
+  /// the caller uploads and sends. While this runs, [isStopping] is true and
+  /// [cancelVoiceRecording] is a no-op.
   static Future<(String?, int)> stopVoiceRecording() async {
     String? path;
+    final pending = _pendingPath;
     var seconds = 0;
+    _stoppingVoice = true;
     try {
-      path = await _recorder.stop();
+      final recorder = _recorder;
+      path = recorder == null ? null : await recorder.stop();
       final started = _startedAt;
-      seconds = started == null
-          ? 0
-          : DateTime.now().difference(started).inSeconds;
-    } catch (_) {
+      seconds =
+          started == null ? 0 : DateTime.now().difference(started).inSeconds;
+    } catch (e) {
+      debugPrint('ChatMediaService.stopVoiceRecording failed: $e');
       path = null;
     } finally {
       isRecording.value = false;
+      _stoppingVoice = false;
       _startedAt = null;
       _pendingPath = null;
     }
     if (seconds < 1) seconds = 1;
     if (seconds > 600) seconds = 600;
-    return (path ?? _pendingPath, seconds);
+    return (path ?? pending, seconds);
   }
 
   /// Cancels the current recording without sending it (deletes the file).
+  ///
+  /// REFUSES to run while a stop is in flight (CodeRabbit): the take is then
+  /// already being finalized for SENDING, and deleting it would silently lose
+  /// the user's voice note. The caller's own guard (chat screen) reports this
+  /// to the user; here the file is simply protected.
   static Future<void> cancelVoiceRecording() async {
+    if (_stoppingVoice) {
+      debugPrint('ChatMediaService.cancelVoiceRecording skipped: a stop/send '
+          'is in flight for the current take.');
+      return;
+    }
     String? recorded;
     try {
-      recorded = await _recorder.stop();
-    } catch (_) {
+      final recorder = _recorder;
+      recorded = recorder == null ? null : await recorder.stop();
+    } catch (e) {
+      debugPrint('ChatMediaService.cancelVoiceRecording failed: $e');
       recorded = null;
     }
     isRecording.value = false;
@@ -105,8 +198,8 @@ class ChatMediaService {
       try {
         final f = File(discard);
         if (await f.exists()) await f.delete();
-      } catch (_) {
-        // Best-effort cleanup.
+      } catch (e) {
+        debugPrint('ChatMediaService temporary recording cleanup failed: $e');
       }
     }
   }
@@ -125,13 +218,31 @@ class ChatMediaService {
       final target =
           '${dir.path}/${prefix}_${DateTime.now().millisecondsSinceEpoch}$ext';
       final copied = await source.copy(target);
+      if (source.path != copied.path) {
+        // The durable copy ALREADY exists — a failure to remove the picker's
+        // temporary source must never discard that work (CodeRabbit): log a
+        // warning and return the durable instance, never throw and never
+        // fall back to the ephemeral source path.
+        try {
+          if (await source.exists()) await source.delete();
+        } catch (e) {
+          debugPrint('ChatMediaService._copyToChatDir: durable copy created '
+              'but temporary source "${source.path}" could not be removed: '
+              '$e');
+        }
+      }
       return copied.path;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('ChatMediaService._copyToChatDir failed: $e');
       return source.path; // Fall back to the original picker location.
     }
   }
 
-  static Future<void> dispose() => _recorder.dispose();
+  static Future<void> dispose() async {
+    final recorder = _recorder;
+    _recorder = null;
+    if (recorder != null) await recorder.dispose();
+  }
 
   /// Housekeeping: deletes every media file older than [maxAge] from the
   /// chat-media folder. Since chat sessions/messages live only in memory,
@@ -143,19 +254,26 @@ class ChatMediaService {
     try {
       final dir = await _chatDir();
       final cutoff = DateTime.now().subtract(maxAge);
+      final referenced = {
+        for (final messages in ChatStore.messages.value.values)
+          for (final message in messages)
+            if (message.mediaPath != null && message.mediaPath!.isNotEmpty)
+              message.mediaPath!,
+      };
       await for (final entity in dir.list()) {
         if (entity is! File) continue;
         final stat = await entity.stat();
-        if (stat.modified.isBefore(cutoff)) {
+        if (stat.modified.isBefore(cutoff) &&
+            !referenced.contains(entity.path)) {
           try {
             await entity.delete();
-          } catch (_) {
-            // Individual failure (locked file) → skip it.
+          } catch (e) {
+            debugPrint('ChatMediaService orphan delete failed: $e');
           }
         }
       }
-    } catch (_) {
-      // Storage unavailable → skip silently.
+    } catch (e) {
+      debugPrint('ChatMediaService.cleanupOrphans failed: $e');
     }
   }
 }

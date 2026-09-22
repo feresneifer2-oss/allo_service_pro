@@ -32,99 +32,108 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                Text(
-                  tr(
-                    context,
-                    fr: "Comment utilisez-vous Allo Service ?",
-                    ar: "كيفاش تحب تستعمل Allo Service؟",
-                  ),
-                  style: const TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                  ),
+              Text(
+                tr(
+                  context,
+                  fr: "Comment utilisez-vous Allo Service ?",
+                  ar: "كيفاش تحب تستعمل Allo Service؟",
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  tr(
-                    context,
-                    fr: "Ce choix détermine votre expérience dans l'application.",
-                    ar: "الاختيار هذا يحدد تجربتك في التطبيق.",
-                  ),
-                  style: const TextStyle(
-                    fontSize: 17,
-                    color: Colors.grey,
-                  ),
+                style: const TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 35),
-                _buildCard(
-                  icon: Icons.person_outline,
-                  title: tr(context, fr: "Client", ar: "أنا حريف"),
-                  subtitle: tr(
-                    context,
-                    fr: "Je cherche et réserve des services.",
-                    ar: "نحب نلقى ونحجز خدمات.",
-                  ),
-                  value: "client",
+              ),
+              const SizedBox(height: 12),
+              Text(
+                tr(
+                  context,
+                  fr: "Ce choix détermine votre expérience dans l'application.",
+                  ar: "الاختيار هذا يحدد تجربتك في التطبيق.",
                 ),
-                const SizedBox(height: 20),
-                _buildCard(
-                  icon: Icons.work_outline,
-                  title: tr(context, fr: "Professionnel", ar: "أنا مهني"),
-                  subtitle: tr(
-                    context,
-                    fr: "Je propose mes services aux clients.",
-                    ar: "نحب نقدم خدمات.",
-                  ),
-                  value: "pro",
+                style: const TextStyle(
+                  fontSize: 17,
+                  color: Colors.grey,
                 ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: selectedType == null
-                        ? null
-                        : () {
-                            UserStore.setRole(
-                              selectedType == 'client'
-                                  ? UserRole.client
-                                  : UserRole.professional,
+              ),
+              const SizedBox(height: 35),
+              _buildCard(
+                icon: Icons.person_outline,
+                title: tr(context, fr: "Client", ar: "أنا حريف"),
+                subtitle: tr(
+                  context,
+                  fr: "Je cherche et réserve des services.",
+                  ar: "نحب نلقى ونحجز خدمات.",
+                ),
+                value: "client",
+              ),
+              const SizedBox(height: 20),
+              _buildCard(
+                icon: Icons.work_outline,
+                title: tr(context, fr: "Professionnel", ar: "أنا مهني"),
+                subtitle: tr(
+                  context,
+                  fr: "Je propose mes services aux clients.",
+                  ar: "نحب نقدم خدمات.",
+                ),
+                value: "pro",
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: selectedType == null
+                      ? null
+                      : () async {
+                          // CAPTURE-BEFORE-AWAIT (CodeRabbit): the selection is
+                          // read ONCE into a local AFTER the null check and
+                          // BEFORE any await — `selectedType` is mutable widget
+                          // state and could be rebuilt/changed while the async
+                          // role write is in flight, which used to make the
+                          // post-await branch (client vs pro routing) disagree
+                          // with the role that was actually persisted.
+                          final selection = selectedType;
+                          if (selection == null) return;
+                          final isClient = selection == 'client';
+                          await UserStore.setRole(
+                            isClient ? UserRole.client : UserRole.professional,
+                          );
+                          if (!context.mounted) return;
+                          if (isClient) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const ClientShell()),
                             );
-                            if (selectedType == "client") {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const ClientShell()),
-                              );
-                            } else {
-                              // Without a registered PRO account, land on
-                              // the registration flow instead of an empty
-                              // shell with a blank PRO code.
-                              final account = UserStore.user.value;
-                              final hasProAccount = account != null &&
-                                  (account.proCode?.isNotEmpty ?? false);
+                          } else {
+                            // Without a registered PRO account, land on
+                            // the registration flow instead of an empty
+                            // shell with a blank PRO code.
+                            final account = UserStore.user.value;
+                            final hasProAccount = account != null &&
+                                (account.proCode?.isNotEmpty ?? false);
 
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => hasProAccount
-                                      ? const ProShell()
-                                      : const ProRegistrationScreen(),
-                                ),
-                              );
-                            }
-                          },
-                    child: Text(
-                      tr(context, fr: "Continuer", ar: "متابعة"),
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => hasProAccount
+                                    ? const ProShell()
+                                    : const ProRegistrationScreen(),
+                              ),
+                            );
+                          }
+                        },
+                  child: Text(
+                    tr(context, fr: "Continuer", ar: "متابعة"),
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -164,9 +173,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
               width: 65,
               height: 65,
               decoration: BoxDecoration(
-                color: selected
-                    ? AppColors.blue600
-                    : AppColors.primarySurface,
+                color: selected ? AppColors.blue600 : AppColors.primarySurface,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Icon(

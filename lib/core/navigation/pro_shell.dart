@@ -93,8 +93,7 @@ class _ProShellState extends State<ProShell> {
                 }
                 return ValueListenableBuilder<bool>(
                   valueListenable: SubscriptionStore.isPaidSubscriber,
-                  builder: (context, isPaid, __) =>
-                      ValueListenableBuilder<int>(
+                  builder: (context, isPaid, __) => ValueListenableBuilder<int>(
                     valueListenable: ProProfileStore.tokens,
                     builder: (context, tokenCount, ___) {
                       if (!isPaid &&
@@ -124,24 +123,19 @@ class _ProShellState extends State<ProShell> {
                           destinations: [
                             NavigationDestination(
                               icon: const Icon(Icons.dashboard_outlined),
-                              selectedIcon: const Icon(
-                                  Icons.dashboard_rounded,
+                              selectedIcon: const Icon(Icons.dashboard_rounded,
                                   color: AppColors.primary),
-                              label:
-                                  tr(context, fr: 'Dashboard', ar: 'لوحة'),
+                              label: tr(context, fr: 'Dashboard', ar: 'لوحة'),
                             ),
                             NavigationDestination(
                               icon: const Icon(Icons.inbox_outlined),
                               selectedIcon: const Icon(Icons.inbox_rounded,
                                   color: AppColors.primary),
-                              label:
-                                  tr(context, fr: 'Demandes', ar: 'الطلبات'),
+                              label: tr(context, fr: 'Demandes', ar: 'الطلبات'),
                             ),
                             NavigationDestination(
-                              icon: const Icon(
-                                  Icons.person_outline_rounded),
-                              selectedIcon: const Icon(
-                                  Icons.person_rounded,
+                              icon: const Icon(Icons.person_outline_rounded),
+                              selectedIcon: const Icon(Icons.person_rounded,
                                   color: AppColors.primary),
                               label: tr(context, fr: 'Profil', ar: 'الملف'),
                             ),

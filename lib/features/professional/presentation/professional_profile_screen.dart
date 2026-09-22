@@ -8,6 +8,7 @@ import 'package:allo_service_pro/features/professionals/models/professional_mode
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/app_image.dart';
 
 class ProfessionalProfileScreen extends StatelessWidget {
   const ProfessionalProfileScreen({
@@ -47,11 +48,12 @@ class ProfessionalProfileScreen extends StatelessWidget {
             ? ProProfileStore.serviceZones.value.join(', ')
             : pro.city,
         servicesCount: ProProfileStore.completedServices.value,
-        verified: ProProfileStore.verificationStatus.value ==
-            ProVerificationStatus.approved,
+        verified: currentUser?.verificationStatus == ProVerification.approved,
         availableNow: ProProfileStore.isAvailable.value,
         distanceKm: pro.distanceKm,
-        priceFrom: ProProfileStore.priceFrom.value,
+        priceFrom: ProProfileStore.pricingType.value == 'quote'
+            ? null
+            : ProProfileStore.priceFrom.value,
         pricingType: ProProfileStore.pricingType.value,
         workImages: ProProfileStore.workImages.value.isNotEmpty
             ? ProProfileStore.workImages.value
@@ -298,13 +300,16 @@ class ProfessionalProfileScreen extends StatelessWidget {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      Container(
-                                        color: AppColors.primarySurface,
-                                        child: const Icon(
-                                          Icons.image_outlined,
-                                          color: AppColors.primary,
-                                          size: 32,
-                                        ),
+                                      // The REAL work photo (picked at
+                                      // registration), rendered overflow-proof
+                                      // inside the grid cell. The old icon
+                                      // placeholder silently ignored the
+                                      // stored paths; it now only appears
+                                      // when a photo fails to decode.
+                                      AppImage(
+                                        finalPro.workImages[index],
+                                        fit: BoxFit.cover,
+                                        errorIcon: Icons.image_outlined,
                                       ),
                                       Positioned(
                                         bottom: 0,
@@ -421,7 +426,7 @@ class _HeaderCard extends StatelessWidget {
   final int servicesCount;
   final bool verified;
   final String pricingType;
-  final int priceFrom;
+  final int? priceFrom;
 
   @override
   Widget build(BuildContext context) {
@@ -487,9 +492,11 @@ class _HeaderCard extends StatelessWidget {
                 AppColors.success,
                 pricingType == 'quote'
                     ? tr(context, fr: 'Sur devis', ar: 'حسب الطلب')
-                    : pricingType == 'hourly'
-                        ? '$priceFrom DT / H'
-                        : '$priceFrom DT',
+                    : priceFrom == null
+                        ? '-'
+                        : pricingType == 'hourly'
+                            ? '$priceFrom DT / H'
+                            : '$priceFrom DT',
               ),
             ],
           ),

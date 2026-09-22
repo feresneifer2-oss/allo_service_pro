@@ -12,7 +12,8 @@ class RequestStepper extends StatelessWidget {
 
   final RequestStatus status;
 
-  static const _stages = <RequestStatus, ({IconData icon, String fr, String ar})>{
+  static const _stages =
+      <RequestStatus, ({IconData icon, String fr, String ar})>{
     RequestStatus.pending: (
       icon: Icons.schedule_rounded,
       fr: 'En attente',
@@ -89,9 +90,7 @@ class RequestStepper extends StatelessWidget {
                   height: 2.5,
                   margin: const EdgeInsets.only(bottom: 22),
                   decoration: BoxDecoration(
-                    color: i <= _currentIndex
-                        ? stageColor
-                        : AppColors.slate400,
+                    color: i <= _currentIndex ? stageColor : AppColors.slate400,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

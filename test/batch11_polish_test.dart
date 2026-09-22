@@ -17,12 +17,15 @@ void main() {
   });
 
   group('ProProfileStore tokensConsumed persistence', () {
-    test('deductTokens flips tokensConsumed BEFORE the balance updates', () {
+    test('deductTokens flips tokensConsumed BEFORE the balance updates',
+        () async {
       final observed = <bool>[];
       void listener() => observed.add(ProProfileStore.tokensConsumed.value);
       ProProfileStore.tokens.addListener(listener);
 
-      expect(ProProfileStore.deductTokens(10), isTrue);
+      // AWAITED (CodeRabbit): `deductTokens` is async (it persists through
+      // the SharedPreferences write chain).
+      expect(await ProProfileStore.deductTokens(10), isTrue);
 
       // Every notification fired by the balance change must already observe
       // the fresh consumed flag (never a stale false).
@@ -33,7 +36,7 @@ void main() {
 
     test('persistToPrefs saves the consumed flag; loadFromPrefs restores it',
         () async {
-      ProProfileStore.deductTokens(5);
+      await ProProfileStore.deductTokens(5);
       await ProProfileStore.persistToPrefs();
 
       // Simulate a fresh session: wipe memory, restore from prefs.
@@ -46,7 +49,7 @@ void main() {
     });
 
     test('reset clears the persisted consumed flag', () async {
-      ProProfileStore.deductTokens(5);
+      await ProProfileStore.deductTokens(5);
       await ProProfileStore.persistToPrefs();
       await ProProfileStore.reset();
       await ProProfileStore.loadFromPrefs();

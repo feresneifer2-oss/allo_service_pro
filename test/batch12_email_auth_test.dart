@@ -10,6 +10,7 @@ import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/presentation/language_screen.dart';
 import 'package:allo_service_pro/features/auth/presentation/otp_screen.dart';
 import 'package:allo_service_pro/features/auth/presentation/register_screen.dart';
+import 'package:allo_service_pro/features/auth/presentation/login_screen.dart';
 import 'package:allo_service_pro/shared/validators.dart';
 
 /// Batch 12 regression tests — Email-OTP authentication (the SMS/phone
@@ -83,15 +84,35 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    UserStore.user.value = null;
+    UserStore.reset();
     EmailOtpService.reset();
     EmailOtpService.validity = const Duration(minutes: 10);
   });
 
   tearDown(() {
+    UserStore.reset();
     EmailOtpService.validity = const Duration(minutes: 10);
     EmailOtpService.reset();
+  });
+
+  testWidgets('admin credentials bypass the user registry and route to admin',
+      (tester) async {
+    AdminStore.debugSetAdminCredentials(
+      email: 'admin@batch12.test',
+      password: 'admin-pass',
+    );
+    addTearDown(AdminStore.debugResetAdminCredentials);
+    await tester.pumpWidget(_testApp(const LoginScreen()));
+    await tester.enterText(find.byType(TextField).at(0), 'admin@batch12.test');
+    await tester.enterText(find.byType(TextField).at(1), 'admin-pass');
+    await tester.tap(find.text('Se connecter'));
+    await tester.pump(const Duration(seconds: 1));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('is_logged_in'), isTrue);
+    expect(prefs.getString('user_role'), 'admin');
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   group('B12 · e-mail validator', () {
@@ -118,7 +139,8 @@ void main() {
         'nom@exemple.c',
       ];
       for (final value in bad) {
-        expect(AppValidators.isValidEmail(value), isFalse, reason: '« $value »');
+        expect(AppValidators.isValidEmail(value), isFalse,
+            reason: '« $value »');
       }
     });
   });
@@ -203,7 +225,7 @@ void main() {
       // Sign-in is refused until the OTP token has been validated.
       UserStore.user.value = null;
       expect(
-        UserStore.signIn(email: 'otp.user@allo.tn', password: 'secret1'),
+        await UserStore.signIn(email: 'otp.user@allo.tn', password: 'secret1'),
         isFalse,
         reason: 'a correct password alone must not open an unverified account',
       );
@@ -215,7 +237,7 @@ void main() {
       // Sign-in is case-insensitive thanks to the canonical key.
       UserStore.user.value = null;
       expect(
-        UserStore.signIn(email: 'OTP.USER@allo.tn', password: 'secret1'),
+        await UserStore.signIn(email: 'OTP.USER@allo.tn', password: 'secret1'),
         isTrue,
       );
       expect(UserStore.user.value!.name, 'Fayez Neifer');
@@ -225,7 +247,8 @@ void main() {
       await _resetRegistry();
 
       expect(
-        UserStore.register(name: 'A', email: 'dup@allo.tn', password: 'secret1'),
+        UserStore.register(
+            name: 'A', email: 'dup@allo.tn', password: 'secret1'),
         isTrue,
       );
       expect(
@@ -237,8 +260,8 @@ void main() {
       _completeOtpHandshake('dup@allo.tn');
       // The first record is untouched.
       UserStore.user.value = null;
-      expect(
-          UserStore.signIn(email: 'dup@allo.tn', password: 'secret1'), isTrue);
+      expect(await UserStore.signIn(email: 'dup@allo.tn', password: 'secret1'),
+          isTrue);
       expect(UserStore.user.value!.name, 'A');
     });
 
@@ -277,9 +300,11 @@ void main() {
       _completeOtpHandshake('c@allo.tn');
       UserStore.user.value = null;
 
-      expect(UserStore.signIn(email: 'c@allo.tn', password: 'nope'), isFalse);
+      expect(await UserStore.signIn(email: 'c@allo.tn', password: 'nope'),
+          isFalse);
       expect(
-          UserStore.signIn(email: 'ghost@allo.tn', password: 'secret1'), isFalse);
+          await UserStore.signIn(email: 'ghost@allo.tn', password: 'secret1'),
+          isFalse);
     });
   });
 
@@ -295,7 +320,10 @@ void main() {
       // The mandatory Email-OTP gate: the credential record only unlocks once
       // the 6-digit token has been validated and consumed.
       _completeOtpHandshake('sonia.pro@allo.tn');
-      UserStore.setRole(UserRole.professional);
+      // AWAITED (CodeRabbit): `setRole` persists the record + the session
+      // snapshot asynchronously — reloading prefs before it completes reads a
+      // half-written state.
+      await UserStore.setRole(UserRole.professional);
 
       // The pro submits the registration form — no phone is collected by the
       // auth flow any more, the e-mail carries the identity.
@@ -309,19 +337,20 @@ void main() {
         submittedAt: '01/01/2026',
         status: 'pending',
       ));
-      UserStore.bindProAccount(
+      await UserStore.bindProAccount(
         proCode: registered.proCode,
         verificationStatus: ProVerification.pending,
       );
 
       // Admin approves → the credential record must follow the e-mail.
-      AdminStore.approvePro(registered.id);
+      await AdminStore.approvePro(registered.id);
 
       // Cold restart → the pro signs in with e-mail + password only.
       await Future<void>.delayed(Duration.zero);
       await UserStore.loadFromPrefs();
       expect(
-          UserStore.signIn(email: 'sonia.pro@allo.tn', password: 'secret2'),
+          await UserStore.signIn(
+              email: 'sonia.pro@allo.tn', password: 'secret2'),
           isTrue);
       final u = UserStore.user.value!;
       expect(u.verificationStatus, ProVerification.approved);
@@ -339,7 +368,8 @@ void main() {
         isTrue,
       );
       _completeOtpHandshake('karim@allo.tn');
-      UserStore.setRole(UserRole.professional);
+      // AWAITED (CodeRabbit): `setRole` persists asynchronously.
+      await UserStore.setRole(UserRole.professional);
 
       final registered = AdminStore.registerPro(PendingProModel(
         id: 'draft_email_2',
@@ -351,17 +381,18 @@ void main() {
         submittedAt: '01/01/2026',
         status: 'pending',
       ));
-      UserStore.bindProAccount(
+      await UserStore.bindProAccount(
         proCode: registered.proCode,
         verificationStatus: ProVerification.pending,
       );
 
-      AdminStore.rejectPro(registered.id, reason: 'Preuve illisible');
+      await AdminStore.rejectPro(registered.id, reason: 'Preuve illisible');
 
       await Future<void>.delayed(Duration.zero);
       await UserStore.loadFromPrefs();
       expect(
-          UserStore.signIn(email: 'karim@allo.tn', password: 'secret3'), isTrue);
+          await UserStore.signIn(email: 'karim@allo.tn', password: 'secret3'),
+          isTrue);
       expect(
           UserStore.user.value!.verificationStatus, ProVerification.rejected);
       expect(UserStore.user.value!.needsVerificationGate, isTrue);
@@ -371,13 +402,15 @@ void main() {
       await _resetRegistry();
 
       expect(
-        UserStore.register(name: 'A', email: 'a.client@allo.tn', password: 'p1'),
+        UserStore.register(
+            name: 'A', email: 'a.client@allo.tn', password: 'p1'),
         isTrue,
       );
       _completeOtpHandshake('a.client@allo.tn');
       UserStore.user.value = null;
       expect(
-        UserStore.register(name: 'B', email: 'b.client@allo.tn', password: 'p2'),
+        UserStore.register(
+            name: 'B', email: 'b.client@allo.tn', password: 'p2'),
         isTrue,
       );
       _completeOtpHandshake('b.client@allo.tn');
@@ -390,12 +423,12 @@ void main() {
 
       await Future<void>.delayed(Duration.zero);
       await UserStore.loadFromPrefs();
-      expect(
-          UserStore.signIn(email: 'a.client@allo.tn', password: 'p1'), isTrue);
+      expect(await UserStore.signIn(email: 'a.client@allo.tn', password: 'p1'),
+          isTrue);
       expect(UserStore.user.value!.verificationStatus, ProVerification.none);
       UserStore.user.value = null;
-      expect(
-          UserStore.signIn(email: 'b.client@allo.tn', password: 'p2'), isTrue);
+      expect(await UserStore.signIn(email: 'b.client@allo.tn', password: 'p2'),
+          isTrue);
       expect(UserStore.user.value!.verificationStatus, ProVerification.none);
     });
 
@@ -420,17 +453,20 @@ void main() {
 
       await Future<void>.delayed(Duration.zero);
       await UserStore.loadFromPrefs();
-      expect(UserStore.signIn(email: 'a.sync@allo.tn', password: 'p1'), isTrue);
+      expect(await UserStore.signIn(email: 'a.sync@allo.tn', password: 'p1'),
+          isTrue);
       expect(
           UserStore.user.value!.verificationStatus, ProVerification.rejected);
       UserStore.user.value = null;
-      expect(UserStore.signIn(email: 'b.sync@allo.tn', password: 'p2'), isTrue);
+      expect(await UserStore.signIn(email: 'b.sync@allo.tn', password: 'p2'),
+          isTrue);
       expect(UserStore.user.value!.verificationStatus, ProVerification.none);
     });
   });
 
   group('B12 · register ➔ Email OTP ➔ language (widget flow)', () {
-    testWidgets('the register form has no phone field and pushes the OTP screen',
+    testWidgets(
+        'the register form has no phone field and pushes the OTP screen',
         (tester) async {
       await _resetRegistry();
       _usePhoneViewport(tester);
@@ -443,8 +479,7 @@ void main() {
           reason: 'the SMS/phone channel is gone');
       expect(find.byIcon(Icons.phone_outlined), findsNothing);
 
-      await tester.enterText(
-          find.byType(TextFormField).at(0), 'Fayez Neifer');
+      await tester.enterText(find.byType(TextFormField).at(0), 'Fayez Neifer');
       await tester.enterText(
           find.byType(TextFormField).at(1), 'fayez.client@allo.tn');
       await tester.enterText(find.byType(TextFormField).at(2), 'secret1');
@@ -457,8 +492,7 @@ void main() {
       // The OTP screen announces the e-mail that received the 6-digit code.
       expect(find.byType(OtpScreen), findsOneWidget);
       expect(find.text('Vérifiez votre e-mail'), findsOneWidget);
-      expect(
-          find.textContaining('fayez.client@allo.tn'), findsOneWidget);
+      expect(find.textContaining('fayez.client@allo.tn'), findsOneWidget);
       expect(find.byType(TextField), findsNWidgets(EmailOtpService.codeLength));
 
       // Entering the issued code completes sign-up → language picker.
@@ -472,14 +506,15 @@ void main() {
       expect(find.byType(LanguageScreen), findsOneWidget);
       expect(find.byType(OtpScreen), findsNothing);
       expect(UserStore.user.value!.email, 'fayez.client@allo.tn');
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets('a wrong code never advances and never consumes the OTP',
         (tester) async {
       await _resetRegistry();
       _usePhoneViewport(tester);
-      await tester.pumpWidget(
-          _testApp(const OtpScreen(email: 'retry.mail@allo.tn')));
+      await tester
+          .pumpWidget(_testApp(const OtpScreen(email: 'retry.mail@allo.tn')));
       await tester.pump();
 
       final code = EmailOtpService.lastDemoCode!;
@@ -498,6 +533,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Choisissez votre langue'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets('a malformed e-mail is blocked by the form validator',
@@ -589,7 +625,8 @@ void main() {
       _usePhoneViewport(tester);
       await tester.pumpWidget(_testApp(const RegisterScreen()));
       await tester.enterText(find.byType(TextFormField).at(0), 'Fayez');
-      await tester.enterText(find.byType(TextFormField).at(1), 'resume@allo.tn');
+      await tester.enterText(
+          find.byType(TextFormField).at(1), 'resume@allo.tn');
       // Same password → ownership proven → the handshake is resumed with a
       // fresh code instead of a dead-end duplicate error.
       await tester.enterText(find.byType(TextFormField).at(2), 'secret1');
@@ -645,8 +682,8 @@ void main() {
     testWidgets('an explicit resend still forces a fresh code', (tester) async {
       await _resetRegistry();
       _usePhoneViewport(tester);
-      await tester.pumpWidget(
-          _testApp(const OtpScreen(email: 'resend.force@allo.tn')));
+      await tester
+          .pumpWidget(_testApp(const OtpScreen(email: 'resend.force@allo.tn')));
       await tester.pump();
 
       final first = EmailOtpService.lastDemoCode!;
@@ -707,7 +744,8 @@ void main() {
       expect(UserStore.isEmailVerified('resume.once@allo.tn'), isTrue);
     });
 
-    testWidgets('a re-entry into the flow adopts the live code instead of '
+    testWidgets(
+        'a re-entry into the flow adopts the live code instead of '
         'restarting the handshake', (tester) async {
       await _resetRegistry();
       expect(
@@ -770,7 +808,7 @@ void main() {
       expect(() => EmailOtpService.lastDemoCode, throwsA(isA<StateError>()),
           reason: 'the in-app OTP reader must never fire outside debug');
 
-            // Codes issued in release are still tracked for verifyOtp (the
+      // Codes issued in release are still tracked for verifyOtp (the
       // verification path is real), but they can never be READ back.
       expect(EmailOtpService.trySendOtp('release@allo.tn'), isFalse);
       expect(EmailOtpService.verifyOtp('release@allo.tn', '000000'), isFalse);

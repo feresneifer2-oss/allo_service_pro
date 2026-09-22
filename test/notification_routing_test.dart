@@ -59,8 +59,8 @@ void main() {
       request(customerId: 'user_1', professionalId: 'pro_1'),
     );
 
-    final clientInbox = NotificationStore.getNotificationsForUser(
-        'user_1', UserRole.client);
+    final clientInbox =
+        NotificationStore.getNotificationsForUser('user_1', UserRole.client);
     final proInbox = NotificationStore.getNotificationsForUser(
         'pro_1', UserRole.professional);
 

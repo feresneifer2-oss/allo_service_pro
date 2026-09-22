@@ -42,6 +42,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -152,8 +153,8 @@ class _BookingScreenState extends State<BookingScreen> {
       if (byId != null) return byId;
     }
 
-    final wanted = _catalogItemFor(
-        widget.serviceTitleFr, widget.serviceTitleAr);
+    final wanted =
+        _catalogItemFor(widget.serviceTitleFr, widget.serviceTitleAr);
     if (wanted != null) {
       final matching = ProfessionalsRepository.forService(wanted.id)
           .where((p) => p.availableNow)
@@ -166,7 +167,9 @@ class _BookingScreenState extends State<BookingScreen> {
         .where((p) => p.availableNow)
         .toList()
       ..sort((a, b) => b.rating.compareTo(a.rating));
-    return available.isNotEmpty ? available.first : ProfessionalsRepository.all.first;
+    return available.isNotEmpty
+        ? available.first
+        : ProfessionalsRepository.all.first;
   }
 
   /// Matches the requested service titles to a catalog entry (FR compared
@@ -217,7 +220,8 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() => _selectedTime = result);
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
+    if (_isSubmitting) return;
     if (_addressController.text.trim().isEmpty ||
         _selectedDate == null ||
         _selectedTime == null) {
@@ -234,6 +238,8 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     final dt = DateTime(
       _selectedDate!.year,
@@ -254,9 +260,8 @@ class _BookingScreenState extends State<BookingScreen> {
         (widget.professionalId != null && widget.professionalId!.isNotEmpty)
             ? widget.professionalId!
             : pro.id;
-    final proName = widget.professionalName.isNotEmpty
-        ? widget.professionalName
-        : pro.name;
+    final proName =
+        widget.professionalName.isNotEmpty ? widget.professionalName : pro.name;
 
     final request = ServiceRequest(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -274,11 +279,35 @@ class _BookingScreenState extends State<BookingScreen> {
 
     // Real request → the pro dashboard can accept / decline it and the
     // chat + notification flows light up exactly like the profile path.
-    RequestStore.add(request);
+    // AWAITED (CodeRabbit): the Supabase mirror settles before the user is
+    // told the order was sent.
+    final mirrored = await RequestStore.add(request);
 
+    // ASYNC-GAP SAFETY: `add` awaited the backend mirror — the State may
+    // have been disposed meanwhile; never navigate with a dead context.
+    if (!mounted) return;
+    if (!mirrored) {
+      // BACKEND REFUSAL (CodeRabbit): the optimistic local row exists, but
+      // Supabase rejected the INSERT — pushing the "sent" screen would be a
+      // PHANTOM SUCCESS (the pro never received the order). The submit flag
+      // is released so the user can retry the exact same draft.
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr(
+            context,
+            fr: "Demande enregistrée sur cet appareil, mais la synchronisation a échoué. Réessayez.",
+            ar: 'تم حفظ الطلب على هذا الجهاز، لكن فشلت المزامنة. حاول مجدداً.',
+          )),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => RequestSentScreen(requestId: request.id)),
+      MaterialPageRoute(
+          builder: (_) => RequestSentScreen(requestId: request.id)),
     );
   }
 
@@ -393,7 +422,7 @@ class _BookingScreenState extends State<BookingScreen> {
             SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: _confirm,
+                onPressed: _isSubmitting ? null : _confirm,
                 child: Text(tr(context,
                     fr: "Confirmer la réservation", ar: "تأكيد الحجز")),
               ),

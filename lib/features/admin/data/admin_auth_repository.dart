@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/security/hashing.dart';
+
 /// ─── Admin Auth Repository ──────────────────────────────────────────────
 ///
 /// Abstraction for admin credential verification. The client NEVER verifies
@@ -19,7 +21,43 @@ abstract class AdminAuthRepository {
   /// Whether this environment has a configured admin identity at all.
   /// A closed (unconfigured) gate must always deny verification.
   bool get isConfigured;
+
+  /// Signature binding an admin SESSION to the configured identity.
+  ///
+  /// Persisted alongside the admin routing flag at sign-in and re-derived
+  /// from the LIVE credentials on every cold start: a raw `user_role:'admin'`
+  /// preference written by anything other than a real admin sign-in carries
+  /// either no marker or a stale one and can never route to the admin shell
+  /// (CodeRabbit — unsigned preferences must not grant admin routing).
+  /// `null` while the gate is closed (no identity configured).
+  String? get sessionSignature => null;
 }
+
+/// Work factor for the admin-session signature KDF (CodeRabbit): the shared
+/// default (`pbkdf2DefaultIterations`, 20k) is a credential-store baseline;
+/// a session signature is a long-lived auth-boundary credential, so it
+/// derives with a stiffer work factor. It runs only on admin sign-in and
+/// session restore — the one-off latency is irrelevant, and the raised
+/// offline brute-force cost is exactly the point.
+const int adminSignatureKdfIterations = 100000;
+
+/// Deterministic admin-session signature, derived with a real KDF
+/// (PBKDF2-HMAC-SHA256 at [adminSignatureKdfIterations] rounds — CodeRabbit): a single raw SHA-256 pass
+/// is too cheap against offline brute-force of a leaked signature. The
+/// password is the PBKDF2 key material and the domain-separated
+/// `<namespace>|<email>` tuple is the per-identity salt. Only a caller that
+/// knows BOTH configured credentials (i.e. the real admin sign-in) can
+/// produce it. Signatures persisted by older builds fail this derivation and
+/// close the gate (fail-closed) — re-signing-in re-derives it.
+String adminSessionSignature({
+  required String email,
+  required String password,
+}) =>
+    pbkdf2Hex(
+      password,
+      'allo-service-pro/admin-session/v1|$email',
+      iterations: adminSignatureKdfIterations,
+    );
 
 /// TEMPORARY MOCK SEAM — local verification for development & tests only.
 ///
@@ -62,6 +100,14 @@ class LocalAdminAuthRepository implements AdminAuthRepository {
   String get _expectedPassword {
     if (_testPasswordOverride != null) return _testPasswordOverride!;
     return _definePassword;
+  }
+
+  @override
+  String? get sessionSignature {
+    final email = _expectedEmail;
+    final password = _expectedPassword;
+    if (email.isEmpty || password.isEmpty) return null;
+    return adminSessionSignature(email: email, password: password);
   }
 
   /// True when the release/profile gate is properly armed via defines.
@@ -119,6 +165,9 @@ class SupabaseAdminAuthRepository implements AdminAuthRepository {
 
   @override
   bool get isConfigured => false;
+
+  @override
+  String? get sessionSignature => null;
 }
 
 /// Resolution point for the active [AdminAuthRepository].
@@ -164,4 +213,8 @@ class AdminAuth {
       _local.debugConfigure(email: email, password: password);
 
   static void debugResetCredentials() => _local.debugReset();
+
+  /// Signature of the ACTIVE auth boundary's configured admin identity
+  /// (see [AdminAuthRepository.sessionSignature]).
+  static String? get sessionSignature => _repository.sessionSignature;
 }

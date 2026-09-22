@@ -92,7 +92,8 @@ class _UniformManagementScreenState extends State<UniformManagementScreen> {
                         const SizedBox(height: 12),
                         Text(
                           tr(context, fr: 'Aucune demande', ar: 'لا طلبات'),
-                          style: const TextStyle(color: AppColors.textSecondary),
+                          style:
+                              const TextStyle(color: AppColors.textSecondary),
                         ),
                       ],
                     ),

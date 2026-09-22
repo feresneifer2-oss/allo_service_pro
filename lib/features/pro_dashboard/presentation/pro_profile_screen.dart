@@ -4,6 +4,8 @@ import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/legal/presentation/legal_screens.dart';
 import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
+import 'package:allo_service_pro/shared/widgets/support_info.dart';
+
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
@@ -63,10 +65,10 @@ class ProProfileScreen extends StatelessWidget {
             const SizedBox(height: 10),
             // Trust badge: identity card verified by the admin
             // (بطاقة هويّة مفعلة / CIN Vérifié).
-            ValueListenableBuilder<ProVerificationStatus>(
-              valueListenable: ProProfileStore.verificationStatus,
-              builder: (_, status, __) =>
-                  status == ProVerificationStatus.approved
+            ValueListenableBuilder<UserModel?>(
+              valueListenable: UserStore.user,
+              builder: (_, user, __) =>
+                  user?.verificationStatus == ProVerification.approved
                       ? const _PillBadge(
                           label: 'بطاقة هويّة مفعلة / CIN Vérifié',
                           color: Color(0xFF057A55),
@@ -80,16 +82,14 @@ class ProProfileScreen extends StatelessWidget {
             ValueListenableBuilder<List<PendingProModel>>(
               valueListenable: AdminStore.pendingPros,
               builder: (_, list, __) {
-                final session = UserStore.user.value;
-                PendingProModel? entry;
-                for (final p in list) {
-                  if (p.proCode == session?.proCode ||
-                      p.id == session?.id ||
-                      p.proCode == session?.id) {
-                    entry = p;
-                    break;
-                  }
-                }
+                // DOSSIER MATCH GUARD (CodeRabbit): the badge lookup goes
+                // through the SAME guarded matcher the admin panel uses
+                // ([AdminStore.entryForUser]) instead of a hand-rolled
+                // comparison — the old inline loop happily matched on a
+                // `null == null` PRO code or a blank session id, binding an
+                // identifier-less session to an admin-seeded entry it does
+                // not own (and leaking that entry's badges into its UI).
+                final entry = AdminStore.entryForUser(UserStore.user.value);
                 final badges = entry?.badges ?? const <String>[];
                 if (badges.isEmpty) return const SizedBox.shrink();
                 return Padding(
@@ -116,7 +116,24 @@ class ProProfileScreen extends StatelessWidget {
               title: Text(
                   tr(context, fr: 'Modifier mon profil', ar: 'تعديل ملفي')),
               trailing: const Icon(Icons.chevron_right_rounded),
+              // ENTRY GUARD (CodeRabbit): opening the registration flow while
+              // the session is in a state where the dossier is already
+              // submitted / approved must not blindly re-open the wizard and
+              // clobber the persisted registry. The route listener reads the
+              // CURRENT verification status dynamically so the badge/tile never
+              // serves a stale prompt.
               onTap: () {
+                final status = UserStore.user.value?.verificationStatus;
+                if (status == ProVerification.approved) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(tr(context,
+                          fr: 'Votre profil est déjà vérifié.',
+                          ar: 'ملفك موثّق بالفعل.')),
+                    ),
+                  );
+                  return;
+                }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -129,17 +146,19 @@ class ProProfileScreen extends StatelessWidget {
                   const Icon(Icons.verified_rounded, color: AppColors.primary),
               title: Text(
                   tr(context, fr: 'Statut vérification', ar: 'حالة التحقق')),
-              subtitle: ValueListenableBuilder(
-                valueListenable: ProProfileStore.verificationStatus,
-                builder: (_, status, __) {
+              subtitle: ValueListenableBuilder<UserModel?>(
+                valueListenable: UserStore.user,
+                builder: (_, user, __) {
+                  final status =
+                      user?.verificationStatus ?? ProVerification.none;
                   final label = switch (status) {
-                    ProVerificationStatus.approved =>
+                    ProVerification.approved =>
                       tr(context, fr: 'Vérifié', ar: 'موثّق'),
-                    ProVerificationStatus.pending =>
+                    ProVerification.pending =>
                       tr(context, fr: 'En cours', ar: 'قيد المراجعة'),
-                    ProVerificationStatus.rejected =>
+                    ProVerification.rejected =>
                       tr(context, fr: 'Refusé', ar: 'مرفوض'),
-                    ProVerificationStatus.none =>
+                    ProVerification.none =>
                       tr(context, fr: 'Non soumis', ar: 'غير مقدّم'),
                   };
                   return Text(label);
@@ -203,8 +222,8 @@ class ProProfileScreen extends StatelessWidget {
                   ? ListTile(
                       leading: const Icon(Icons.all_inclusive_rounded,
                           color: AppColors.success),
-                      title: Text(tr(
-                          context, fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
+                      title: Text(tr(context,
+                          fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
                       trailing: _PillBadge(
                         label: tr(context, fr: 'Illimité', ar: 'غير محدود'),
                         color: AppColors.success,
@@ -216,8 +235,8 @@ class ProProfileScreen extends StatelessWidget {
                       builder: (_, tokenCount, ___) => ListTile(
                         leading: const Icon(Icons.diamond_rounded,
                             color: AppColors.success),
-                        title: Text(tr(
-                            context, fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
+                        title: Text(tr(context,
+                            fr: 'Solde de tokens', ar: 'رصيد التوكنات')),
                         trailing: Text(
                           '$tokenCount',
                           style: const TextStyle(
@@ -232,6 +251,11 @@ class ProProfileScreen extends StatelessWidget {
             // Legal & about entries (About / Terms / Privacy).
             const LegalMenuTiles(),
             const Divider(),
+            // Static, non-clickable support info — directly above Sign-Out.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: const SupportInfo(),
+            ),
             // Session: full local wipe + back to the welcome flow.
             const LogoutTile(),
           ],
@@ -261,6 +285,11 @@ class _PillBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
+      // OVERFLOW-PROOF (CodeRabbit): the label is caller-supplied and a long
+      // one (e.g. a PRO code + status pair, or a 1.3× text-scale) blew the
+      // 360dp-wide profile row by 88px in the E2E harness. The Row is now
+      // flexible and the text elides instead of overflowing, so the badge can
+      // never paint outside its parent.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -268,12 +297,16 @@ class _PillBadge extends StatelessWidget {
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
         ],

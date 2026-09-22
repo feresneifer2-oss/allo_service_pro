@@ -42,13 +42,18 @@ class ServiceRequest {
   });
 
   ServiceRequest copyWith({
+    /// RE-KEYING SEAM (CodeRabbit): an offline creation whose id already exists
+    /// on the backend is re-keyed with a fresh client UUID and retried. Every
+    /// other field is carried over verbatim, so the re-keyed order stays the
+    /// SAME logical order for the client, the pro and the admin.
+    String? id,
     RequestStatus? status,
     double? rating,
     String? reviewComment,
     String? paymentMethod,
   }) {
     return ServiceRequest(
-      id: id,
+      id: id ?? this.id,
       serviceTitleFr: serviceTitleFr,
       serviceTitleAr: serviceTitleAr,
       professionalId: professionalId,

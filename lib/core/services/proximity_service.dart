@@ -70,12 +70,12 @@ typedef ProximityDistanceCalculator = double Function(
 /// tests never leak state. Never throws — every entry point is guarded.
 class ProximityService {
   ProximityService._();
+
   /// Arrival radius in meters (spec: <= 20 m triggers).
   static const double arrivalRadiusMeters = 20.0;
 
   /// Sessions already notified (exactly-once per order session).
   static final Set<String> _notifiedSessions = <String>{};
-
 
   /// Optional external target resolver (order id -> client lat/lng).
   ///
@@ -173,8 +173,10 @@ class ProximityService {
       // never addressed to the professional himself).
       if (!_isDispatchable(fresh, target)) return;
 
-      final committed =
-          RequestStore.updateStatus(requestId, RequestStatus.arrived);
+      final committed = await RequestStore.updateStatus(
+        requestId,
+        RequestStatus.arrived,
+      );
       if (!committed) return;
       _notifiedSessions.add(requestId);
       // Notification failures never lose the committed status: the dispatch
@@ -409,4 +411,3 @@ class ProximityService {
     _distanceCalculator = Geolocator.distanceBetween;
   }
 }
-

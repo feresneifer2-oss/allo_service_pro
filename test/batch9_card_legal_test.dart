@@ -63,8 +63,7 @@ void main() {
     expect(LegalTexts.privacyAr, isNot(contains('البيانات الجمعة')));
   });
 
-  test('privacy deletion terms match the actual UI options (logout wipe)',
-      () {
+  test('privacy deletion terms match the actual UI options (logout wipe)', () {
     // The UI has NO remote account-deletion action — only profile editing
     // and logout-with-local-wipe. The legal text must not promise deletion.
     expect(LegalTexts.privacyAr, isNot(contains('حذف حسابك')));

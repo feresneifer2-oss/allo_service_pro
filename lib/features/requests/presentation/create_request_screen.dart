@@ -370,7 +370,8 @@ class _PickTile extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(value,
-                style: const TextStyle(color: AppColors.slate400, fontSize: 13)),
+                style:
+                    const TextStyle(color: AppColors.slate400, fontSize: 13)),
           ],
         ),
       ),

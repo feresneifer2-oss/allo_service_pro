@@ -108,9 +108,7 @@ class AntiAbuseStore {
 
   /// Returns whether a client is currently banned.
   static bool isBanned(String? clientId) =>
-      clientId != null &&
-      clientId.isNotEmpty &&
-      _bannedIds.contains(clientId);
+      clientId != null && clientId.isNotEmpty && _bannedIds.contains(clientId);
 
   /// Checks whether the active client is currently banned.
   static bool get isCurrentlyBanned =>
@@ -165,8 +163,8 @@ class AntiAbuseStore {
     AppLogger.warn(
       'AntiAbuse',
       'CLIENT AUTO-BANNED after reaching '
-      '${AppConstants.antiAbuseCancellationLimit} cancellations '
-      '(clientId: $clientId). Session cleared.',
+          '${AppConstants.antiAbuseCancellationLimit} cancellations '
+          '(clientId: $clientId). Session cleared.',
     );
 
     await _persistBanned();

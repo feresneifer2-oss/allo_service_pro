@@ -61,7 +61,6 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// "Moussa bihom" — recommended pros + a working "Voir tout" entry into

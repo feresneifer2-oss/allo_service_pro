@@ -1,12 +1,38 @@
 ﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Voice notes recording (bidirectional chat messaging) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Camera: proof-of-work / service documents, work gallery, chat photos,
+         profile pictures (image_picker -> ImageSource.camera). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Gallery / media (image_picker -> ImageSource.gallery).
+         Android 13+ : granular media permissions. The system photo picker
+         itself needs no runtime grant on 33+, but declaring these keeps the
+         picked paths directly readable on devices that fall back to the
+         legacy picker flow. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- Android 14+ : user-granted PARTIAL photo access (only the media the
+         user explicitly selects). Pair with READ_MEDIA_IMAGES. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"/>
+    <!-- Android 12 and below : legacy gallery read access. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- GPS is an enhancement, not a hard requirement: devices without a
          GPS chip can still install and type their address manually. -->
     <uses-feature
         android:name="android.hardware.location.gps"
+        android:required="false"/>
+    <!-- Camera + autofocus are OPTIONAL hardware (CodeRabbit / Play Store):
+         the app only uses the camera opportunistically (image_picker) and
+         gallery picking is always available — declaring required="false"
+         keeps devices without a built-in camera installable on Google Play. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false"/>
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
         android:required="false"/>
     <application
         android:label="allo_service_pro"

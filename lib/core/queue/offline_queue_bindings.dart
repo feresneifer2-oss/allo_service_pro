@@ -22,6 +22,62 @@ class OfflineQueueBindings {
       QueuedActionType.updateOrderStatus,
       _replayUpdateOrderStatus,
     );
+    OfflineQueue.registerExecutor(
+      QueuedActionType.createOrder,
+      _replayCreateOrder,
+    );
+  }
+
+  /// Arms the CONNECTIVITY-DRIVEN REPLAY (CodeRabbit).
+  ///
+  /// Registering executors is only half of the wiring: the queue reaches the
+  /// backend solely while its connectivity listener is bound. That listener —
+  /// plus the boot drain of work left over from a previous run — lives in
+  /// [OfflineQueue.init], so this is the single step that guarantees an
+  /// executor exists for every queued type AND a processor is listening for
+  /// reconnection (a queued transition is otherwise never sent).
+  ///
+  /// Deliberately a SEPARATE, awaitable step instead of a hidden side effect of
+  /// [registerAll]: tests register executors without arming an auto-flush that
+  /// would drain their fixtures behind their backs, while `main()` awaits both
+  /// in one place. Idempotent — [OfflineQueue.init] returns immediately once
+  /// armed.
+  static Future<void> armAutoFlush() => OfflineQueue.init();
+
+  /// Replays an offline order CREATION.
+  ///
+  /// The payload carries the exact remote row, so the replay is a plain INSERT.
+  /// [RequestStore.mirrorPendingCreation] owns the idempotency details (a
+  /// duplicate primary key is re-keyed and retried once): `applied` means the
+  /// backend durably owns the row, `retry` keeps the entry for the next
+  /// connectivity window, and a payload without a row map is unusable → drop.
+  static Future<QueueExecutionResult> _replayCreateOrder(
+    QueuedAction action,
+  ) async {
+    try {
+      final rawRow = action.payload['row'];
+      if (rawRow is! Map) {
+        AppLogger.error(
+          'OfflineQueue',
+          'non-map createOrder payload: row=${rawRow.runtimeType}',
+        );
+        return QueueExecutionResult.drop;
+      }
+
+      final mirrored = await RequestStore.mirrorPendingCreation(
+        rawRow.cast<String, dynamic>(),
+      );
+      return mirrored
+          ? QueueExecutionResult.applied
+          : QueueExecutionResult.retry;
+    } catch (error, stackTrace) {
+      AppErrorHandler.report(
+        error,
+        stackTrace,
+        context: 'OfflineQueueBindings._replayCreateOrder',
+      );
+      return QueueExecutionResult.retry;
+    }
   }
 
   /// Replays an `updateOrderStatus` action.
@@ -42,7 +98,7 @@ class OfflineQueueBindings {
         AppLogger.error(
           'OfflineQueue',
           'non-string updateOrderStatus payload: '
-          'req=${rawRequestId.runtimeType}, status=${rawStatus.runtimeType}',
+              'req=${rawRequestId.runtimeType}, status=${rawStatus.runtimeType}',
         );
         return QueueExecutionResult.drop;
       }
@@ -66,16 +122,23 @@ class OfflineQueueBindings {
       }
 
       if (current.status == targetStatus) {
-        // Already in the desired state (optimistic apply was persisted).
-        return QueueExecutionResult.applied;
+        // The optimistic apply already mutated the local store when the
+        // device went offline — the queued action's REMAINING work is the
+        // BACKEND SYNC ONLY (CodeRabbit): replaying the standard mutation
+        // path would re-fire notifications, re-open/expire chat rooms and
+        // re-charge the 10-token fee. Sync the row, then report the result.
+        final synced =
+            await RequestStore.syncReplayedStatus(requestId, targetStatus);
+        return synced
+            ? QueueExecutionResult.applied
+            : QueueExecutionResult.retry;
       }
 
-      // Attempt the transition through the real domain path (replay flag
-      // prevents the store from re-enqueueing the same operation).
-      final ok = RequestStore.applyReplayedStatus(requestId, targetStatus);
-      return ok
-          ? QueueExecutionResult.applied
-          : QueueExecutionResult.retry;
+      // Divergent edge (store reset between enqueue and replay): the local
+      // mutation genuinely still has to happen — guarded full path.
+      final ok =
+          await RequestStore.applyReplayedStatus(requestId, targetStatus);
+      return ok ? QueueExecutionResult.applied : QueueExecutionResult.retry;
     } catch (error, stackTrace) {
       AppErrorHandler.report(
         error,

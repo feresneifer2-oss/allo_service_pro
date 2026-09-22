@@ -5,9 +5,28 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/app_image.dart';
 
 import '../../models/chat_message.dart';
 import 'voice_note_player.dart';
+
+/// True when [path] is a remote media URL (a Supabase Storage public URL)
+/// rather than a device file path or a bundled asset.
+bool isRemoteMediaPath(String path) =>
+    path.startsWith('http://') || path.startsWith('https://');
+
+/// Normalizes a media path for EQUALITY checks (CodeRabbit): strips the
+/// `file://` scheme and any trailing slashes so a device URI
+/// (`file:///data/.../note.m4a`) compares equal to the plain path
+/// (`/data/.../note.m4a`) recorded by the recorder / the remote row.
+String normalizeMediaPath(String raw) {
+  var p = raw.trim();
+  if (p.startsWith('file://')) p = p.substring('file://'.length);
+  while (p.length > 1 && p.endsWith('/')) {
+    p = p.substring(0, p.length - 1);
+  }
+  return p;
+}
 
 /// Rich-media chat bubbles — identical for both roles, only the side
 /// mirrors. Voice notes use the shared [VoiceNotePlayer]; photos open a
@@ -54,10 +73,22 @@ class _VoiceBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final path = message.mediaPath?.trim() ?? '';
+    // REMOTE-AWARE AVAILABILITY (Supabase Storage): an uploaded note carries
+    // an https URL and has NO local file — `File(url).existsSync()` is
+    // therefore false and would wrongly disable the play button on every
+    // received note.
+    // LOCAL-URI NORMALIZATION (CodeRabbit): a `file:///…` URI must be
+    // stripped to an absolute path BEFORE the availability check, or
+    // `File(...).existsSync()` is always false for device-local notes.
+    final available = path.isNotEmpty &&
+        (isRemoteMediaPath(path) ||
+            File(normalizeMediaPath(path)).existsSync());
     return ValueListenableBuilder<String?>(
       valueListenable: VoiceNotePlayer.playingPath,
       builder: (_, current, __) {
-        final isActive = current == message.mediaPath;
+        final isActive = normalizeMediaPath(current ?? '') ==
+            normalizeMediaPath(message.mediaPath ?? '');
         return ValueListenableBuilder<bool>(
           valueListenable: VoiceNotePlayer.isPlaying,
           builder: (_, playing, __) => ValueListenableBuilder<double>(
@@ -69,7 +100,9 @@ class _VoiceBody extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   GestureDetector(
-                    onTap: () => VoiceNotePlayer.toggle(message.mediaPath!),
+                    onTap: available
+                        ? () => VoiceNotePlayer.toggle(path, context: context)
+                        : null,
                     child: Container(
                       width: 40,
                       height: 40,
@@ -86,6 +119,11 @@ class _VoiceBody extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (!available) ...[
+                    const SizedBox(width: 8),
+                    const Icon(Icons.broken_image_rounded,
+                        size: 18, color: Colors.white70),
+                  ],
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -108,9 +146,8 @@ class _VoiceBody extends StatelessWidget {
                               : _fmt(total),
                           style: TextStyle(
                             fontSize: 11,
-                            color: isMine
-                                ? Colors.white
-                                : AppColors.textSecondary,
+                            color:
+                                isMine ? Colors.white : AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -134,32 +171,41 @@ class _PhotoBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final path = message.mediaPath ?? '';
+    final path = message.mediaPath?.trim() ?? '';
+    if (path.isEmpty) {
+      return _missingPhoto(isMine);
+    }
     return GestureDetector(
       onTap: () => showChatPhotoPreview(context, path),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.file(
-          File(path),
+        // REMOTE-AWARE RENDERING (Supabase Storage): [AppImage] resolves a
+        // local file OR an https Storage URL with the same bounded,
+        // overflow-proof pipeline the rest of the app uses.
+        child: SizedBox(
           width: 200,
           height: 200,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            width: 200,
-            height: 200,
-            color: isMine
+          child: AppImage(
+            path,
+            fit: BoxFit.cover,
+            errorIcon: Icons.broken_image_rounded,
+            placeholderColor: isMine
                 ? Colors.white.withValues(alpha: .15)
                 : AppColors.slate800,
-            child: const Icon(
-              Icons.broken_image_rounded,
-              color: Colors.white70,
-              size: 40,
-            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _missingPhoto(bool isMine) => Container(
+        width: 200,
+        height: 200,
+        color:
+            isMine ? Colors.white.withValues(alpha: .15) : AppColors.slate800,
+        child: const Icon(Icons.broken_image_rounded,
+            color: Colors.white70, size: 40),
+      );
 }
 
 class _LocationBody extends StatelessWidget {
@@ -175,9 +221,7 @@ class _LocationBody extends StatelessWidget {
     final hasCoords = lat != null && lng != null;
 
     return GestureDetector(
-      onTap: hasCoords
-          ? () => openInGoogleMaps(context, lat, lng)
-          : null,
+      onTap: hasCoords ? () => openInGoogleMaps(context, lat, lng) : null,
       child: Container(
         width: 220,
         padding: const EdgeInsets.all(12),
@@ -209,8 +253,7 @@ class _LocationBody extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    tr(context,
-                        fr: 'Position GPS', ar: 'الموقع الجغرافي'),
+                    tr(context, fr: 'Position GPS', ar: 'الموقع الجغرافي'),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -224,9 +267,7 @@ class _LocationBody extends StatelessWidget {
                         : '—',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isMine
-                          ? Colors.white70
-                          : AppColors.textSecondary,
+                      color: isMine ? Colors.white70 : AppColors.textSecondary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -237,19 +278,16 @@ class _LocationBody extends StatelessWidget {
                       Icon(
                         Icons.map_rounded,
                         size: 12,
-                        color:
-                            isMine ? Colors.white : AppColors.secondary,
+                        color: isMine ? Colors.white : AppColors.secondary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         tr(context,
-                            fr: 'Ouvrir Google Maps',
-                            ar: 'فتح خرائط جوجل'),
+                            fr: 'Ouvrir Google Maps', ar: 'فتح خرائط جوجل'),
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color:
-                              isMine ? Colors.white : AppColors.secondary,
+                          color: isMine ? Colors.white : AppColors.secondary,
                         ),
                       ),
                     ],
@@ -296,7 +334,11 @@ Future<void> openInGoogleMaps(
 }
 
 /// Full-screen pinch-to-zoom photo preview shared by both roles.
+///
+/// REMOTE-AWARE (Supabase Storage): renders a local file AND an https
+/// Storage URL through [AppImage] — the previous `Image.file` threw on a URL.
 void showChatPhotoPreview(BuildContext context, String path) {
+  final media = MediaQuery.of(context);
   showDialog<void>(
     context: context,
     barrierColor: AppColors.slate900.withValues(alpha: .96),
@@ -306,14 +348,16 @@ void showChatPhotoPreview(BuildContext context, String path) {
         child: Stack(
           children: [
             Center(
-              child: InteractiveViewer(
-                maxScale: 4,
-                child: Image.file(
-                  File(path),
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image_rounded,
-                    color: Colors.white70,
-                    size: 64,
+              child: SizedBox(
+                width: media.size.width,
+                height: media.size.height * .8,
+                child: InteractiveViewer(
+                  maxScale: 4,
+                  child: AppImage(
+                    path,
+                    fit: BoxFit.contain,
+                    errorIcon: Icons.broken_image_rounded,
+                    placeholderColor: Colors.transparent,
                   ),
                 ),
               ),

@@ -44,4 +44,22 @@ class ChatMessage {
   bool get isText => type == ChatMessageType.text;
   bool get isLocation => type == ChatMessageType.location;
   bool get hasMedia => type != ChatMessageType.text;
+
+  /// Copy with a REPLACED [mediaPath] — used when a device-local capture is
+  /// uploaded to Supabase Storage and the bubble must switch from the local
+  /// file to the shared public URL (every other field is carried over).
+  ChatMessage copyWith({String? mediaPath}) => ChatMessage(
+        id: id,
+        requestId: requestId,
+        senderId: senderId,
+        senderName: senderName,
+        text: text,
+        sentAt: sentAt,
+        isCustomer: isCustomer,
+        type: type,
+        mediaPath: mediaPath ?? this.mediaPath,
+        voiceDurationSec: voiceDurationSec,
+        latitude: latitude,
+        longitude: longitude,
+      );
 }

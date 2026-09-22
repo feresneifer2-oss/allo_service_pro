@@ -33,7 +33,8 @@ class ProDashboardScreen extends StatelessWidget {
               builder: (context, available, _) {
                 return SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,8 +148,7 @@ class ProDashboardScreen extends StatelessWidget {
                         valueListenable: ProProfileStore.tokens,
                         builder: (context, tokenCount, _) {
                           return ValueListenableBuilder<bool>(
-                            valueListenable:
-                                SubscriptionStore.isPaidSubscriber,
+                            valueListenable: SubscriptionStore.isPaidSubscriber,
                             builder: (_, isPaid, __) => _StatCard(
                               label: tr(context, fr: 'Tokens', ar: 'توكن'),
                               value: isPaid ? '∞' : '$tokenCount',
@@ -219,8 +219,7 @@ class ProDashboardScreen extends StatelessWidget {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          tr(context,
-                                              fr: 'Tokens', ar: 'توكن'),
+                                          tr(context, fr: 'Tokens', ar: 'توكن'),
                                           style: const TextStyle(
                                               color: Colors.white70),
                                         ),
@@ -302,8 +301,15 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class ProRequestsScreen extends StatelessWidget {
+class ProRequestsScreen extends StatefulWidget {
   const ProRequestsScreen({super.key});
+
+  @override
+  State<ProRequestsScreen> createState() => _ProRequestsScreenState();
+}
+
+class _ProRequestsScreenState extends State<ProRequestsScreen> {
+  final _processingIds = <String>{};
 
   static const _statusFlow = [
     RequestStatus.accepted,
@@ -385,8 +391,32 @@ class ProRequestsScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => RequestStore.updateStatus(
-                                  r.id, RequestStatus.refused),
+                              onPressed: _processingIds.contains(r.id)
+                                  ? null
+                                  : () async {
+                                      if (!_processingIds.add(r.id)) return;
+                                      setState(() {});
+                                      final ok =
+                                          await RequestStore.updateStatus(
+                                        r.id,
+                                        RequestStatus.refused,
+                                      );
+                                      if (!ok && context.mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(tr(context,
+                                                fr: 'La mise à jour a échoué — réessayez.',
+                                                ar: 'فشل التحديث — حاول مجددًا.')),
+                                            backgroundColor: AppColors.error,
+                                          ),
+                                        );
+                                      }
+                                      if (mounted) {
+                                        setState(
+                                            () => _processingIds.remove(r.id));
+                                      }
+                                    },
                               style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.error),
                               child:
@@ -396,26 +426,49 @@ class ProRequestsScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: ElevatedButton(
-                              onPressed: () {
-                                // Paid subscribers confirm freely; trial
-                                // accounts need at least 10 tokens.
-                                final canConfirm =
-                                    SubscriptionStore.isPaidSubscriber.value ||
-                                        ProProfileStore.tokens.value >= 10;
-                                if (canConfirm) {
-                                  RequestStore.updateStatus(
-                                      r.id, RequestStatus.accepted);
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(tr(context,
-                                          fr: 'Tokens insuffisants (10 requis)',
-                                          ar: 'رصيد التوكن غير كافٍ (10 مطلوب)')),
-                                      backgroundColor: AppColors.error,
-                                    ),
-                                  );
-                                }
-                              },
+                              onPressed: _processingIds.contains(r.id)
+                                  ? null
+                                  : () async {
+                                      if (!_processingIds.add(r.id)) return;
+                                      setState(() {});
+                                      // Paid subscribers confirm freely; trial
+                                      // accounts need at least 10 tokens.
+                                      final canConfirm = SubscriptionStore
+                                              .isPaidSubscriber.value ||
+                                          ProProfileStore.tokens.value >= 10;
+                                      if (canConfirm) {
+                                        final ok =
+                                            await RequestStore.updateStatus(
+                                          r.id,
+                                          RequestStatus.accepted,
+                                        );
+                                        if (!ok && context.mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(tr(context,
+                                                  fr: 'La confirmation a échoué — réessayez.',
+                                                  ar: 'فشل التأكيد — حاول مجددًا.')),
+                                              backgroundColor: AppColors.error,
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text(tr(context,
+                                                fr: 'Tokens insuffisants (10 requis)',
+                                                ar: 'رصيد التوكن غير كافٍ (10 مطلوب)')),
+                                            backgroundColor: AppColors.error,
+                                          ),
+                                        );
+                                      }
+                                      if (mounted) {
+                                        setState(
+                                            () => _processingIds.remove(r.id));
+                                      }
+                                    },
                               child:
                                   Text(tr(context, fr: 'Accepter', ar: 'قبول')),
                             ),
@@ -443,21 +496,31 @@ class ProRequestsScreen extends StatelessWidget {
                               ),
                             )
                             .toList(),
-                        onChanged: (s) {
-                          if (s == null) return;
-                          final ok = RequestStore.updateStatus(r.id, s);
-                          if (!ok) {
-                            // Confirmation refused (insufficient tokens).
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(tr(context,
-                                    fr: 'Tokens insuffisants pour confirmer (10 requis).',
-                                    ar: 'الرصيد غير كافٍ للتأكيد (مطلوب 10 توكن).')),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        },
+                        onChanged: _processingIds.contains(r.id)
+                            ? null
+                            : (s) async {
+                                if (s == null) return;
+                                if (!_processingIds.add(r.id)) return;
+                                setState(() {});
+                                final messenger = ScaffoldMessenger.of(context);
+                                final failureText = tr(context,
+                                    fr: 'La mise à jour a échoué (10 requis / réessayez).',
+                                    ar: 'فشل التحديث (مطلوب 10 توكن / حاول مجددًا).');
+                                final ok =
+                                    await RequestStore.updateStatus(r.id, s);
+                                if (!ok && context.mounted) {
+                                  // Refused (insufficient tokens / backend refusal).
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(failureText),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                                if (mounted) {
+                                  setState(() => _processingIds.remove(r.id));
+                                }
+                              },
                       ),
                     ],
                     if (RequestStore.isChatAllowed(r.id))
@@ -471,10 +534,8 @@ class ProRequestsScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) =>
-                                        ChatScreen(
-                                            requestId: r.id,
-                                            isCustomer: false)),
+                                    builder: (_) => ChatScreen(
+                                        requestId: r.id, isCustomer: false)),
                               );
                             },
                             icon: const Icon(Icons.chat_rounded),

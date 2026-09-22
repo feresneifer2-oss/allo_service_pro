@@ -160,11 +160,7 @@ class LocationService {
       place.subLocality ?? '',
       place.locality ?? '',
       governorate?.$2 ?? '',
-    ]
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
+    ].map((e) => e.trim()).where((e) => e.isNotEmpty).toSet().toList();
     return parts.isEmpty ? null : parts.join(', ');
   }
 
@@ -242,8 +238,17 @@ class LocationService {
   String _normalize(String value) {
     var v = value.trim().toLowerCase();
     const accents = {
-      'é': 'e', 'è': 'e', 'ê': 'e', 'à': 'a', 'â': 'a', 'î': 'i',
-      'ï': 'i', 'ô': 'o', 'û': 'u', 'ù': 'u', 'ç': 'c',
+      'é': 'e',
+      'è': 'e',
+      'ê': 'e',
+      'à': 'a',
+      'â': 'a',
+      'î': 'i',
+      'ï': 'i',
+      'ô': 'o',
+      'û': 'u',
+      'ù': 'u',
+      'ç': 'c',
     };
     accents.forEach((accent, plain) => v = v.replaceAll(accent, plain));
     return v;

@@ -82,26 +82,26 @@ void showAllCategoriesSheet(BuildContext context) {
                             shape: BoxShape.circle,
                           ),
                           clipBehavior: Clip.antiAlias,
-                          child: AppServicesCatalog.imageForLegacyCategory(
-                                      c.id) ==
-                                  null
-                              ? Icon(
-                                  c.icon,
-                                  color: AppColors.blue600,
-                                  size: 22,
-                                )
-                              : Image.asset(
-                                  AppServicesCatalog.imageForLegacyCategory(
-                                      c.id)!,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    c.icon,
-                                    color: AppColors.blue600,
-                                    size: 22,
-                                  ),
-                                ),
+                          child:
+                              AppServicesCatalog.imageForLegacyCategory(c.id) ==
+                                      null
+                                  ? Icon(
+                                      c.icon,
+                                      color: AppColors.blue600,
+                                      size: 22,
+                                    )
+                                  : Image.asset(
+                                      AppServicesCatalog.imageForLegacyCategory(
+                                          c.id)!,
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        c.icon,
+                                        color: AppColors.blue600,
+                                        size: 22,
+                                      ),
+                                    ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

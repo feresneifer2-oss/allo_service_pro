@@ -42,30 +42,21 @@ class AppServicesCatalog {
   AppServicesCatalog._();
 
   static const List<ServiceCategoryData> categories = [
-    ServiceCategoryData(
-        id: 'maison', nameFr: 'Maison', nameAr: 'المنزل'),
-    ServiceCategoryData(
-        id: 'auto', nameFr: 'Auto', nameAr: 'السيارة'),
-    ServiceCategoryData(
-        id: 'sante', nameFr: 'Santé', nameAr: 'الصحة'),
-    ServiceCategoryData(
-        id: 'beaute', nameFr: 'Beauté', nameAr: 'الجمال'),
+    ServiceCategoryData(id: 'maison', nameFr: 'Maison', nameAr: 'المنزل'),
+    ServiceCategoryData(id: 'auto', nameFr: 'Auto', nameAr: 'السيارة'),
+    ServiceCategoryData(id: 'sante', nameFr: 'Santé', nameAr: 'الصحة'),
+    ServiceCategoryData(id: 'beaute', nameFr: 'Beauté', nameAr: 'الجمال'),
     ServiceCategoryData(
         id: 'education', nameFr: 'Éducation', nameAr: 'التعليم'),
     ServiceCategoryData(
         id: 'technologie', nameFr: 'Technologie', nameAr: 'التكنولوجيا'),
-    ServiceCategoryData(
-        id: 'famille', nameFr: 'Famille', nameAr: 'العائلة'),
+    ServiceCategoryData(id: 'famille', nameFr: 'Famille', nameAr: 'العائلة'),
     ServiceCategoryData(
         id: 'evenements', nameFr: 'Événements', nameAr: 'المناسبات'),
+    ServiceCategoryData(id: 'transport', nameFr: 'Transport', nameAr: 'النقل'),
+    ServiceCategoryData(id: 'business', nameFr: 'Business', nameAr: 'الأعمال'),
     ServiceCategoryData(
-        id: 'transport', nameFr: 'Transport', nameAr: 'النقل'),
-    ServiceCategoryData(
-        id: 'business', nameFr: 'Business', nameAr: 'الأعمال'),
-    ServiceCategoryData(
-        id: 'autres',
-        nameFr: 'Autres services',
-        nameAr: 'خدمات أخرى'),
+        id: 'autres', nameFr: 'Autres services', nameAr: 'خدمات أخرى'),
   ];
 
   static const List<ServiceItem> services = [
@@ -976,7 +967,8 @@ class AppServicesCatalog {
     'other_services:fridge_repair': 'assets/services/reparation_frigo.png',
     'other_services:washer_repair': 'assets/services/reparation_lave_linge.png',
     'other_services:oven_repair': 'assets/services/reparation_four.png',
-    'other_services:coffee_repair': 'assets/services/reparation_machine_cafe.png',
+    'other_services:coffee_repair':
+        'assets/services/reparation_machine_cafe.png',
   };
 
   /// Resolves the new asset image for a legacy catalog type.

@@ -10,9 +10,6 @@ class ProProfileStore {
   static final tokens = ValueNotifier<int>(150);
   static final completedServices = ValueNotifier<int>(127);
   static final rating = ValueNotifier<double>(4.9);
-  static final verificationStatus = ValueNotifier<ProVerificationStatus>(
-    ProVerificationStatus.approved,
-  );
 
   static String? professionFr;
   static String? professionAr;
@@ -79,22 +76,22 @@ class ProProfileStore {
     tokens.value = prefs.getInt(_kTokens) ?? 150;
   }
 
-  static bool deductTokens(int amount) {
+  static Future<bool> deductTokens(int amount) async {
     if (hasUnlimitedTokens) return true;
     if (tokens.value >= amount) {
       // Flag is flipped BEFORE the balance change so every listener woken
       // by the balance notification already sees the fresh consumed state.
       tokensConsumed.value = true; // real usage: depletion may lock later
       tokens.value -= amount;
-      persistToPrefs();
+      await persistToPrefs();
       return true;
     }
     return false;
   }
 
-  static void addTokens(int amount) {
+  static Future<void> addTokens(int amount) async {
     tokens.value += amount;
-    persistToPrefs();
+    await persistToPrefs();
   }
 
   static void updateServiceZones(List<String> zones) {
@@ -111,7 +108,6 @@ class ProProfileStore {
     isAvailable.value = true;
     completedServices.value = 127;
     rating.value = 4.9;
-    verificationStatus.value = ProVerificationStatus.approved;
     selectedSpecialties.value = [];
     pricingType.value = 'fixed';
     priceFrom.value = 50;
@@ -133,11 +129,4 @@ class ProProfileStore {
       // Best-effort cleanup.
     }
   }
-}
-
-enum ProVerificationStatus {
-  none,
-  pending,
-  approved,
-  rejected,
 }

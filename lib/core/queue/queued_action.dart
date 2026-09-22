@@ -7,6 +7,16 @@ import 'package:flutter/foundation.dart';
 enum QueuedActionType {
   /// `RequestStore.updateStatus` replay (order status transition).
   updateOrderStatus,
+
+  /// Offline order CREATION (`RequestStore.add` while the device had no usable
+  /// network): the payload carries the EXACT remote row
+  /// (`{'requestId': id, 'row': OrdersRepository.toRow(request)}`) so the
+  /// replay is a faithful INSERT once connectivity returns.
+  ///
+  /// Sharing ONE queue with [updateOrderStatus] is what preserves the
+  /// create-then-transition order: a status UPDATE can never be replayed
+  /// before the row it targets has been inserted (FIFO + stop-on-first-retry).
+  createOrder,
 }
 
 /// One locally-stored operation awaiting a network round-trip.
@@ -96,11 +106,18 @@ class QueuedAction {
     return v is String && v.trim().isNotEmpty ? v : null;
   }
 
-  QueuedAction copyWith({int? attempts, String? lastError}) =>
+  QueuedAction copyWith({
+    int? attempts,
+    String? lastError,
+    Map<String, dynamic>? payload,
+  }) =>
       QueuedAction._validated(
         id: id,
         type: type,
-        payload: payload,
+        // The replacement payload goes through the SAME validation/snapshot
+        // path as a fresh action (CodeRabbit): a re-keyed — already persisted
+        // — entry must never carry a mutable or non-JSON-safe map.
+        payload: payload ?? this.payload,
         createdAtMs: createdAtMs,
         seq: seq,
         attempts: attempts ?? this.attempts,

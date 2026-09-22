@@ -73,8 +73,7 @@ class _OfflineSheet extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   tr(context,
-                      fr:
-                          'Le chargement reprendra automatiquement dès le rétablissement de la connexion.',
+                      fr: 'Le chargement reprendra automatiquement dès le rétablissement de la connexion.',
                       ar: 'سيتم استئناف التحميل تلقائياً فور إعادة الاتصال بالشبكة.'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -87,8 +86,8 @@ class _OfflineSheet extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: () => ConnectivityStore.checkNow(),
                   icon: const Icon(Icons.refresh_rounded, size: 20),
-                  label: Text(
-                      tr(context, fr: 'Réessayer', ar: 'إعادة المحاولة')),
+                  label:
+                      Text(tr(context, fr: 'Réessayer', ar: 'إعادة المحاولة')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.secondary,
                     side: const BorderSide(

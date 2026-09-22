@@ -35,7 +35,9 @@ void main() {
     });
 
     test('deductions persist and survive a simulated app restart', () async {
-      expect(ProProfileStore.deductTokens(40), isTrue);
+      // AWAITED (CodeRabbit): `deductTokens` is async — the persisted flag
+      // must settle before the restart simulation below.
+      expect(await ProProfileStore.deductTokens(40), isTrue);
       expect(ProProfileStore.tokens.value, 110);
 
       await ProProfileStore.persistToPrefs(); // make the write deterministic

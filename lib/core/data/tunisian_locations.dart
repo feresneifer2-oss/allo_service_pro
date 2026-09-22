@@ -536,7 +536,8 @@ class TunisianLocations {
   /// 3. unique governorate slug (key)       → 4. any city name inside.
   static TunisianLocation? matchGovernorate(String label, String normalized) {
     for (final loc in locations) {
-      if (_norm(loc.governorateFr) == normalized || loc.governorateAr == label) {
+      if (_norm(loc.governorateFr) == normalized ||
+          loc.governorateAr == label) {
         return loc;
       }
     }
@@ -554,8 +555,17 @@ class TunisianLocations {
   static String _norm(String value) {
     var v = value.trim().toLowerCase();
     const accents = {
-      'é': 'e', 'è': 'e', 'ê': 'e', 'à': 'a', 'â': 'a', 'î': 'i',
-      'ï': 'i', 'ô': 'o', 'û': 'u', 'ù': 'u', 'ç': 'c',
+      'é': 'e',
+      'è': 'e',
+      'ê': 'e',
+      'à': 'a',
+      'â': 'a',
+      'î': 'i',
+      'ï': 'i',
+      'ô': 'o',
+      'û': 'u',
+      'ù': 'u',
+      'ç': 'c',
     };
     accents.forEach((accent, plain) => v = v.replaceAll(accent, plain));
     return v;

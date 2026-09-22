@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
+import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
@@ -76,6 +77,12 @@ class _OtpScreenState extends State<OtpScreen> {
   /// situation instead of silently waiting for a code that never arrives.
   bool _deliveryUnavailable = false;
 
+  /// True when the LAST dispatch failed on the TRANSPORT layer (offline /
+  /// DNS / timeout) rather than on the delivery channel — the banner tells
+  /// the user to check connectivity and retry instead of declaring the
+  /// verification channel unavailable (CodeRabbit).
+  bool _deliveryNetworkError = false;
+
   /// SINGLE-FLIGHT ISSUANCE LOCK.
   ///
   /// A send is not re-entrant: two overlapping requests for the same address
@@ -91,6 +98,12 @@ class _OtpScreenState extends State<OtpScreen> {
   /// anything again.
   bool _completed = false;
 
+  /// SINGLE-FLIGHT VERIFICATION LOCK: the live Supabase path is async, so a
+  /// double-tap (or an auto-submit racing a manual tap) must never fire two
+  /// `verifyOTP` calls — the second would burn the already-consumed token
+  /// server-side and report a false failure.
+  bool _verifying = false;
+
   @override
   void initState() {
     super.initState();
@@ -102,8 +115,31 @@ class _OtpScreenState extends State<OtpScreen> {
     // resumed registration, a re-mounted screen after a hot reload, a
     // duplicated navigation) is ADOPTED as-is. Forcing it here is exactly the
     // bug that made a freshly delivered code unusable one frame later.
-    _issueCode(notify: false);
-    _startCooldown(notify: false);
+    unawaited(_initialIssue());
+  }
+
+  /// FIRST-ISSUE SEQUENCE (CodeRabbit): the cooldown used to be armed
+  /// unconditionally in [initState], so a FAILED first delivery (no channel,
+  /// bad address) disabled "Resend" for 10 full seconds while the screen was
+  /// already in the "unavailable" state — punishing the user for a failure
+  /// they did not cause. The cooldown now starts ONLY when a code was
+  /// actually issued or adopted.
+  Future<void> _initialIssue() async {
+    final outcome = await _issueCode(notify: false);
+    // LIVE STATE REFRESH (CodeRabbit): the very first issuance completes
+    // asynchronously (Supabase / demo channel), so the non-notifying path above
+    // leaves the first frame reading the initial blank values — the demo code
+    // and the "unavailable" banner would only appear after an unrelated
+    // `setState`. Force ONE explicit rebuild the moment the first code resolves
+    // so the UI reflects issuance / adoption / unavailability immediately and
+    // deterministically.
+    if (!mounted) return;
+    // Touching the listeners that build the demo banner & resend button so
+    // they re-read `_demoCode` / `_deliveryUnavailable` without an extra notify.
+    setState(() {});
+    if (outcome == _OtpIssue.issued || outcome == _OtpIssue.reused) {
+      _startCooldown(notify: false);
+    }
   }
 
   @override
@@ -131,13 +167,51 @@ class _OtpScreenState extends State<OtpScreen> {
   /// Guarded by [_issuingOtp] (single-flight) and [_completed]: a concurrent or
   /// post-completion call returns [_OtpIssue.skipped] and changes nothing.
   ///
-  /// Delivery goes through the sanitized entry point: in release the service
-  /// refuses (no channel) and the screen flips to the unavailable state
-  /// instead of throwing.
-  _OtpIssue _issueCode({bool notify = true, bool force = false}) {
+  /// DELIVERY CHANNELS:
+  ///   • LIVE (Supabase initialized) → every send is a real
+  ///     `auth.signInWithOtp` call; no in-app code is ever surfaced
+  ///     (`_demoCode` stays null) and there is no adoptable local pending
+  ///     state — the remote rate limiter owns resend throttling.
+  ///   • LOCAL (tests / offline demo) → the debug-only [EmailOtpService]
+  ///     demo channel, unchanged.
+  Future<_OtpIssue> _issueCode({bool notify = true, bool force = false}) async {
     if (_issuingOtp || _completed) return _OtpIssue.skipped;
     _issuingOtp = true;
     try {
+      if (SupabaseAuthService.isConfigured) {
+        // ── LIVE CHANNEL ──
+        // FAILURE TAXONOMY (CodeRabbit): a `false` return means the delivery
+        // CHANNEL refused (provider not wired / rejected) — a thrown
+        // transport error means the NETWORK failed (offline, DNS, timeout)
+        // and a retry once connectivity returns can succeed. Never conflated.
+        bool ok;
+        var networkFailure = false;
+        try {
+          ok = await SupabaseAuthService.sendOtp(widget.email);
+        } catch (e) {
+          debugPrint('OtpScreen: live OTP dispatch failed on the transport '
+              'layer: $e');
+          ok = false;
+          networkFailure = true;
+        }
+        if (!mounted) {
+          return ok ? _OtpIssue.issued : _OtpIssue.unavailable;
+        }
+        void applyLive() {
+          _deliveryUnavailable = !ok;
+          _deliveryNetworkError = networkFailure && !ok;
+          _demoCode = null; // a remote code must NEVER be surfaced in-app
+        }
+
+        if (notify) {
+          setState(applyLive);
+        } else {
+          applyLive();
+        }
+        return ok ? _OtpIssue.issued : _OtpIssue.unavailable;
+      }
+
+      // ── LOCAL DEMO CHANNEL (debug builds & tests) ──
       final bool adopted =
           !force && EmailOtpService.hasPendingOtp(widget.email);
       final bool ok = adopted || EmailOtpService.trySendOtp(widget.email);
@@ -170,12 +244,19 @@ class _OtpScreenState extends State<OtpScreen> {
   /// decrements the counter every second; when it reaches 0 the button is
   /// re-enabled and the timer cancels itself.
   void _startCooldown({bool notify = true}) {
+    // LIFECYCLE GUARD (CodeRabbit): starting a cooldown after the widget
+    // unmounted (a late _initialIssue completion, a double-tap that raced
+    // dispose, etc.) would arm a Timer whose periodic tick calls `setState`
+    // on a dead State — a guaranteed leak/crash. Bail out before arming the
+    // timer or writing any mutable state.
+    if (!mounted) return;
     _cooldownTimer?.cancel();
     if (notify) {
       setState(() => _cooldownLeft = _resendCooldownSeconds);
     } else {
       _cooldownLeft = _resendCooldownSeconds;
     }
+
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -221,13 +302,13 @@ class _OtpScreenState extends State<OtpScreen> {
     if (_focusNodes.isNotEmpty) _focusNodes.first.requestFocus();
   }
 
-  void _resend() {
+  Future<void> _resend() async {
     // Guarded here as well as in the UI: a disabled button is not a
     // security boundary, the handler must refuse on its own.
     if (_resendBlocked) return;
 
     // Explicit resend = FORCE a fresh code (the previous one is burned).
-    final outcome = _issueCode(force: true);
+    final outcome = await _issueCode(force: true);
     // A concurrent issuance already owns the channel: this tap is a no-op, so
     // it must not claim a delivery failure nor restart the cooldown.
     if (outcome == _OtpIssue.skipped) return;
@@ -251,7 +332,7 @@ class _OtpScreenState extends State<OtpScreen> {
     );
   }
 
-  void _verify() {
+  Future<void> _verify() async {
     // The flow already succeeded and is navigating away: a late auto-submit or
     // a stray tap must not consume a (now absent) token or fire an error
     // snackbar on a screen that is being replaced.
@@ -265,8 +346,27 @@ class _OtpScreenState extends State<OtpScreen> {
           ar: 'المرجو إدخال الرمز كاملاً.'));
       return;
     }
+    // SINGLE-FLIGHT: a double-tap must never fire two verifications (the
+    // second would burn the consumed token server-side / locally).
+    if (_verifying) return;
+    _verifying = true;
+    final bool ok;
+    try {
+      if (SupabaseAuthService.isConfigured) {
+        // ── LIVE CHANNEL: real Supabase verification ──
+        ok = await SupabaseAuthService.verifyOtp(widget.email, _code);
+      } else {
+        // ── LOCAL DEMO CHANNEL (debug builds & tests) ──
+        ok = EmailOtpService.verifyOtp(widget.email, _code);
+      }
+    } finally {
+      _verifying = false;
+    }
+    // Await gap re-checks: the element may have been disposed while the
+    // remote call was in flight, or a concurrent completion may have won.
+    if (_completed) return;
+    if (!mounted) return;
 
-    final ok = EmailOtpService.verifyOtp(widget.email, _code);
     if (!ok) {
       // Start the next attempt from empty boxes (see [_clearCode]): also the
       // reason a stale full code can never auto-submit itself again.
@@ -277,24 +377,23 @@ class _OtpScreenState extends State<OtpScreen> {
       return;
     }
     // The token is now VALIDATED and CONSUMED: only at this point may the
-    // credential record be unlocked (releasing the isVerified lock).
+    // local session be bound (releasing the isVerified lock).
     //
     // Mark the flow COMPLETE before any unlock attempt: from here on no
     // further issuance/verification may run (the lock also survives the
     // credential-unlock failure branch below, where navigation is blocked).
     _completed = true;
-    // If the unlock FAILS while the record EXISTS (corrupted storage,
-    // session wiped mid-flow): STOP. No navigation - show the secure
-    // error state and block the user from advancing.
-    // A MISSING record is not an unlock failure: the security gate (the
-    // OTP token) already succeeded, and fresh registration flows create
-    // the account after this handshake - navigation may proceed.
-    final unlocked = UserStore.markEmailVerified(email: widget.email);
-    final recordExists = UserStore.hasCredentialRecord(email: widget.email);
-    if (!unlocked && recordExists) {
-      _credentialUnlockFailed = true;
-      if (mounted) setState(() {});
-      if (mounted) {
+    if (SupabaseAuthService.isConfigured) {
+      // LIVE CHANNEL: the remote identity is authenticated — bind/refresh the
+      // local record (creating it unlocked when this is the first sign-in:
+      // the second factor was just completed server-side, demanding the local
+      // demo code again would be nonsense). A binding failure (corrupted
+      // storage) blocks navigation exactly like the legacy unlock failure.
+      final bound = await UserStore.bindRemoteIdentity(email: widget.email);
+      if (!mounted) return;
+      if (!bound) {
+        _credentialUnlockFailed = true;
+        setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(context,
@@ -302,9 +401,32 @@ class _OtpScreenState extends State<OtpScreen> {
                 ar: 'حدث خطأ في الجلسة. الرجاء إعادة التسجيل من فضلك.')),
           ),
         );
+        return;
       }
-      return;
+    } else {
+      // LOCAL CHANNEL: legacy unlock semantics preserved verbatim.
+      // If the unlock FAILS while the record EXISTS (corrupted storage,
+      // session wiped mid-flow): STOP. No navigation - show the secure
+      // error state and block the user from advancing.
+      // A MISSING record is not an unlock failure: the security gate (the
+      // OTP token) already succeeded, and fresh registration flows create
+      // the account after this handshake - navigation may proceed.
+      final unlocked = UserStore.markEmailVerified(email: widget.email);
+      final recordExists = UserStore.hasCredentialRecord(email: widget.email);
+      if (!unlocked && recordExists) {
+        _credentialUnlockFailed = true;
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(context,
+                fr: 'Session error. Please restart registration.',
+                ar: 'حدث خطأ في الجلسة. الرجاء إعادة التسجيل من فضلك.')),
+          ),
+        );
+        return;
+      }
     }
+    if (!mounted) return;
     FocusScope.of(context).unfocus();
     Navigator.pushReplacement(
       context,
@@ -357,7 +479,9 @@ class _OtpScreenState extends State<OtpScreen> {
                   ),
                 ),
               Text(
-                tr(context, fr: 'Vérifiez votre e-mail', ar: 'تحقق من بريدك الإلكتروني'),
+                tr(context,
+                    fr: 'Vérifiez votre e-mail',
+                    ar: 'تحقق من بريدك الإلكتروني'),
                 style: const TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
@@ -390,9 +514,15 @@ class _OtpScreenState extends State<OtpScreen> {
                     border: Border.all(color: AppColors.error, width: 1),
                   ),
                   child: Text(
-                    tr(context,
-                        fr: "Aucun service d'envoi d'e-mail n'est configuré : la vérification est indisponible pour le moment.",
-                        ar: 'لا توجد خدمة إرسال بريد إلكتروني مُهيّأة: التحقق غير متاح حالياً.'),
+                    _deliveryNetworkError
+                        ? tr(context,
+                            fr:
+                                "Échec d'envoi — vérifiez votre connexion Internet puis réessayez.",
+                            ar:
+                                'فشل الإرسال — تحقّق من اتصالك بالإنترنت ثم أعد المحاولة.')
+                        : tr(context,
+                            fr: "Aucun service d'envoi d'e-mail n'est configuré : la vérification est indisponible pour le moment.",
+                            ar: 'لا توجد خدمة إرسال بريد إلكتروني مُهيّأة: التحقق غير متاح حالياً.'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.error,

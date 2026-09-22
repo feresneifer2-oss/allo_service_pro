@@ -14,7 +14,7 @@ ServiceRequest _request(String id,
   return ServiceRequest(
     id: id,
     serviceTitleFr: 'Peinture',
-    serviceTitleAr: 'دهان',
+    serviceTitleAr: 'Ø¯Ù‡Ø§Ù†',
     professionalId: 'pro_1',
     professionalName: 'Ahmed Ben Ali',
     customerName: 'Feres',
@@ -42,7 +42,7 @@ void main() {
     ProProfileStore.tokens.value = savedTokens;
   });
 
-  group('RequestStore.isChatAllowed · status layer', () {
+  group('RequestStore.isChatAllowed Â· status layer', () {
     test('unknown request id is rejected', () {
       expect(RequestStore.isChatAllowed('ghost'), isFalse);
     });
@@ -52,8 +52,7 @@ void main() {
       expect(RequestStore.isChatAllowed('r-pending'), isFalse);
     });
 
-    test('every live status opens the chat once the session is activated',
-        () {
+    test('every live status opens the chat once the session is activated', () {
       const liveStatuses = [
         RequestStatus.accepted,
         RequestStatus.enRoute,
@@ -71,16 +70,14 @@ void main() {
       }
     });
 
-    test('completed request never opens a chat, even with a live session',
-        () {
+    test('completed request never opens a chat, even with a live session', () {
       RequestStore.add(_request('r-done', status: RequestStatus.completed));
       ChatStore.activate('r-done'); // force a live session
 
       expect(RequestStore.isChatAllowed('r-done'), isFalse);
     });
 
-    test('cancelled request never opens a chat, even with a live session',
-        () {
+    test('cancelled request never opens a chat, even with a live session', () {
       RequestStore.add(
           _request('r-cancelled', status: RequestStatus.cancelled));
       ChatStore.activate('r-cancelled');
@@ -98,12 +95,12 @@ void main() {
 
   group('RequestStore.isChatAllowed · session layer (real flow)', () {
     test('confirming a pending order unlocks the chat and costs 10 tokens',
-        () {
+        () async {
       RequestStore.add(_request('r-flow'));
 
       expect(RequestStore.isChatAllowed('r-flow'), isFalse);
 
-      final confirmed = RequestStore.updateStatus(
+      final confirmed = await RequestStore.updateStatus(
         'r-flow',
         RequestStatus.accepted,
       );
@@ -114,30 +111,30 @@ void main() {
       expect(RequestStore.isChatAllowed('r-flow'), isTrue);
     });
 
-    test('completing the job closes the chat window automatically', () {
+    test('completing the job closes the chat window automatically', () async {
       RequestStore.add(_request('r-complete'));
-      RequestStore.updateStatus('r-complete', RequestStatus.accepted);
+      await RequestStore.updateStatus('r-complete', RequestStatus.accepted);
       expect(RequestStore.isChatAllowed('r-complete'), isTrue);
 
-      RequestStore.updateStatus('r-complete', RequestStatus.completed);
+      await RequestStore.updateStatus('r-complete', RequestStatus.completed);
 
       expect(ChatStore.isActive('r-complete'), isFalse);
       expect(RequestStore.isChatAllowed('r-complete'), isFalse);
     });
 
-    test('cancelling the job closes the chat window automatically', () {
+    test('cancelling the job closes the chat window automatically', () async {
       RequestStore.add(_request('r-cancel'));
-      RequestStore.updateStatus('r-cancel', RequestStatus.accepted);
+      await RequestStore.updateStatus('r-cancel', RequestStatus.accepted);
       expect(RequestStore.isChatAllowed('r-cancel'), isTrue);
 
-      RequestStore.updateStatus('r-cancel', RequestStatus.cancelled);
+      await RequestStore.updateStatus('r-cancel', RequestStatus.cancelled);
 
       expect(RequestStore.isChatAllowed('r-cancel'), isFalse);
     });
 
-    test('the 48h window closing locks an otherwise-live order', () {
+    test('the 48h window closing locks an otherwise-live order', () async {
       RequestStore.add(_request('r-expiry'));
-      RequestStore.updateStatus('r-expiry', RequestStatus.accepted);
+      await RequestStore.updateStatus('r-expiry', RequestStatus.accepted);
       expect(RequestStore.isChatAllowed('r-expiry'), isTrue);
 
       // Simulate time passing beyond the window: replace the session with
@@ -154,28 +151,74 @@ void main() {
       expect(RequestStore.isChatAllowed('r-expiry'), isFalse);
     });
 
-    test('paid subscribers confirm orders without spending tokens', () {
+    test('paid subscribers confirm orders without spending tokens', () async {
       // Unlimited mode: even a zero balance cannot block confirmation.
       SubscriptionStore.isPaidSubscriber.value = true;
       ProProfileStore.tokens.value = 0;
 
       RequestStore.add(_request('r-paid'));
-      final ok = RequestStore.updateStatus('r-paid', RequestStatus.accepted);
+      final ok =
+          await RequestStore.updateStatus('r-paid', RequestStatus.accepted);
 
       expect(ok, isTrue);
       expect(ProProfileStore.tokens.value, 0); // untouched — unlimited mode
       expect(RequestStore.isChatAllowed('r-paid'), isTrue);
     });
 
-    test('trial account with zero tokens cannot confirm orders', () {
+    test('trial account with zero tokens cannot confirm orders', () async {
       SubscriptionStore.isPaidSubscriber.value = false; // trial mode
       ProProfileStore.tokens.value = 0;
 
       RequestStore.add(_request('r-locked'));
-      final ok = RequestStore.updateStatus('r-locked', RequestStatus.accepted);
+      final ok =
+          await RequestStore.updateStatus('r-locked', RequestStatus.accepted);
 
       expect(ok, isFalse);
       expect(RequestStore.isChatAllowed('r-locked'), isFalse);
+    });
+  });
+
+  // ─── Duplicate-id replay support (CodeRabbit) ──────────────────────────
+  group('re-keying support', () {
+    test('newClientId mints unique RFC-4122 v4 identifiers', () {
+      final v4 = RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      );
+      final ids = <String>{
+        for (var i = 0; i < 500; i++) RequestStore.newClientId(),
+      };
+
+      expect(ids, hasLength(500), reason: 'ids must never repeat');
+      for (final id in ids) {
+        expect(v4.hasMatch(id), isTrue, reason: 'not a v4 UUID: $id');
+      }
+    });
+
+    test('copyWith(id:) re-keys an order without touching its payload', () {
+      final original = _request('stamp-id');
+      final reKeyed = original.copyWith(id: RequestStore.newClientId());
+
+      expect(reKeyed.id, isNot(original.id));
+      expect(reKeyed.serviceTitleFr, original.serviceTitleFr);
+      expect(reKeyed.serviceTitleAr, original.serviceTitleAr);
+      expect(reKeyed.professionalId, original.professionalId);
+      expect(reKeyed.professionalName, original.professionalName);
+      expect(reKeyed.customerId, original.customerId);
+      expect(reKeyed.customerName, original.customerName);
+      expect(reKeyed.dateTime, original.dateTime);
+      expect(reKeyed.address, original.address);
+      expect(reKeyed.message, original.message);
+      expect(reKeyed.paymentMethod, original.paymentMethod);
+      expect(reKeyed.status, original.status);
+      expect(reKeyed.createdAt, original.createdAt);
+      expect(reKeyed.photoPaths, original.photoPaths);
+      expect(reKeyed.rating, original.rating);
+      expect(reKeyed.reviewComment, original.reviewComment);
+    });
+
+    test('copyWith() without an id keeps the current one', () {
+      final original = _request('keep-id');
+      expect(original.copyWith(status: RequestStatus.accepted).id, 'keep-id');
     });
   });
 }

@@ -18,8 +18,6 @@ void main() {
     ProProfileStore.isAvailable.value = false;
     ProProfileStore.completedServices.value = 99;
     ProProfileStore.rating.value = 3.1;
-    ProProfileStore.verificationStatus.value =
-        ProVerificationStatus.pending;
     ProProfileStore.selectedSpecialties.value = [
       const CatalogType(id: 'plumber', fr: 'Plombier', ar: 'سباك'),
     ];
@@ -43,8 +41,6 @@ void main() {
     expect(ProProfileStore.isAvailable.value, isTrue);
     expect(ProProfileStore.completedServices.value, 127);
     expect(ProProfileStore.rating.value, 4.9);
-    expect(ProProfileStore.verificationStatus.value,
-        ProVerificationStatus.approved);
     expect(ProProfileStore.selectedSpecialties.value, isEmpty);
     expect(ProProfileStore.pricingType.value, 'fixed');
     expect(ProProfileStore.priceFrom.value, 50);
@@ -61,8 +57,8 @@ void main() {
   });
 
   test('B3 · only REAL usage marks tokensConsumed; manual balance does not',
-      () {
-    ProProfileStore.reset();
+      () async {
+    await ProProfileStore.reset();
     SubscriptionStore.isPaidSubscriber.value = false;
     ProProfileStore.tokens.value = 3;
     ProProfileStore.tokensConsumed.value = false;
@@ -73,7 +69,7 @@ void main() {
 
     // Actual order consumption (deductTokens) marks it as used.
     ProProfileStore.tokens.value = 1;
-    expect(ProProfileStore.deductTokens(1), isTrue);
+    expect(await ProProfileStore.deductTokens(1), isTrue);
     expect(ProProfileStore.tokens.value, 0);
     expect(ProProfileStore.tokensConsumed.value, isTrue);
 
@@ -82,7 +78,7 @@ void main() {
     ProProfileStore.tokensConsumed.value = false;
     ProProfileStore.tokens.value = 0;
     SubscriptionStore.isPaidSubscriber.value = true;
-    expect(ProProfileStore.deductTokens(5), isTrue);
+    expect(await ProProfileStore.deductTokens(5), isTrue);
     expect(ProProfileStore.tokensConsumed.value, isFalse);
   });
 }

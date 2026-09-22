@@ -46,6 +46,11 @@ class ServiceCircleTile extends StatelessWidget {
             child: Image.asset(
               service.imagePath,
               fit: BoxFit.cover,
+              // ONE decode dimension only (CodeRabbit): cacheWidth keeps the
+              // source aspect ratio; adding cacheHeight as well would decode
+              // the bitmap twice over for no visual gain.
+              cacheWidth:
+                  (size * MediaQuery.devicePixelRatioOf(context)).round(),
               errorBuilder: (_, __, ___) => Icon(
                 service.icon,
                 color: AppColors.primary,

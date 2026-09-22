@@ -350,7 +350,8 @@ void main() {
         proLat: clientLat,
         proLng: clientLng,
       );
-      expect(attempts, 1, reason: 'a foreign retry payload is never dispatched');
+      expect(attempts, 1,
+          reason: 'a foreign retry payload is never dispatched');
 
       // Fix 3 — valid payload + working channel: the retry really delivers.
       ProximityService.debugSetTargetResolver(

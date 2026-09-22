@@ -69,8 +69,7 @@ class ServiceGrid extends StatelessWidget {
 
             return ServiceCard(
               icon: c.icon,
-              imagePath:
-                  AppServicesCatalog.imageForLegacyCategory(c.id),
+              imagePath: AppServicesCatalog.imageForLegacyCategory(c.id),
               title: title,
               onTap: () => showCategoryServicesSheet(context, c),
             );

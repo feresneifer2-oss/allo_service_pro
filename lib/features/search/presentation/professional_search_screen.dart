@@ -58,9 +58,9 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
         // delegate-city entries — accept it as a valid match.
         if (!cityInGov) {
           for (final location in TunisianLocations.locations) {
-            final matchesSelection = location.governorateFr ==
-                    _selectedGovernorate ||
-                location.governorateAr == _selectedGovernorate;
+            final matchesSelection =
+                location.governorateFr == _selectedGovernorate ||
+                    location.governorateAr == _selectedGovernorate;
             final storesGovernorateName = pro.city == location.governorateAr ||
                 pro.cityFr == location.governorateFr;
             if (matchesSelection && storesGovernorateName) {
@@ -236,8 +236,8 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
                                   tr(context,
                                       fr: 'Toutes les villes',
                                       ar: 'جميع المدن'),
-                                  style:
-                                      const TextStyle(color: AppColors.slate400),
+                                  style: const TextStyle(
+                                      color: AppColors.slate400),
                                 ),
                                 isExpanded: true,
                                 dropdownColor: AppColors.slate800,
@@ -566,7 +566,8 @@ class _ProfessionalCard extends StatelessWidget {
           // City + Availability row
           Row(
             children: [
-              const Icon(Icons.location_on, size: 16, color: AppColors.textSecondary),
+              const Icon(Icons.location_on,
+                  size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(

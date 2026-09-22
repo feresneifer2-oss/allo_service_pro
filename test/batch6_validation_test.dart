@@ -30,8 +30,8 @@ void main() {
     test('key lookup is collision-free against city names', () {
       // The city "Tunis Ville" must never resolve another governorate when
       // the unique slug is used.
-      expect(TunisianLocations.getLocationByKey('tunis')!.governorateFr,
-          'Tunis');
+      expect(
+          TunisianLocations.getLocationByKey('tunis')!.governorateFr, 'Tunis');
       expect(
         TunisianLocations.getLocationByKeyOrFr('Tunis')!.key,
         'tunis',
@@ -52,7 +52,8 @@ void main() {
       UserStore.user.value = null;
     });
 
-    test('blank governorate values are normalized to null (never stored)', () async {
+    test('blank governorate values are normalized to null (never stored)',
+        () async {
       UserStore.set(
         name: 'Ali',
         phone: '22123456',
@@ -75,7 +76,8 @@ void main() {
       expect(prefs.containsKey('user_governorate_fr'), isFalse);
     });
 
-    test('valid governorate survives a full persist/reload round-trip', () async {
+    test('valid governorate survives a full persist/reload round-trip',
+        () async {
       UserStore.set(
         name: 'Sami',
         phone: '98111222',

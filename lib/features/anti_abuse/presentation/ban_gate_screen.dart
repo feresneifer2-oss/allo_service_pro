@@ -28,115 +28,114 @@ class AntiAbuseBanGateScreen extends StatelessWidget {
     return PopScope(
       canPop: false,
       child: Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircleAvatar(
-                  radius: 56,
-                  backgroundColor: AppColors.secondarySurface,
-                  child: Icon(
-                    Icons.block,
-                    size: 56,
-                    color: AppColors.secondary,
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircleAvatar(
+                    radius: 56,
+                    backgroundColor: AppColors.secondarySurface,
+                    child: Icon(
+                      Icons.block,
+                      size: 56,
+                      color: AppColors.secondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  trGlobal(
-                    fr: 'Compte bloqué',
-                    ar: 'تم حظر الحساب',
+                  const SizedBox(height: 24),
+                  Text(
+                    trGlobal(
+                      fr: 'Compte bloqué',
+                      ar: 'تم حظر الحساب',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                  const SizedBox(height: 12),
+                  Text(
+                    trGlobal(
+                      fr: 'Ce compte a été automatiquement bloqué car il a '
+                          'atteint ${AppConstants.antiAbuseCancellationLimit} '
+                          'annulations.',
+                      ar: 'تم حظر هذا الحساب تلقائياً لأنه وصل إلى '
+                          '${AppConstants.antiAbuseCancellationLimit} '
+                          'إلغاء.',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  trGlobal(
-                    fr: 'Ce compte a été automatiquement bloqué car il a '
-                        'atteint ${AppConstants.antiAbuseCancellationLimit} '
-                        'annulations.',
-                    ar: 'تم حظر هذا الحساب تلقائياً لأنه وصل إلى '
-                        '${AppConstants.antiAbuseCancellationLimit} '
-                        'إلغاء.',
+                  const SizedBox(height: 20),
+                  Text(
+                    trGlobal(
+                      fr: 'Pour plus d\'informations, contactez le support :',
+                      ar: 'للمزيد من المعلومات، اتصل بدعم العملاء:',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  trGlobal(
-                    fr: 'Pour plus d\'informations, contactez le support :',
-                    ar: 'للمزيد من المعلومات، اتصل بدعم العملاء:',
-                  ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  AppConstants.adminSupportNumber,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                    color: AppColors.primary,
-                  ),
-                ),
-                if (isArabic)
-                  const SizedBox(height: 2),
-                if (isArabic)
+                  const SizedBox(height: 8),
                   Text(
                     AppConstants.adminSupportNumber,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                      color: AppColors.primary,
                     ),
                   ),
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      AppLogger.info(
-                        'AntiAbuse',
-                        'User confirmed ban gate — signing out.',
-                      );
-                      signOutAndReset();
-                    },
-                    icon: const Icon(Icons.logout),
-                    label: Text(
-                      trGlobal(fr: 'Se déconnecter', ar: 'تسجيل الخروج'),
-                      style: const TextStyle(fontWeight: FontWeight.w700),
+                  if (isArabic) const SizedBox(height: 2),
+                  if (isArabic)
+                    Text(
+                      AppConstants.adminSupportNumber,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        AppLogger.info(
+                          'AntiAbuse',
+                          'User confirmed ban gate — signing out.',
+                        );
+                        signOutAndReset();
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: Text(
+                        trGlobal(fr: 'Se déconnecter', ar: 'تسجيل الخروج'),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

@@ -1,15 +1,22 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
+import 'package:allo_service_pro/core/services/document_media_service.dart';
+import 'package:allo_service_pro/core/services/supabase_storage_service.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/verification_gate_screen.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/app_image.dart';
 
 class ProRegistrationScreen extends StatefulWidget {
   const ProRegistrationScreen({super.key});
@@ -22,8 +29,27 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
   final _pageController = PageController();
   int _step = 0;
 
-  final _nameController = TextEditingController(text: 'Ahmed Ben Ali');
-  final _experienceController = TextEditingController(text: '8');
+  // SUBMIT GUARD (CodeRabbit): a single in-flight submission must not be
+  // re-entered by a double-tap (the wallet deduction + registry insert would
+  // otherwise double-book the PRO code or the token cost). A second tap while
+  // the future is pending is a no-op until the current one settles.
+  bool _submitting = false;
+
+  // REAL capture state (CodeRabbit / Supabase prep): the wizard no longer
+  // fakes uploads. Each tile stores the ABSOLUTE local path of the photo
+  // picked through [DocumentMediaService] — exactly what the future
+  // Supabase Storage upload task will read — instead of a boolean flag.
+  String? _docPhotoPath;
+  String? _selfiePhotoPath;
+  final List<String> _galleryPhotos = [];
+
+  // A professional's contact number is entered LATER (profile completion) —
+  // the identity that matters here is the verified e-mail. The legacy
+  // hardcoded mock phone is gone: nothing fabricated reaches the admin
+  // registry (or the future Supabase `pending_pros` table) anymore.
+
+  final _nameController = TextEditingController();
+  final _experienceController = TextEditingController();
   final _descriptionController = TextEditingController();
   String _governorate = 'تونس';
   String? _city;
@@ -88,13 +114,8 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
   String _pricingType = 'fixed'; // 'hourly', 'fixed', 'quote'
   int _priceFrom = 50;
 
-  // Gallery Photos
-  final List<String> _galleryPhotos = [];
-
   // Documents
   String _docType = 'diploma'; // 'diploma' | 'patent' | 'license' | 'card'
-  bool _docUploaded = false;
-  bool _selfieUploaded = false;
 
   @override
   void dispose() {
@@ -105,7 +126,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
     super.dispose();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_step < 4) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -114,8 +135,26 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
       setState(() => _step++);
     } else {
       // ── Submit Pro Registration ──
-      // Proof of work / profession photo is MANDATORY.
-      if (!_docUploaded) {
+      // The pre-filled mock identity is gone, so the name must be validated:
+      // an unnamed draft could never be reviewed (nor matched against the
+      // future Supabase `professionals` row).
+      final name = _nameController.text.trim();
+      if (name.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(context,
+                fr: 'Veuillez indiquer votre nom complet.',
+                ar: 'المرجو إدخال اسمك الكامل.')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      // Proof of work / profession photo is MANDATORY — and now a REAL file:
+      // a flag alone can never satisfy an admin review (nor a future Supabase
+      // Storage upload), so the requirement is a picked path.
+      final proof = _docPhotoPath;
+      if (proof == null || proof.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(tr(context,
@@ -127,81 +166,212 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
         return;
       }
 
-      // The authenticated e-mail (Email-OTP identity) is bound to the draft so
-      // the admin panel can sync the credential record by identity. It comes
-      // from the immutable snapshot, never from a re-read of the live session.
+      // SUBMIT GUARD (CodeRabbit): a double-tap must never re-enter the
+      // submission — the registry insert + token accounting would otherwise
+      // double-book the same draft. The flag is released in the `finally`
+      // below, so EVERY exit path (validation early-return, a thrown async
+      // failure, or the success navigation) re-arms the button.
+      if (_submitting) return;
+      // setState (not a bare field write): the button's
+      // `onPressed: _submitting ? null : _next` must ALSO disable VISUALLY, so
+      // a fast double-tap lands on a dead button instead of a silent no-op.
+      setState(() => _submitting = true);
       final committedEmail = _committedEmail;
-      final newPro = PendingProModel(
-        id: 'pro_${DateTime.now().millisecondsSinceEpoch}',
-        name: _nameController.text,
-        phone: '+216 20 123 456', // Mock phone (contact info only)
-        email: committedEmail.isEmpty ? null : committedEmail,
-        professionFr: _selectedCategory?.fr ?? 'Peintre',
-        professionAr: _selectedCategory?.ar ?? 'دهّان',
-        city: _city ?? _governorate,
-        submittedAt:
-            '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
-        docImage: 'assets/images/doc_placeholder.png',
-        status: 'pending',
-      );
-
-      // Assigns the unique PRO-XXXXX code and queues for admin review.
-      final registered = AdminStore.registerPro(newPro);
-
-      ProProfileStore.professionFr = newPro.professionFr;
-      ProProfileStore.professionAr = newPro.professionAr;
-      ProProfileStore.selectedSpecialties.value =
-          List.from(_selectedSpecialties);
-      ProProfileStore.pricingType.value = _pricingType;
-      ProProfileStore.priceFrom.value = _priceFrom;
-      ProProfileStore.workImages.value = List.from(_galleryPhotos);
-      ProProfileStore.serviceZones.value = [_governorate];
-      ProProfileStore.verificationStatus.value = ProVerificationStatus.pending;
-
-      // Bind the professional identity to the local session, then land on
-      // the verification gate (pending approval / WhatsApp inquiry).
-      // The e-mail is re-bound explicitly from the immutable snapshot so a
-      // session rebuild cannot drop the Email-OTP identity.
-      UserStore.set(
-        name: registered.name,
-        phone: registered.phone,
-        email: committedEmail.isEmpty ? null : committedEmail,
-        role: UserRole.professional,
-        proCode: registered.proCode,
-        proofPath: registered.docImage,
-        verificationStatus: ProVerification.pending,
-      );
-      // Persist the credential record (email · password · PRO code ·
-      // pending state) so the pro's email/password login restores the
-      // full profile across app restarts.
-      UserStore.bindProAccount(
-        proCode: registered.proCode,
-        verificationStatus: ProVerification.pending,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            tr(
-              context,
-              fr: 'Votre demande est en cours de vérification par l\'administrateur.',
-              ar: 'طلبك قيد المراجعة من قبل المسؤول.',
+      // Validate session identity before any mutation. Registration requires
+      // both a resolved e-mail AND an existing credential record — otherwise
+      // the draft is an orphan the admin panel could never match to an account.
+      try {
+        if (!mounted || committedEmail.isEmpty) {
+          if (committedEmail.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(tr(context,
+                    fr: "Session expirée : reconnectez-vous pour terminer l'inscription.",
+                    ar: 'انتهت الجلسة: سجّل الدخول مجدداً لإكمال التسجيل.')),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+          return;
+        }
+        if (!UserStore.hasCredentialRecord(email: committedEmail)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tr(context,
+                  fr: 'Aucun compte vérifié trouvé pour cet e-mail — reconnectez-vous.',
+                  ar: 'لا يوجد حساب موثق لهذا البريد — سجّل الدخول مجدداً.')),
+              backgroundColor: AppColors.error,
             ),
+          );
+          return;
+        }
+        // Contact phone: the real, session-bound value (trimmed) — or a plain
+        // dash placeholder when the account has none yet. The fabricated
+        // '+216 20 123 456' mock is gone: contact data will be OWNED by the
+        // Supabase `professionals` row (profile completion) — this draft must
+        // never invent it.
+        final session = UserStore.user.value;
+        final contactPhone = (session?.phone ?? '').trim();
+        // Every wizard input is mapped into the submission payload — name,
+        // category (profession), pricing, experience, governorate/city,
+        // description text, document TYPE + photo, selfie, and the full
+        // work-gallery selection — so nothing the pro entered is silently
+        // dropped before admin review / backend sync.
+        final experienceYears = int.tryParse(_experienceController.text.trim());
+        final description = _descriptionController.text.trim();
+        // AWAIT ACTIVE UPLOADS (CodeRabbit): the storage mirrors are
+        // fire-and-forget — any upload still in flight has NOT populated
+        // `_docRemotePath` / `_selfieRemotePath` / `_galleryRemotePaths` yet.
+        // Waiting for every pending upload settles the remote handles BEFORE
+        // the snapshot below is taken, so the dossier carries each capture's
+        // durable path when one exists (never a raced null / stale path).
+        if (_activeUploads.isNotEmpty) {
+          await Future.wait(List<Future<void>>.of(_activeUploads));
+        }
+        // Snapshot the remote handles ALIGNED with the local gallery so the
+        // registry payload carries a durable, admin-readable path per photo.
+        // Uploads that never completed stay `null` (filtered out below) — the
+        // payload must never carry a fabricated or mis-indexed URL.
+        final galleryRemotePaths = <String?>[
+          for (var i = 0; i < _galleryPhotos.length; i++)
+            i < _galleryRemotePaths.length ? _galleryRemotePaths[i] : null,
+        ];
+        final newPro = PendingProModel(
+          id: 'pro_${DateTime.now().millisecondsSinceEpoch}',
+          name: name,
+          phone: contactPhone.isEmpty ? '-' : contactPhone,
+          email: committedEmail.isEmpty ? null : committedEmail,
+          professionFr: _selectedCategory?.fr ?? 'Peintre',
+          professionAr: _selectedCategory?.ar ?? 'دهّان',
+          city: _city ?? _governorate,
+          submittedAt:
+              '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+          // The REAL proof picked in step 5 (absolute local path, or an asset
+          // path for admin-seeded records). The hardcoded
+          // 'assets/images/doc_placeholder.png' mock is gone: the admin must
+          // review the document the professional actually submitted.
+          docImage: proof,
+          selfiePath: _selfiePhotoPath,
+          status: 'pending',
+          experienceYears: experienceYears,
+          description: description.isEmpty ? null : description,
+          docType: _docType,
+          galleryPhotos: List.from(_galleryPhotos),
+          // Remote Supabase Storage handles resolved from the uploads above:
+          // durable paths an admin (on ANY device) resolves to a signed URL.
+          // Nullable on purpose — an offline capture keeps only its local path.
+          proofImagePath: _docRemotePath,
+          selfieImagePath: _selfieRemotePath,
+          galleryImagePaths: [
+            for (final remote in galleryRemotePaths)
+              if (remote != null && remote.isNotEmpty) remote,
+          ],
+          // Step-2 specialty chips are PERSISTED in the payload too (not just
+          // mirrored into the session store): the admin reviews exactly the
+          // services the pro declared, and the future Supabase row receives
+          // the full bilingual list.
+          specialtiesFr: [for (final s in _selectedSpecialties) s.fr],
+          specialtiesAr: [for (final s in _selectedSpecialties) s.ar],
+          pricingType: _pricingType,
+          priceFrom: _pricingType == 'quote' ? null : _priceFrom,
+        );
+
+        // Assigns the unique PRO-XXXXX code and queues for admin review.
+        final registered = AdminStore.registerPro(newPro);
+
+        ProProfileStore.professionFr = newPro.professionFr;
+        ProProfileStore.professionAr = newPro.professionAr;
+        ProProfileStore.selectedSpecialties.value =
+            List.from(_selectedSpecialties);
+        ProProfileStore.pricingType.value = _pricingType;
+        ProProfileStore.priceFrom.value = _priceFrom;
+        ProProfileStore.workImages.value = List.from(_galleryPhotos);
+        ProProfileStore.serviceZones.value = [_governorate];
+
+        // Bind the professional identity to the local session, then land on
+        // the verification gate (pending approval / WhatsApp inquiry).
+        // The e-mail is re-bound explicitly from the immutable snapshot so a
+        // session rebuild cannot drop the Email-OTP identity.
+        await UserStore.set(
+          name: registered.name,
+          phone: registered.phone,
+          email: committedEmail.isEmpty ? null : committedEmail,
+          role: UserRole.professional,
+          proCode: registered.proCode,
+          proofPath: registered.docImage,
+          selfiePath: registered.selfiePath,
+          verificationStatus: ProVerification.pending,
+        );
+        if (!mounted) return;
+        // AWAITED (CodeRabbit): `bindProAccount` persists the credential record
+        // (and the proof/selfie snapshot) to SharedPreferences ASYNCHRONOUSLY.
+        // The verification gate MUST only push AFTER the record is durable, or
+        // a restart simulation would land on a screen whose state cannot
+        // round-trip through prefs.
+        await UserStore.bindProAccount(
+          proCode: registered.proCode,
+          verificationStatus: ProVerification.pending,
+          proofPath: registered.docImage,
+          selfiePath: registered.selfiePath,
+        );
+        // Surface the registration payload on the client-facing professional
+        // model as well so the profile/feed show the real craft the pro picked
+        // (verified pros map from the registry entry — see
+        // ProfessionalsRepository.live).
+        // NOTE: experience/description/work-gallery have no ProfessionalModel
+        // slots yet — they travel with the registry payload (and the future
+        // Supabase row) until the model grows matching fields.
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              tr(
+                context,
+                fr: 'Votre demande est en cours de vérification par l\'administrateur.',
+                ar: 'طلبك قيد المراجعة من قبل المسؤول.',
+              ),
+            ),
+            backgroundColor: AppColors.secondary,
           ),
-          backgroundColor: AppColors.secondary,
-        ),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const VerificationGateScreen()),
-      );
+        );
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const VerificationGateScreen()),
+        );
+      } finally {
+        // RE-ARM (CodeRabbit): NO exit path — a validation early-return, a
+        // thrown async failure, or the success navigation — may leave the
+        // submit button permanently disabled. `mounted`-guarded because the
+        // success path may already have replaced (and disposed) this route.
+        if (mounted) {
+          setState(() => _submitting = false);
+        } else {
+          // Disposed State: nothing observes the flag anymore, but it is still
+          // released so a stale closure can never see a held guard.
+          _submitting = false;
+        }
+      }
     }
   }
 
-  void _addMockPhoto() {
-    setState(() {
-      _galleryPhotos.add('photo_${_galleryPhotos.length + 1}');
-    });
+  /// REAL photo capture for the work gallery (image_picker): the legacy
+  /// `_addMockPhoto` pushed fabricated 'photo_1'/'photo_2' strings that never
+  /// rendered anywhere. A picked photo is persisted to the durable `pro_media`
+  /// folder (survives restarts) and its absolute path flows into
+  /// [ProProfileStore.workImages] — ready for the Supabase Storage upload.
+  Future<void> _pickWorkPhoto({required bool fromCamera}) async {
+    final path = await DocumentMediaService.pickWorkPhoto(
+      fromCamera: fromCamera,
+    );
+    if (path == null) return; // user cancelled / permission denied
+    if (!mounted) return;
+    setState(() => _galleryPhotos.add(path));
+    // SUPABASE STORAGE MIRROR: gallery tiles land in the PRIVATE documents
+    // bucket too (`<uid>/work_<ts>`) — the pro's portfolio becomes durable
+    // backend data, not a device-only artifact.
+    _mirrorDocumentToStorage(path, kind: 'work');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(tr(context,
@@ -209,6 +379,160 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
         duration: const Duration(seconds: 1),
       ),
     );
+  }
+
+  /// REAL proof-of-work capture (step 5). A failed or cancelled pick changes
+  /// NOTHING — the old flow silently flipped a `_docUploaded` flag with no
+  /// photo behind it, so an admin could receive a "verified-looking" dossier
+  /// with no document at all.
+  ///
+  /// SUPABASE STORAGE MIRROR: after the durable local copy succeeds, the file
+  /// is also pushed to the PRIVATE `documents` bucket (`<uid>/proof_<ts>`)
+  /// so the backend/admin review owns a durable copy. Fire-and-forget and
+  /// failure-tolerant: the local path stays the source of truth for the
+  /// wizard UI and the registry payload — an offline capture simply lives
+  /// local-only.
+  Future<void> _pickProof({required bool fromCamera}) async {
+    final path = await DocumentMediaService.pickDocument(
+      fromCamera: fromCamera,
+    );
+    if (path == null) return;
+    if (!mounted) return;
+    setState(() {
+      _docPhotoPath = path;
+      // CAPTURE REPLACEMENT (CodeRabbit): the previous remote handle is STALE
+      // the moment the local capture is replaced — clear it so the dossier
+      // can never ship a URL belonging to the OLD photo. The upload mirrored
+      // below re-correlates the NEW capture at this exact same slot.
+      _docRemotePath = null;
+    });
+    _mirrorDocumentToStorage(path, kind: 'proof');
+  }
+
+  /// REAL selfie-with-document capture (recommended for fast review).
+  /// Same storage mirroring contract as [_pickProof] (`<uid>/selfie_<ts>`).
+  Future<void> _pickSelfie({required bool fromCamera}) async {
+    final path = await DocumentMediaService.pickSelfieWithDocument(
+      fromCamera: fromCamera,
+    );
+    if (path == null) return;
+    if (!mounted) return;
+    setState(() {
+      _selfiePhotoPath = path;
+      // CAPTURE REPLACEMENT (CodeRabbit): same stale-handle rule as
+      // [_pickProof] — the slot is cleared first, then re-correlated by the
+      // fresh upload below.
+      _selfieRemotePath = null;
+    });
+    _mirrorDocumentToStorage(path, kind: 'selfie');
+  }
+
+  /// Fire-and-forget upload of a dossier capture to the PRIVATE `documents`
+  /// bucket. Never blocks the wizard; failures are logged inside the service
+  /// and the local file remains the operative copy. Every in-flight future is
+  /// tracked in [_activeUploads] so the submit path can await them before it
+  /// snapshots the remote handles (CodeRabbit).
+  final List<Future<void>> _activeUploads = <Future<void>>[];
+
+  void _mirrorDocumentToStorage(String localPath, {required String kind}) {
+    // SECURE PREFIX (CodeRabbit): private-document paths MUST be namespaced
+    // by the AUTHENTICATED Supabase user UUID when one exists — a device-side
+    // local session id is only a fallback, never the preferred prefix.
+    final uid = SupabaseAuthService.currentUserId ?? UserStore.user.value?.id;
+    if (uid == null || uid.isEmpty) return;
+    // SLOT CORRELATION (CodeRabbit): the gallery index is captured at UPLOAD
+    // START — resolving it again at completion (after a delete/replace) could
+    // attribute the upload to the WRONG tile.
+    final galleryIdx = kind == 'work' ? _galleryPhotos.indexOf(localPath) : -1;
+    // ACTIVE-CAPTURE CORRELATION (CodeRabbit): each new capture bumps its
+    // channel's session token; a completion whose session has since been
+    // replaced (the user re-took the proof/selfie while the previous upload
+    // was still in flight) must NOT clobber the fresh slot with a stale
+    // remote handle.
+    final proofSession = kind == 'proof' ? ++_proofUploadSession : -1;
+    final selfieSession = kind == 'selfie' ? ++_selfieUploadSession : -1;
+    final future = SupabaseStorageService.uploadDocument(
+      uid,
+      File(localPath),
+      kind: kind,
+    ).then((String? remotePath) {
+      if (remotePath == null || remotePath.isEmpty) return;
+      if (!mounted) return;
+      if (kind == 'proof') {
+        if (proofSession == _proofUploadSession) _docRemotePath = remotePath;
+      } else if (kind == 'selfie') {
+        if (selfieSession == _selfieUploadSession) {
+          _selfieRemotePath = remotePath;
+        }
+      } else if (kind == 'work' && galleryIdx >= 0) {
+        // Guard the write: only THIS capture's slot may receive the handle —
+        // if the tile was deleted/replaced mid-upload its slot moved or
+        // changed and the stale result is discarded instead of mis-indexed.
+        if (galleryIdx < _galleryPhotos.length &&
+            _galleryPhotos[galleryIdx] == localPath) {
+          // Grow-on-demand padding (CodeRabbit): the mirror list is lazily
+          // sized — indexing it directly threw RangeError on the FIRST
+          // upload and silently dropped every remote work-gallery handle.
+          while (_galleryRemotePaths.length <= galleryIdx) {
+            _galleryRemotePaths.add(null);
+          }
+          _galleryRemotePaths[galleryIdx] = remotePath;
+        }
+      }
+    }, onError: (Object e, StackTrace st) {
+      // Failures are logged inside the service — the local path remains
+      // the operative copy, so the wizard never aborts for a network blip.
+      debugPrint('ProRegistrationScreen._mirrorDocumentToStorage '
+          '($kind) failed: $e');
+    });
+    _activeUploads.add(future);
+    // The future never errors (onError above), so the bookkeeping continuation
+    // is safe to fire-and-forget.
+    unawaited(future.whenComplete(() => _activeUploads.remove(future)));
+  }
+
+  /// Remote Supabase Storage paths resolved from the uploads above, kept
+  /// alongside the local paths so the registry payload carries durable,
+  /// admin-readable handles (not just device-local artifacts).
+  String? _docRemotePath;
+  String? _selfieRemotePath;
+
+  /// Capture-session tokens for the proof/selfie upload channels: bumped on
+  /// every new capture so a stale in-flight upload can never overwrite the
+  /// fresh capture's remote handle (CodeRabbit).
+  int _proofUploadSession = 0;
+  int _selfieUploadSession = 0;
+  // Padded to match `_galleryPhotos` length at read time (index lookup above).
+  final List<String?> _galleryRemotePaths = [];
+
+  /// Source chooser shared by the three capture surfaces: a bottom sheet
+  /// offering camera & gallery (the same two sources the chat uses).
+  void _chooseSource(void Function({required bool fromCamera}) pick) {
+    showModalBottomSheet<String?>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: Text(
+                  tr(sheetContext, fr: 'Prendre une photo', ar: 'التقاط صورة')),
+              onTap: () => Navigator.pop(sheetContext, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: Text(tr(sheetContext,
+                  fr: 'Choisir dans la galerie', ar: 'اختيار من المعرض')),
+              onTap: () => Navigator.pop(sheetContext, 'gallery'),
+            ),
+          ],
+        ),
+      ),
+    ).then((String? source) {
+      if (source == 'camera') pick(fromCamera: true);
+      if (source == 'gallery') pick(fromCamera: false);
+    });
   }
 
   @override
@@ -617,7 +941,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                       Row(
                         children: [
                           InkWell(
-                            onTap: _addMockPhoto,
+                            onTap: () => _chooseSource(_pickWorkPhoto),
                             child: Container(
                               width: 80,
                               height: 80,
@@ -653,7 +977,8 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                                         return Container(
                                           width: 80,
                                           margin:
-                                              const EdgeInsetsDirectional.only(end: 8),
+                                              const EdgeInsetsDirectional.only(
+                                                  end: 8),
                                           decoration: BoxDecoration(
                                             color: AppColors.primarySurface,
                                             borderRadius:
@@ -661,18 +986,43 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                                           ),
                                           child: Stack(
                                             children: [
-                                              const Center(
-                                                child: Icon(
-                                                    Icons.image_outlined,
-                                                    color: AppColors.primary),
+                                              // The REAL picked photo
+                                              // (overflow-proof tile), with
+                                              // the old icon-only placeholder
+                                              // as its error fallback.
+                                              Positioned.fill(
+                                                child: AppImage(
+                                                  _galleryPhotos[index],
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  fit: BoxFit.cover,
+                                                  errorIcon:
+                                                      Icons.image_outlined,
+                                                ),
                                               ),
                                               Positioned(
                                                 top: 2,
                                                 right: 2,
                                                 child: GestureDetector(
-                                                  onTap: () => setState(() =>
-                                                      _galleryPhotos
-                                                          .removeAt(index)),
+                                                  // INDEX-ALIGNED DELETE (CodeRabbit):
+                                                  // `_galleryRemotePaths` is padded in
+                                                  // parallel with `_galleryPhotos` (see
+                                                  // `_mirrorDocumentToStorage`), so dropping
+                                                  // a tile MUST drop the entry at the very
+                                                  // same index — otherwise every later
+                                                  // upload is attributed to the WRONG photo
+                                                  // and a stale remote path ships in the
+                                                  // dossier.
+                                                  onTap: () => setState(() {
+                                                    _galleryPhotos
+                                                        .removeAt(index);
+                                                    if (index <
+                                                        _galleryRemotePaths
+                                                            .length) {
+                                                      _galleryRemotePaths
+                                                          .removeAt(index);
+                                                    }
+                                                  }),
                                                   child: Container(
                                                     decoration:
                                                         const BoxDecoration(
@@ -794,47 +1144,76 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                       ),
                       const SizedBox(height: 10),
                       GestureDetector(
-                        onTap: () => setState(() => _docUploaded = true),
+                        // REAL capture: camera or gallery. Nothing is marked
+                        // "uploaded" unless a photo actually came back.
+                        onTap: () => _chooseSource(_pickProof),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           width: double.infinity,
                           height: 130,
                           decoration: BoxDecoration(
-                            color: _docUploaded
+                            color: _docPhotoPath != null
                                 ? AppColors.success.withValues(alpha: 0.08)
                                 : AppColors.background,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: _docUploaded
+                              color: _docPhotoPath != null
                                   ? AppColors.success
                                   : AppColors.primary,
                               width: 1.5,
                               style: BorderStyle.solid,
                             ),
                           ),
-                          child: _docUploaded
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                          child: _docPhotoPath != null
+                              ? Row(
                                   children: [
-                                    const Icon(Icons.check_circle_rounded,
-                                        color: AppColors.success, size: 40),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      tr(context,
-                                          fr: 'Document téléchargé ✓',
-                                          ar: 'تم رفع الوثيقة ✓'),
-                                      style: const TextStyle(
-                                          color: AppColors.success,
-                                          fontWeight: FontWeight.bold),
+                                    // The REAL document photo, clipped and
+                                    // covered inside a bounded tile.
+                                    SizedBox(
+                                      width: 110,
+                                      height: 130,
+                                      child: AppImage(
+                                        _docPhotoPath!,
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(14.5),
+                                          bottomLeft: Radius.circular(14.5),
+                                        ),
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          setState(() => _docUploaded = false),
-                                      child: Text(
-                                        tr(context, fr: 'Changer', ar: 'تغيير'),
-                                        style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 12),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Icon(Icons.check_circle_rounded,
+                                              color: AppColors.success,
+                                              size: 32),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            tr(context,
+                                                fr: 'Document ajouté ✓',
+                                                ar: 'تمت إضافة الوثيقة ✓'),
+                                            style: const TextStyle(
+                                                color: AppColors.success,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                _chooseSource(_pickProof),
+                                            child: Text(
+                                              tr(context,
+                                                  fr: 'Changer', ar: 'تغيير'),
+                                              style: const TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontSize: 12),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -888,46 +1267,73 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                       ),
                       const SizedBox(height: 10),
                       GestureDetector(
-                        onTap: () => setState(() => _selfieUploaded = true),
+                        // REAL capture: the selfie is a real photo (camera
+                        // first, gallery as fallback), never a silent flag.
+                        onTap: () => _chooseSource(_pickSelfie),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
                           width: double.infinity,
                           height: 130,
                           decoration: BoxDecoration(
-                            color: _selfieUploaded
+                            color: _selfiePhotoPath != null
                                 ? AppColors.success.withValues(alpha: 0.08)
                                 : AppColors.background,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: _selfieUploaded
+                              color: _selfiePhotoPath != null
                                   ? AppColors.success
                                   : Colors.grey.shade400,
                               width: 1.5,
                             ),
                           ),
-                          child: _selfieUploaded
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                          child: _selfiePhotoPath != null
+                              ? Row(
                                   children: [
-                                    const Icon(Icons.check_circle_rounded,
-                                        color: AppColors.success, size: 40),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      tr(context,
-                                          fr: 'Selfie téléchargé ✓',
-                                          ar: 'تم رفع الصورة ✓'),
-                                      style: const TextStyle(
-                                          color: AppColors.success,
-                                          fontWeight: FontWeight.bold),
+                                    SizedBox(
+                                      width: 110,
+                                      height: 130,
+                                      child: AppImage(
+                                        _selfiePhotoPath!,
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(14.5),
+                                          bottomLeft: Radius.circular(14.5),
+                                        ),
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
-                                    TextButton(
-                                      onPressed: () => setState(
-                                          () => _selfieUploaded = false),
-                                      child: Text(
-                                        tr(context, fr: 'Changer', ar: 'تغيير'),
-                                        style: const TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 12),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Icon(Icons.check_circle_rounded,
+                                              color: AppColors.success,
+                                              size: 32),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            tr(context,
+                                                fr: 'Selfie ajouté ✓',
+                                                ar: 'تمت إضافة الصورة ✓'),
+                                            style: const TextStyle(
+                                                color: AppColors.success,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                _chooseSource(_pickSelfie),
+                                            child: Text(
+                                              tr(context,
+                                                  fr: 'Changer', ar: 'تغيير'),
+                                              style: const TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontSize: 12),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
@@ -1024,7 +1430,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                 ],
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: _next,
+                    onPressed: _submitting ? null : _next,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.secondary,
                       padding: const EdgeInsets.symmetric(vertical: 16),

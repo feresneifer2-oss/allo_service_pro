@@ -20,9 +20,8 @@ void showProfessionalsSheet(
   final matches = ProfessionalsRepository.all
       .where((p) => p.professionFr.toLowerCase() == professionFr.toLowerCase())
       .toList();
-  final pros = matches.isNotEmpty
-      ? matches
-      : ProfessionalsRepository.all.toList()
+  final pros =
+      matches.isNotEmpty ? matches : ProfessionalsRepository.all.toList()
         ..sort((a, b) => b.rating.compareTo(a.rating));
 
   showModalBottomSheet(
@@ -68,8 +67,7 @@ void showProfessionalsSheet(
                   profession:
                       tr(context, fr: pro.professionFr, ar: pro.professionAr),
                   rating: pro.rating,
-                  location:
-                      tr(context, fr: pro.cityFr, ar: pro.city),
+                  location: tr(context, fr: pro.cityFr, ar: pro.city),
                   verified: pro.verified,
                   priceFrom: pro.priceFrom,
                   pricingType: pro.pricingType,

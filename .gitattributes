@@ -1,0 +1,29 @@
+# ── Line endings + diff stability (Qodo) ──────────────────────────────
+# Force LF text normalization on every text asset so Windows/CRLF
+# contributors never produce noisy diffs. Binary assets are left as-is
+# (diff=astextplain gives readable Git diffs for them instead of "Binary
+# files differ"). Mark Dart / YAML / XML / SH as text explicitly.
+* text=auto eol=lf
+# NOTE (CodeRabbit): gitattributes does NOT support brace {a,b} glob
+# expansion — every pattern must be listed explicitly.
+*.dart text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.xml text eol=lf
+*.sh text eol=lf
+*.env text eol=lf
+*.png binary diff=astextplain
+*.jpg binary diff=astextplain
+*.jpeg binary diff=astextplain
+*.gif binary diff=astextplain
+*.webp binary diff=astextplain
+*.ico binary diff=astextplain
+*.ttf binary diff=astextplain
+*.otf binary diff=astextplain
+*.woff binary diff=astextplain
+*.woff2 binary diff=astextplain
+# NO union merge driver (CodeRabbit): `pubspec.lock` is a generated
+# resolution snapshot — a union merge would silently concatenate conflicting
+# resolution entries into a CORRUPT lockfile. Regenerate it instead
+# (`flutter pub get`) and commit the result.

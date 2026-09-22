@@ -27,6 +27,7 @@ void showSubServiceSheet(
   /// Arabic service title — when omitted the FR [serviceName] is reused
   /// (legacy call sites). Prevents French text leaking into AR labels.
   String? serviceNameAr,
+
   /// Arabic sub-service labels, parallel to [subServices].
   List<String>? subServicesAr,
 }) {

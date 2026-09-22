@@ -35,8 +35,8 @@ class ConnectivityStore {
   }
 
   static void _evaluate(List<ConnectivityResult> results) {
-    final online = results.isNotEmpty &&
-        results.any((r) => r != ConnectivityResult.none);
+    final online =
+        results.isNotEmpty && results.any((r) => r != ConnectivityResult.none);
     isOnline.value = online;
   }
 

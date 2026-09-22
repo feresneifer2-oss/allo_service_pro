@@ -48,11 +48,11 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Allo Service Pro utilise la caméra pour envoyer des photos dans le chat.</string>
+	<string>Allo Service Pro utilise la caméra pour photographier vos documents professionnels (preuve de métier, selfie avec document), vos réalisations et votre photo de profil, ainsi que pour envoyer des photos dans le chat.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Allo Service Pro utilise le microphone pour enregistrer des notes vocales dans le chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Allo Service Pro accède à la galerie pour envoyer des photos dans le chat.</string>
+	<string>Allo Service Pro accède à votre galerie pour joindre vos documents professionnels (preuve de métier), vos photos de réalisations et votre photo de profil, et pour envoyer des photos dans le chat.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Allo Service Pro utilise votre position pour remplir automatiquement votre adresse et vous proposer des professionnels proches de vous.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

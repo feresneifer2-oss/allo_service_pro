@@ -143,7 +143,7 @@ void main() {
       );
     });
 
-    test('pro accepts the pending order → stepper stage advances', () {
+    test('pro accepts the pending order → stepper stage advances', () async {
       final pro = ProfessionalsRepository.all.first;
       RequestStore.add(ServiceRequest(
         id: 'uc-flow-2',
@@ -162,7 +162,7 @@ void main() {
 
       // Accepting is the first green stage of the RequestStepper.
       expect(
-        RequestStore.updateStatus('uc-flow-2', RequestStatus.accepted),
+        await RequestStore.updateStatus('uc-flow-2', RequestStatus.accepted),
         isTrue,
       );
       expect(RequestStore.byId('uc-flow-2')!.status, RequestStatus.accepted);

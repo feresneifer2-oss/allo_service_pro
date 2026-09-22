@@ -45,8 +45,7 @@ class NotificationsScreen extends StatelessWidget {
                     NotificationStore.markAsRead(n.id);
                   }
                 },
-                child: Text(tr(context,
-                    fr: 'Tout lire', ar: 'قراءة الكل')),
+                child: Text(tr(context, fr: 'Tout lire', ar: 'قراءة الكل')),
               );
             },
           ),

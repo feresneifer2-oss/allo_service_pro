@@ -100,7 +100,7 @@ class NotificationStore {
         AppLogger.warn(
           'NotificationStore',
           'remote transport refused arrival ${notification.id} '
-          '(recipient ${notification.recipientId})',
+              '(recipient ${notification.recipientId})',
         );
       }
       return delivered;
@@ -137,9 +137,7 @@ class NotificationStore {
   static List<NotificationModel> getNotificationsForUser(
       String userId, UserRole role) {
     final roleKey = role == UserRole.professional ? 'professional' : 'client';
-    return notifications.value
-        .where((n) => n.targetRole == roleKey)
-        .toList();
+    return notifications.value.where((n) => n.targetRole == roleKey).toList();
   }
 
   /// Convenience overload reading the active session from [UserStore].
@@ -154,6 +152,19 @@ class NotificationStore {
 
   static List<NotificationModel> forRecipient(String recipientId) =>
       notifications.value.where((n) => n.recipientId == recipientId).toList();
+
+  /// Drops every notification bound to [requestId] — used when an optimistic
+  /// order is ROLLED BACK because its backend write was refused: keeping the
+  /// "Demande envoyée" / "Nouvelle demande" entries would deep-link the user
+  /// to an order that does not exist server-side.
+  static void removeForRequest(String requestId) {
+    if (requestId.isEmpty) return;
+    final kept = notifications.value
+        .where((n) => n.requestId != requestId)
+        .toList(growable: false);
+    if (kept.length == notifications.value.length) return;
+    notifications.value = kept;
+  }
 
   static void clear() {
     notifications.value = [];

@@ -39,29 +39,35 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkAuthAndRoute() async {
-    // Wait for the animation, then route via the SINGLE consolidated session
-    // authority (UserStore.checkInitialSession) — the session is already
-    // hydrated during main() startup, so no duplicated prefs reads here.
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    try {
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
 
-    final roleKey = await UserStore.checkInitialSession();
-    if (!mounted) return;
+      final roleKey = await UserStore.checkInitialSession();
+      if (!mounted) return;
 
-    Widget destination = const WelcomeScreen();
-    if (roleKey != null) {
-      destination = switch (roleKey) {
-        'admin' => const AdminDashboardScreen(),
-        'professionnel' => const ProShell(),
-        'client' => const ClientShell(),
-        _ => const WelcomeScreen(),
-      };
+      Widget destination = const WelcomeScreen();
+      if (roleKey != null) {
+        destination = switch (roleKey) {
+          'admin' => const AdminDashboardScreen(),
+          'professionnel' => const ProShell(),
+          'client' => const ClientShell(),
+          _ => const WelcomeScreen(),
+        };
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => destination),
+      );
+    } catch (e) {
+      debugPrint('SplashScreen: session routing failed: $e');
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      );
     }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => destination),
-    );
   }
 
   @override

@@ -23,6 +23,15 @@ class ProfessionalsRepository {
     return approved.map((p) {
       final cityFr = p.city ?? 'Tunis';
       final loc = TunisianLocations.getLocationByFr(cityFr);
+      // Live listing mirrors the registration payload: the pro's submitted
+      // experience, description (in BOTH languages) and pricing entry point
+      // travel into the client feed instead of hardcoded defaults. A blank
+      // description falls back to the generic verified-pro copy.
+      final rawDescription = p.description?.trim() ?? '';
+      final aboutFallback =
+          'Professionnel vérifié par Allo Service (identifiant ${p.proCode ?? p.id}).';
+      final aboutArFallback =
+          'محترف موثّق من Allo Service (المعرّف ${p.proCode ?? p.id}).';
       return ProfessionalModel(
         id: p.proCode ?? p.id,
         name: p.name,
@@ -35,13 +44,33 @@ class ProfessionalsRepository {
         servicesCount: 0,
         verified: true,
         availableNow: true,
-        priceFrom: 50,
-        experienceYears: 1,
-        aboutFr:
-            'Professionnel vérifié par Allo Service (identifiant ${p.proCode ?? p.id}).',
-        aboutAr: 'محترف موثّق من Allo Service (المعرّف ${p.proCode ?? p.id}).',
-        servicesFr: [p.professionFr],
-        servicesAr: [p.professionAr],
+        // Quote mode is preserved verbatim: a pro who registered with
+        // pricingType 'quote' carries priceFrom == null, and the client UI
+        // branches on pricingType FIRST ('Sur devis' badge) so the `?? 50`
+        // numeric fallback below never renders for quote pros — it only
+        // satisfies the non-nullable model field.
+        pricingType: p.pricingType ?? 'fixed',
+        // Quote mode (CodeRabbit): priceFrom stays NULL/unset — no numeric
+        // fallback (like 50) may ever be exposed for quote-based services.
+        // The client UI branches on pricingType FIRST ('Sur devis' badge).
+        priceFrom: p.pricingType == 'quote' ? null : (p.priceFrom ?? 50),
+        experienceYears: p.experienceYears ?? 1,
+        aboutFr: rawDescription.isNotEmpty ? rawDescription : aboutFallback,
+        aboutAr: rawDescription.isNotEmpty ? rawDescription : aboutArFallback,
+        // Submitted specialties (wizard step 2) publish into the client
+        // model so the profile / feed list the EXACT services the pro
+        // declared; the profession label is the fallback when the pro
+        // picked none.
+        servicesFr: p.specialtiesFr.isNotEmpty
+            ? List<String>.from(p.specialtiesFr)
+            : [p.professionFr],
+        servicesAr: p.specialtiesAr.isNotEmpty
+            ? List<String>.from(p.specialtiesAr)
+            : [p.professionAr],
+        // Work gallery: the photos the pro submitted in the wizard step 4
+        // travel into the client-facing model, so the feed / profile tiles
+        // render the REAL work instead of an empty placeholder list.
+        workImages: List<String>.from(p.galleryPhotos),
         reviewCount: 0,
         badges: p.badges,
       );

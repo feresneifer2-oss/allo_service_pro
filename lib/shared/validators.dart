@@ -52,7 +52,8 @@ class AppValidators {
 
   /// Domain label: starts and ends with an alphanumeric character, internal
   /// hyphens allowed, 1–63 characters (no leading/trailing `-`).
-  static const String _label = r'[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?';
+  static const String _label =
+      r'[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?';
 
   /// Local part: alphanumerics and `_ % + -`, with SINGLE dots used as
   /// separators — so a leading dot, a trailing dot and consecutive dots are
@@ -65,8 +66,7 @@ class AppValidators {
 
   /// Any whitespace or C0/C1 control character — never legal inside an
   /// address, and a classic injection-smuggling vector.
-  static final RegExp _whitespaceOrControl =
-      RegExp(r'[\s\u0000-\u001F\u007F]');
+  static final RegExp _whitespaceOrControl = RegExp(r'[\s\u0000-\u001F\u007F]');
 
   /// Full address: local part `@` one or more domain labels `@` an alphabetic
   /// TLD. Malformed local parts (`.a@`, `a.@`,

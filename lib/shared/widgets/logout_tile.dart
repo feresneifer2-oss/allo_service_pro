@@ -49,14 +49,32 @@ class LogoutTile extends StatelessWidget {
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    await UserStore.signOutAndReset();
+    // Capture everything context-derived BEFORE the async gap: the dialog
+    // above already awaited, so `context` must not be touched afterwards.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final retryText = tr(context,
+        fr: 'Déconnexion impossible pour le moment — réessayez.',
+        ar: 'تعذّر تسجيل الخروج حالياً — حاول مجدداً.');
+    // GUARDED NAVIGATION: on a `false` the persisted cleanup failed — the
+    // session stays ALIVE and nothing was reset, so navigating to Welcome
+    // would strand the user on a logged-out screen with a live session.
+    final signedOut = await UserStore.signOutAndReset();
 
-    if (!context.mounted) return;
+    if (!navigator.mounted) return;
+    if (!signedOut) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(retryText),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     // Rebuild the whole stack: nothing of the previous session remains.
-    Navigator.pushAndRemoveUntil(
-      context,
+    navigator.pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (route) => false,
     );

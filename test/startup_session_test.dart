@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 
 void main() {
@@ -31,13 +33,32 @@ void main() {
     expect(await UserStore.checkInitialSession(), 'professionnel');
   });
 
-  test('B5 · admin session → admin (exists outside the UserRole enum)',
+  test('B5 · signed admin session → admin (exists outside the UserRole enum)',
       () async {
+    // SIGNED SESSION (CodeRabbit): the persisted routing flag must carry the
+    // signature of the configured admin identity — an unsigned raw
+    // preference can never restore the admin route.
+    AdminStore.debugSetAdminCredentials(
+      email: 'root@startup.test',
+      password: 'pw-startup',
+    );
+    addTearDown(AdminStore.debugResetAdminCredentials);
+    final signature = AdminAuth.sessionSignature;
+    expect(signature, isNotNull);
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'is_logged_in': true,
+      'user_role': 'admin',
+      'admin_session_sig': signature!,
+    });
+    expect(await UserStore.checkInitialSession(), 'admin');
+  });
+
+  test('B5 · unsigned admin flag is refused (signature gate)', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'is_logged_in': true,
       'user_role': 'admin',
     });
-    expect(await UserStore.checkInitialSession(), 'admin');
+    expect(await UserStore.checkInitialSession(), isNull);
   });
 
   test('B5 · legacy session (no role key) derives route from hydrated user',

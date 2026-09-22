@@ -31,8 +31,7 @@ void main() {
   });
 
   group('SubscriptionStore · 30-day expiration', () {
-    test('renew stamps the cycle start and derives expiresAt (+30 days)',
-        () {
+    test('renew stamps the cycle start and derives expiresAt (+30 days)', () {
       final start = DateTime(2026, 8, 1, 12);
       SubscriptionStore.renew(at: start);
 
@@ -45,8 +44,8 @@ void main() {
       final start = DateTime(2026, 8, 1, 12);
       SubscriptionStore.renew(at: start);
 
-      final almostUp = start.add(const Duration(
-          days: 29, hours: 23, minutes: 59, seconds: 59));
+      final almostUp = start
+          .add(const Duration(days: 29, hours: 23, minutes: 59, seconds: 59));
       expect(SubscriptionStore.isCycleOver(start, almostUp), isFalse);
     });
 
@@ -54,14 +53,12 @@ void main() {
       final start = DateTime(2026, 8, 1, 12);
       SubscriptionStore.renew(at: start);
 
-      final justPast = start
-          .add(const Duration(days: 30))
-          .add(const Duration(minutes: 1));
+      final justPast =
+          start.add(const Duration(days: 30)).add(const Duration(minutes: 1));
       expect(SubscriptionStore.isCycleOver(start, justPast), isTrue);
     });
 
-    test('cycleElapsed distinguishes an old activation from a fresh one',
-        () {
+    test('cycleElapsed distinguishes an old activation from a fresh one', () {
       SubscriptionStore.renew(
           at: DateTime.now().subtract(const Duration(days: 31)));
       expect(SubscriptionStore.cycleElapsed, isTrue);
@@ -163,7 +160,8 @@ void main() {
       expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
     });
 
-    test('an UNATTRIBUTED writer keeps an unattributed cycle (no account '
+    test(
+        'an UNATTRIBUTED writer keeps an unattributed cycle (no account '
         'identity is involved)', () async {
       await SubscriptionStore.reset();
       final start = DateTime(2026, 8, 1, 12);

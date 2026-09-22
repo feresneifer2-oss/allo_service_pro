@@ -56,6 +56,13 @@ class ServiceCard extends StatelessWidget {
                           imagePath!,
                           width: 44,
                           height: 44,
+                          // ONE decode dimension only (CodeRabbit): supplying
+                          // both cacheWidth AND cacheHeight double-scales the
+                          // decoded bitmap for a square 44px avatar. The width
+                          // alone preserves the aspect ratio.
+                          cacheWidth:
+                              (44 * MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Icon(
                             icon,

@@ -78,7 +78,7 @@ class EmailOtpService {
     _debugDemoOverride = value;
   }
 
-    /// Test-only read-side so an assertion can probe the current override.
+  /// Test-only read-side so an assertion can probe the current override.
   @visibleForTesting
   static bool? get debugDemoOverride => _debugDemoOverride;
 
@@ -139,8 +139,7 @@ class EmailOtpService {
   static void debugSetExternalProvider(bool wired) {
     if (kReleaseMode || kProfileMode) {
       throw EmailOtpSecurityException(
-        'debugSetExternalProvider is unavailable in release/profile builds.'
-      );
+          'debugSetExternalProvider is unavailable in release/profile builds.');
     }
     _hasExternalProvider = wired;
   }
@@ -154,6 +153,7 @@ class EmailOtpService {
     if (hasDeliveryChannel) return;
     throw const EmailOtpUnavailableException();
   }
+
   static final Random _random = Random.secure();
   static final Map<String, _PendingOtp> _pending = {};
 
@@ -169,10 +169,8 @@ class EmailOtpService {
 
   static String _normalize(String email) => email.trim().toLowerCase();
 
-  
   /// Generates a cryptographically-random, zero-padded 6-digit code.
-  static String _generate() =>
-      (_random.nextInt(900000) + 100000).toString();
+  static String _generate() => (_random.nextInt(900000) + 100000).toString();
 
   /// Simulated delivery channel — the single seam to replace with a real
   /// SMTP/API call when a backend is introduced.
@@ -317,4 +315,3 @@ class _PendingOtp {
   /// (brute-force guard — see [EmailOtpService.maxVerifyAttempts]).
   int failedAttempts = 0;
 }
-

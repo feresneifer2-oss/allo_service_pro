@@ -17,6 +17,7 @@ class SearchResult {
   final String? serviceId;
   final String? categoryId;
   final ProfessionalModel? professional;
+
   /// Price hint (TND) shown as a chip on service results when known.
   final int? priceFrom;
 
@@ -73,8 +74,7 @@ class SearchService {
     for (final service in AppServicesCatalog.services) {
       if (service.nameFr.toLowerCase().contains(q) ||
           service.nameAr.contains(q)) {
-        final key =
-            '${service.nameFr.toLowerCase()}|${service.categoryId}';
+        final key = '${service.nameFr.toLowerCase()}|${service.categoryId}';
         if (!seenServiceKeys.add(key)) continue;
         results.add(SearchResult(
           type: SearchResultType.service,

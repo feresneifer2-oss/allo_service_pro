@@ -1,9 +1,9 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/presentation/admin_dashboard_screen.dart';
 import 'package:allo_service_pro/shared/localization/app_localizations.dart';
 import 'package:allo_service_pro/shared/validators.dart';
@@ -49,9 +49,13 @@ class _LoginScreenState extends State<LoginScreen> {
     // Smart admin routing — delegated to AdminAuthRepository (async by
     // design: the production implementation is a server-side RPC).
     if (await AdminStore.matchesAdmin(email, pass)) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_logged_in', true);
-      await prefs.setString('user_role', 'admin');
+      // SIGNED admin session (CodeRabbit): the persisted routing flag is
+      // stored together with a signature derived from the configured admin
+      // identity — an unsigned raw preference can never restore the admin
+      // route on a cold start.
+      await UserStore.setAdminSession(
+        signature: AdminAuth.sessionSignature,
+      );
 
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
@@ -62,7 +66,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (!UserStore.signIn(email: email, password: pass)) {
+    // signIn is async by design: the boundary wipe (in-memory clear +
+    // awaited SharedPreferences key removals) must complete strictly BEFORE
+    // the new session is bound and persisted — a fire-and-forget removal
+    // could otherwise race persistToPrefs() and wipe the fresh PRO code.
+    if (!await UserStore.signIn(email: email, password: pass)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -74,7 +82,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     // Mirror the persisted admin registry (subscription · tokens · approval)
     // into the live session stores BEFORE routing — zero desync.
-    AdminStore.syncSessionStoresForCurrentUser();
+    await AdminStore.syncSessionStoresForCurrentUser();
+    if (!mounted) return;
     // Role-aware routing: a returning pro goes STRAIGHT to ProShell - its
     // internal gates render the pending-approval screen, the suspended
     // (Compte Bloque) screen or the dashboard according to the CURRENT

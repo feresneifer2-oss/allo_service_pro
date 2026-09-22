@@ -16,6 +16,8 @@ class ConfirmRequestScreen extends StatefulWidget {
 }
 
 class _ConfirmRequestScreenState extends State<ConfirmRequestScreen> {
+  bool _isSubmitting = false;
+
   @override
   Widget build(BuildContext context) {
     final request = widget.request;
@@ -73,8 +75,8 @@ class _ConfirmRequestScreenState extends State<ConfirmRequestScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.slate800,
                   borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: AppColors.secondary.withValues(alpha: .4)),
+                  border: Border.all(
+                      color: AppColors.secondary.withValues(alpha: .4)),
                 ),
                 child: Row(
                   children: [
@@ -86,7 +88,8 @@ class _ConfirmRequestScreenState extends State<ConfirmRequestScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            tr(context, fr: 'Mode de paiement', ar: 'طريقة الدفع'),
+                            tr(context,
+                                fr: 'Mode de paiement', ar: 'طريقة الدفع'),
                             style: const TextStyle(
                                 color: AppColors.slate400, fontSize: 13),
                           ),
@@ -111,21 +114,47 @@ class _ConfirmRequestScreenState extends State<ConfirmRequestScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Cash-only policy: the method is hardcoded server-side
-                    // (locally) — no interactive selection anymore.
-                    RequestStore.add(
-                      request.copyWith(paymentMethod: 'cash'),
-                    );
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            RequestSentScreen(requestId: request.id),
-                      ),
-                      (r) => r.isFirst,
-                    );
-                  },
+                  onPressed: _isSubmitting
+                      ? null
+                      : () async {
+                          if (_isSubmitting) return;
+                          setState(() => _isSubmitting = true);
+                          // Cash-only policy: the method is hardcoded server-side
+                          // (locally) — no interactive selection anymore.
+                          // AWAITED (CodeRabbit): the Supabase mirror settles
+                          // before the user is told the order was sent.
+                          final mirrored = await RequestStore.add(
+                            request.copyWith(paymentMethod: 'cash'),
+                          );
+                          // ASYNC-GAP SAFETY: never navigate with a dead context.
+                          if (!context.mounted) return;
+                          if (!mirrored) {
+                            // BACKEND REFUSAL (CodeRabbit): the order lives
+                            // LOCAL-ONLY — the success screen would lie about
+                            // the pro having received it. Re-arm the button so
+                            // the same draft can be retried.
+                            setState(() => _isSubmitting = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(tr(
+                                  context,
+                                  fr: "Demande enregistrée sur cet appareil, mais la synchronisation a échoué. Réessayez.",
+                                  ar: 'تم حفظ الطلب على هذا الجهاز، لكن فشلت المزامنة. حاول مجدداً.',
+                                )),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  RequestSentScreen(requestId: request.id),
+                            ),
+                            (r) => r.isFirst,
+                          );
+                        },
                   style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.secondary),
                   child: Text(
@@ -162,7 +191,8 @@ class _Row extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: const TextStyle(color: AppColors.slate400, fontSize: 13)),
+                style:
+                    const TextStyle(color: AppColors.slate400, fontSize: 13)),
             const SizedBox(height: 4),
             Text(value,
                 style: const TextStyle(

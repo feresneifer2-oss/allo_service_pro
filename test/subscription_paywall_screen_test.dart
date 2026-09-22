@@ -17,38 +17,38 @@ Widget _host(Widget child, Locale locale) => MaterialApp(
     );
 
 void main() {
-  testWidgets('token-exhaustion paywall shows the FR lock copy', (tester) async {
+  testWidgets('token-exhaustion paywall shows the FR lock copy',
+      (tester) async {
     await tester.pumpWidget(_host(
-      const SubscriptionPaywallScreen(
-          reason: PaywallReason.tokensExhausted),
+      const SubscriptionPaywallScreen(reason: PaywallReason.tokensExhausted),
       const Locale('fr'),
     ));
 
-    expect(find.text('Compte suspendu : Solde de tokens épuisé'),
-        findsOneWidget);
+    expect(
+        find.text('Compte suspendu : Solde de tokens épuisé'), findsOneWidget);
     expect(find.textContaining('consommé tous vos tokens'), findsOneWidget);
     expect(find.text("Activer l'abonnement illimité (15 DT / mois)"),
         findsOneWidget);
   });
 
-  testWidgets('token-exhaustion paywall shows the AR lock copy', (tester) async {
+  testWidgets('token-exhaustion paywall shows the AR lock copy',
+      (tester) async {
     appLocale.value = const Locale('ar');
     addTearDown(() => appLocale.value = const Locale('fr'));
 
     await tester.pumpWidget(_host(
-      const SubscriptionPaywallScreen(
-          reason: PaywallReason.tokensExhausted),
+      const SubscriptionPaywallScreen(reason: PaywallReason.tokensExhausted),
       const Locale('ar'),
     ));
 
     expect(find.text('تم إيقاف حسابك مؤقتاً لنفاد الرصيد'), findsOneWidget);
     expect(find.textContaining('استهلكت جميع التوكنز'), findsOneWidget);
-    expect(find.text('تفعيل الاشتراك اللامحدود (15 د.ت / شهر)'),
-        findsOneWidget);
+    expect(
+        find.text('تفعيل الاشتراك اللامحدود (15 د.ت / شهر)'), findsOneWidget);
   });
 
-  testWidgets(
-      'expired-subscription paywall keeps its existing FR copy', (tester) async {
+  testWidgets('expired-subscription paywall keeps its existing FR copy',
+      (tester) async {
     await tester.pumpWidget(_host(
       const SubscriptionPaywallScreen(
           reason: PaywallReason.subscriptionExpired),

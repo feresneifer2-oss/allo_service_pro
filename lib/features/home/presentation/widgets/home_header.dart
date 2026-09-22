@@ -44,8 +44,8 @@ class HomeHeader extends StatelessWidget {
                     userName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -60,9 +60,10 @@ class HomeHeader extends StatelessWidget {
               builder: (context, List notifications, _) {
                 // Role-routed badge: only notifications addressed to the
                 // CURRENT role (client / professional) count here.
-                final unread = NotificationStore.getNotificationsForCurrentUser()
-                    .where((n) => !n.isRead)
-                    .length;
+                final unread =
+                    NotificationStore.getNotificationsForCurrentUser()
+                        .where((n) => !n.isRead)
+                        .length;
                 return Stack(
                   children: [
                     IconButton(

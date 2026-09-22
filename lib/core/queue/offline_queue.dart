@@ -79,6 +79,9 @@ class OfflineQueue {
   static bool _initialized = false;
   static bool _flushing = false;
 
+  /// Tail of the serialized persistence pipeline (see [persistSerially]).
+  static Future<void> _persistTail = Future<void>.value();
+
   /// Whether automatic replay is armed.
   static bool get isInitialized => _initialized;
 
@@ -134,12 +137,12 @@ class OfflineQueue {
       );
       return false;
     }
-    pending.value = <QueuedAction>[...pending.value, action];
-    await persistToPrefs();
+    pending.value = insertByFifo(pending.value, action);
+    await persistSerially();
     AppLogger.warn(
       'OfflineQueue',
       'queued ${action.type.name} (${action.targetOrderId ?? '-'}) — '
-      '${pending.value.length} pending',
+          '${pending.value.length} pending',
     );
     return true;
   }
@@ -207,7 +210,7 @@ class OfflineQueue {
             AppLogger.error(
               'OfflineQueue',
               'dropped ${action.type.name} (${action.targetOrderId ?? '-'}): '
-              'not replayable',
+                  'not replayable',
             );
           case QueueExecutionResult.retry:
             retried += 1;
@@ -218,7 +221,7 @@ class OfflineQueue {
               AppLogger.error(
                 'OfflineQueue',
                 'gave up on ${action.type.name} '
-                '(${action.targetOrderId ?? '-'}) after $attempts attempts',
+                    '(${action.targetOrderId ?? '-'}) after $attempts attempts',
               );
             } else {
               _replace(action.copyWith(
@@ -271,24 +274,76 @@ class OfflineQueue {
         }
         restored.add(action);
       }
-      // Single ordering rule: the monotonic sequence FIRST (it is the true
-      // insertion order, even across a relaunch), then the timestamp — so two
-      // operations created within the same millisecond always replay in the
-      // order they were enqueued (see [QueuedAction.compareTo]).
+      // MERGE, never clobber (CodeRabbit): the storage read above is ASYNC, so
+      // an operation enqueued while it was in flight (a fresh offline
+      // submission racing the boot restore) must survive. Assigning the list
+      // outright silently discarded that work — a real data-loss window, not
+      // just a test artefact. The restored entries keep their place; anything
+      // only in memory is appended, de-duplicated by id.
+      final restoredIds = {for (final a in restored) a.id};
+      // STRICT FIFO ACROSS THE BOOT RACE (CodeRabbit): restored actions are
+      // by definition OLDER than anything enqueued while this async restore
+      // was in flight. A plain global re-sort by seq could let a boot-time
+      // action — drawn from a counter that had not yet seen the restored
+      // sequences — sort AHEAD of older restored work. Each group therefore
+      // keeps its internal seq/timestamp order, and the restored group
+      // always replays FIRST (memory-only boot actions follow,
+      // de-duplicated by id).
       restored.sort((a, b) => a.compareTo(b));
-      pending.value = restored;
+      final memoryOnly = <QueuedAction>[
+        for (final a in pending.value)
+          if (!restoredIds.contains(a.id)) a,
+      ]..sort((a, b) => a.compareTo(b));
+      pending.value = [...restored, ...memoryOnly];
+      // FINAL PERSISTENCE STAGE (CodeRabbit): an enqueue that raced this
+      // restore already wrote a disk snapshot WITHOUT the restored entries —
+      // its snapshot could only see the pre-restore memory, so the persisted
+      // array was silently reduced to the boot-race actions alone (a kill
+      // right here would lose the restored work on the NEXT boot). Writing
+      // the MERGED list now is the last write of the restore: the disk ends
+      // up holding the exact merged boot order, restored entries included.
+      await persistToPrefs();
     } catch (error, stackTrace) {
       AppErrorHandler.report(error, stackTrace,
           context: 'OfflineQueue.loadFromPrefs');
     }
   }
 
-  static Future<void> persistToPrefs() async {
+  /// Disk write — SERIALIZED (CodeRabbit).
+  ///
+  /// EVERY persistence call flows through the [_persistTail] chain: each
+  /// stage snapshots `pending.value` only when it actually runs (after the
+  /// previous write settled), so concurrent callers (enqueue, flush, clear,
+  /// debugReset) can never interleave their reads/writes and the last write
+  /// on disk is always the most recent complete snapshot — in strict FIFO
+  /// order.
+  static Future<void> persistToPrefs() {
+    // The raw writer is failure-tolerant (never throws), so the tail can
+    // never deadlock on a rejected stage.
+    final stage = _persistTail.then((_) => _persistToPrefsNow());
+    // COMPACTED TAIL (Qodo): the STORED tail must be an error-swallowing
+    // wrapper. Otherwise every subsequent stage would chain onto the
+    // caller-facing future and the chain would keep accumulating unboundedly
+    // under concurrent enqueue pressure. The caller-facing `stage` still
+    // preserves the real outcome (including any failure) for whoever awaits
+    // it — only the retained tail is compacted.
+    _persistTail = stage.then<void>((_) {}, onError: (_) {});
+    return stage;
+  }
+
+  static Future<void> _persistToPrefsNow() async {
     try {
+      // FIFO ON DISK (CodeRabbit): the persisted array is the restart-time
+      // enqueue order (loadFromPrefs relies on it as the legacy-seq fallback),
+      // so it is written as a SORTED snapshot of the current state — never a
+      // live view that a concurrent enqueue could mutate mid-encode, and
+      // always in strict [QueuedAction.compareTo] order.
+      final snapshot = List<QueuedAction>.from(pending.value)
+        ..sort((a, b) => a.compareTo(b));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         prefsKey,
-        jsonEncode(pending.value.map((a) => a.toJson()).toList()),
+        jsonEncode(snapshot.map((a) => a.toJson()).toList()),
       );
     } catch (_) {
       // Best-effort: an unavailable storage layer must not break the in-memory
@@ -325,9 +380,48 @@ class OfflineQueue {
         pending.value.where((a) => a.id != id).toList(growable: false);
   }
 
+  /// Inserts [action] into [list] at its strict [QueuedAction.compareTo]
+  /// position and returns the new list (input never mutated).
+  ///
+  /// FIFO UNDER CONCURRENCY (CodeRabbit): the read-modify-write is kept fully
+  /// SYNCHRONOUS — atomic within the event loop, so a concurrent enqueue can
+  /// never interleave between the read and the write — and the insertion point
+  /// is derived from the ordering rule (monotonic [QueuedAction.seq] first)
+  /// instead of assuming append-at-end. Fresh actions always carry the highest
+  /// sequence so this degrades to O(1) append; a restored/legacy action with
+  /// an out-of-order explicit `seq` still lands where FIFO semantics require.
+  static List<QueuedAction> insertByFifo(
+    List<QueuedAction> list,
+    QueuedAction action,
+  ) {
+    final next = List<QueuedAction>.from(list);
+    var index = next.length;
+    while (index > 0 && next[index - 1].compareTo(action) > 0) {
+      index--;
+    }
+    next.insert(index, action);
+    return next;
+  }
+
+  /// Runs a persistence write as the next stage of the SERIALIZED pipeline.
+  ///
+  /// Kept as an explicit named seam for the enqueue path; the serialization
+  /// itself now lives INSIDE [persistToPrefs], so every disk-write call —
+  /// enqueue, flush, clear, teardown — flows through the same [_persistTail]
+  /// chain and no caller can bypass it.
+  static Future<void> persistSerially() => persistToPrefs();
+
   static void _replace(QueuedAction action) {
     pending.value = pending.value
         .map((a) => a.id == action.id ? action : a)
         .toList(growable: false);
   }
+
+  /// Public seam for id-scoped queue rewrites (CodeRabbit): the re-key path
+  /// must keep queued transitions consistent with the order's fresh id —
+  /// otherwise a replay would target an id that no longer exists, burn its
+  /// retry budget and be dropped, and the backend would never learn the
+  /// transition. Callers persist explicitly afterwards (one write for a
+  /// whole batch of rewrites).
+  static void replace(QueuedAction action) => _replace(action);
 }

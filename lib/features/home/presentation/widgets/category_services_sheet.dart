@@ -80,9 +80,8 @@ void showCategoryServicesSheet(
                         clipBehavior: Clip.antiAlias,
                         child: Builder(
                           builder: (context) {
-                            final asset =
-                                AppServicesCatalog.imageForLegacyType(
-                                    category.id, t.id);
+                            final asset = AppServicesCatalog.imageForLegacyType(
+                                category.id, t.id);
                             if (asset == null) {
                               return Icon(category.icon,
                                   color: AppColors.blue600, size: 18);
@@ -92,10 +91,8 @@ void showCategoryServicesSheet(
                               width: 36,
                               height: 36,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                  category.icon,
-                                  color: AppColors.blue600,
-                                  size: 18),
+                              errorBuilder: (_, __, ___) => Icon(category.icon,
+                                  color: AppColors.blue600, size: 18),
                             );
                           },
                         ),

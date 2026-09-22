@@ -12,7 +12,6 @@ import 'dart:convert';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 
 // ─── Admin identity ────────────────────────────────────────────────────────
-// SECURITY: AdminStore holds NO credentials, NO comparison and NO fallback —
 // it delegates every check to the AdminAuth boundary
 // (see features/admin/data/admin_auth_repository.dart), which owns the
 // environment configuration and the production server-side target.
@@ -54,8 +53,7 @@ class AdminStore {
       AdminAuth.debugSetCredentials(email: email, password: password);
 
   @visibleForTesting
-  static void debugResetAdminCredentials() =>
-      AdminAuth.debugResetCredentials();
+  static void debugResetAdminCredentials() => AdminAuth.debugResetCredentials();
 
   // Global stats
   static final totalUsers = ValueNotifier<int>(1240);
@@ -110,14 +108,12 @@ class AdminStore {
 
   /// Orders accepted today (created today and still/completed accepted).
   static int get acceptedOrdersToday => RequestStore.requests.value
-      .where((r) =>
-          _liveStatuses.contains(r.status) && _isToday(r.createdAt))
+      .where((r) => _liveStatuses.contains(r.status) && _isToday(r.createdAt))
       .length;
 
   /// Orders refused today.
   static int get refusedOrdersToday => RequestStore.requests.value
-      .where((r) =>
-          r.status == RequestStatus.refused && _isToday(r.createdAt))
+      .where((r) => r.status == RequestStatus.refused && _isToday(r.createdAt))
       .length;
 
   /// 💰 Cash revenue log: paid/renewed subscriptions × 15 DT.
@@ -158,49 +154,84 @@ class AdminStore {
   }
 
   // ─── Pro suspension with notification (persisted via registry) ────────
-  static void suspendPro(String id) {
-    // Guard: unknown proId → exit safely instead of throwing a
-    // StateError from an unguarded firstWhere.
-    final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
-    final target = pendingPros.value[idx];
-    setDeactivated(id, deactivated: true);
-    NotificationStore.add(
-      NotificationModel(
-        id: '${DateTime.now().millisecondsSinceEpoch}_susp',
-        title: 'تم تجميد حسابك',
-        message: 'تم تجميد حسابك من طرف الإدارة. تواصل مع الدعم للمزيد.',
-        type: 'system',
-        recipientId: target.proCode ?? target.id,
-        targetRole: 'professional',
-        createdAt: DateTime.now(),
-      ),
-    );
+  // ─── Sequential execution guard (CodeRabbit) ─────────────────────────────
+  // Renew / expire (and every other async mutation) are chained through a
+  // single tail so two overlapping calls can never interleave their
+  // read-modify-write cycles mid-flight.
+  static Future<void> _opTail = Future<void>.value();
+
+  static Future<T> _sequential<T>(Future<T> Function() op) {
+    final stage = _opTail.then((_) => op());
+    // A failed stage must not poison the chain for the next caller.
+    _opTail = stage.then((_) {}, onError: (_) {});
+    return stage;
   }
 
-  static void reactivatePro(String id) {
-    // Guard: unknown proId → exit safely instead of throwing a
-    // StateError from an unguarded firstWhere.
-    final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
-    final target = pendingPros.value[idx];
-    setDeactivated(id, deactivated: false);
-    NotificationStore.add(
-      NotificationModel(
-        id: '${DateTime.now().millisecondsSinceEpoch}_react',
-        title: 'تم إعادة تفعيل حسابك',
-        message: 'تم إعادة تفعيل حسابك بنجاح. مرحباً بعودتك!',
-        type: 'system',
-        recipientId: target.proCode ?? target.id,
-        targetRole: 'professional',
-        createdAt: DateTime.now(),
-      ),
-    );
-  }
+  /// Test hook: drains every scheduled mutation (renew / expire chains).
+  @visibleForTesting
+  static Future<void> debugDrainOperations() => _opTail;
+
+  /// Suspends (bans) a professional — IDEMPOTENT (CodeRabbit).
+  ///
+  /// Suspending an ALREADY-suspended pro re-runs no side effect: the
+  /// verification notification is emitted only on the actual transition,
+  /// so repeat calls never duplicate the warning message.
+  static Future<void> suspendPro(String id) => _sequential(() async {
+        // Guard: unknown proId → exit safely instead of throwing a
+        // StateError from an unguarded firstWhere.
+        final idx = pendingPros.value.indexWhere((p) => p.id == id);
+        if (idx == -1) return;
+        // IDEMPOTENT (CodeRabbit): suspending an ALREADY-suspended pro
+        // re-runs no side effect — the verification notification is emitted
+        // only on the actual transition, so repeat calls never duplicate it.
+        if (pendingPros.value[idx].deactivated) return;
+        final target = pendingPros.value[idx];
+        setDeactivated(id, deactivated: true);
+        NotificationStore.add(
+          NotificationModel(
+            id: '${DateTime.now().millisecondsSinceEpoch}_susp',
+            title: 'تم تجميد حسابك',
+            message: 'تم تجميد حسابك من طرف الإدارة. تواصل مع الدعم للمزيد.',
+            type: 'system',
+            recipientId: target.proCode ?? target.id,
+            targetRole: 'professional',
+            createdAt: DateTime.now(),
+          ),
+        );
+        await persistToPrefs();
+      });
+
+  /// Re-activates a suspended professional — SAME SHARED LOCK as [suspendPro]
+  /// (CodeRabbit): the suspend ⇄ unsuspend transition is a read-modify-write
+  /// on ONE registry row, so both directions run strictly one after the other
+  /// through the [_sequential] pipeline — a concurrent suspend/re-activate
+  /// pair can never interleave their state mutations. IDEMPOTENT too: an
+  /// ALREADY-active entry replays no notification.
+  static Future<void> reactivatePro(String id) => _sequential(() async {
+        // Guard: unknown proId → exit safely instead of throwing a
+        // StateError from an unguarded firstWhere.
+        final idx = pendingPros.value.indexWhere((p) => p.id == id);
+        if (idx == -1) return;
+        if (!pendingPros.value[idx].deactivated) return;
+        final target = pendingPros.value[idx];
+        setDeactivated(id, deactivated: false);
+        NotificationStore.add(
+          NotificationModel(
+            id: '${DateTime.now().millisecondsSinceEpoch}_react',
+            title: 'تم إعادة تفعيل حسابك',
+            message: 'تم إعادة تفعيل حسابك بنجاح. مرحباً بعودتك!',
+            type: 'system',
+            recipientId: target.proCode ?? target.id,
+            targetRole: 'professional',
+            createdAt: DateTime.now(),
+          ),
+        );
+        await persistToPrefs();
+      });
 
   // ─── Two-way verification messaging (AlloService ↔ Pro) ───────────────
   /// Messages are stored on the pro registry entry as "sender|text" lines.
-  static void sendVerificationMessage(String proId, String text) {
+  static Future<void> sendVerificationMessage(String proId, String text) async {
     final t = text.trim();
     if (t.isEmpty) return;
     final idx = pendingPros.value.indexWhere((p) => p.id == proId);
@@ -210,7 +241,7 @@ class AdminStore {
       adminMessages: [...list[idx].adminMessages, 'AlloService|$t'],
     );
     pendingPros.value = list;
-    persistToPrefs();
+    await persistToPrefs();
   }
 
   static void proReply(String proId, String text) {
@@ -252,7 +283,6 @@ class AdminStore {
   /// Whether a registry record carries a usable authentication e-mail.
   ///
   /// Drives the credential-sync boundary: a record WITH an identity is synced
-  /// through it; only a legacy record without one may use the phone fallback.
   static bool _hasEmail(String? email) =>
       email != null && email.trim().isNotEmpty;
 
@@ -285,9 +315,23 @@ class AdminStore {
   }
 
   /// Admin approval: unlocks the account and grants 150 initial tokens.
-  static void approvePro(String id, {String? badge}) {
+  /// Approves a pending professional — IDEMPOTENT (CodeRabbit).
+  ///
+  /// The first call performs every side effect (activation, badge, tokens,
+  /// notification, KPIs). Any repeat call on an ALREADY-approved entry
+  /// performs none of them and returns success — no duplicate tokens,
+  /// badges, notifications or inflated KPI counters.
+  static Future<void> approvePro(String id, {String? badge}) =>
+      _sequential(() => _approveProOnce(id, badge));
+
+  static Future<void> _approveProOnce(String id, String? badge) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
+    // IDEMPOTENT (CodeRabbit): an ALREADY-approved entry replays none of the
+    // side effects below (no duplicate tokens/badges/notifications, no
+    // inflated KPI counter) and reports success.
+    if (pendingPros.value[idx].status == 'approved') return;
+
     final list = List<PendingProModel>.from(pendingPros.value);
     // Official badge #1 is granted automatically on first approval.
     final badges = List<String>.from(list[idx].badges);
@@ -301,7 +345,9 @@ class AdminStore {
     );
     pendingPros.value = list;
     totalPros.value++;
-    persistToPrefs();
+    // AWAITED (CodeRabbit): the caller may reload prefs right after approval
+    // (logout/restart simulations) — a fire-and-forget write races the read.
+    await persistToPrefs();
     // Sync the credential record: a returning pro whose account has just
     // been approved logs in straight to the dashboard (no pending gate).
     //
@@ -311,59 +357,102 @@ class AdminStore {
     // account can never be reached — or cross-matched — through a phone
     // number that happens to be shared.
     if (_hasEmail(list[idx].email)) {
-      UserStore.syncAccountVerificationByEmail(
+      await UserStore.syncAccountVerificationByEmail(
         list[idx].email,
         status: ProVerification.approved,
+        // Approval clears any stale rejection reason on the record too.
+        clearReason: true,
       );
     } else {
-      UserStore.syncAccountVerificationByPhone(
+      await UserStore.syncAccountVerificationByPhone(
         list[idx].phone,
         status: ProVerification.approved,
+        clearReason: true,
       );
     }
     // Live session sync: if THIS pro is the currently logged-in user, flip
     // their verification state + grant the 150 starter tokens instantly —
     // any pending-approval gate on screen disappears without a re-login.
-    final session = UserStore.user.value;
-    final isCurrentSession = session != null &&
-        (session.proCode == list[idx].proCode ||
-            session.id == list[idx].id ||
-            session.proCode == list[idx].id);
-    if (isCurrentSession) {
-      UserStore.updateProVerification(
+    if (_matchesCurrentSession(list[idx])) {
+      await UserStore.updateProVerification(
         status: ProVerification.approved,
         proofPath: list[idx].docImage,
+        clearReason: true,
       );
       ProProfileStore.tokens.value = list[idx].tokens;
-      ProProfileStore.persistToPrefs();
+      await ProProfileStore.persistToPrefs();
     }
   }
 
+  /// NON-EMPTY IDENTIFIER GUARD (CodeRabbit): a live-session match is only
+  /// real when a genuinely-populated identifier agrees. Two records both
+  /// carrying `proCode == null` (or `''`) are NOT the same account — matching
+  /// on an empty/null value would flip the wrong session's verification
+  /// state, and `session.id == entry.id` only counts when the entry id is a
+  /// real registry id (not the transient `draft_*` placeholder).
+  static bool _matchesCurrentSession(PendingProModel entry) {
+    final session = UserStore.user.value;
+    if (session == null) return false;
+    bool nonEmpty(String? s) => s != null && s.trim().isNotEmpty;
+    if (nonEmpty(entry.proCode) && session.proCode == entry.proCode) {
+      return true;
+    }
+    if (nonEmpty(entry.id) &&
+        !entry.id.startsWith('draft_') &&
+        session.id == entry.id) {
+      return true;
+    }
+    if (nonEmpty(entry.id) && session.proCode == entry.id) {
+      return true;
+    }
+    return false;
+  }
+
   /// Rejects with a visible reason; the Pro can re-upload proof later.
-  static void rejectPro(String id, {String? reason}) {
+  static Future<void> rejectPro(String id, {String? reason}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(status: 'rejected', rejectionReason: reason);
     pendingPros.value = list;
-    persistToPrefs();
+    await persistToPrefs();
     if (_hasEmail(list[idx].email)) {
-      UserStore.syncAccountVerificationByEmail(
+      // AWAITED (CodeRabbit): the credential write must settle before the
+      // caller (or a prefs reload in a restart simulation) reads it back.
+      await UserStore.syncAccountVerificationByEmail(
         list[idx].email,
         status: ProVerification.rejected,
+        // The reason travels with the record so a re-login always shows WHY.
+        reason: reason,
       );
     } else {
-      UserStore.syncAccountVerificationByPhone(
+      await UserStore.syncAccountVerificationByPhone(
         list[idx].phone,
         status: ProVerification.rejected,
+        reason: reason,
+      );
+    }
+    // Live session sync (parity with approvePro): a currently logged-in pro
+    // sees the rejection — WITH its reason — without re-login. The match
+    // goes through the NON-EMPTY identifier guard, never a raw null/empty
+    // comparison that could flip an unrelated session.
+    if (_matchesCurrentSession(list[idx])) {
+      await UserStore.updateProVerification(
+        status: ProVerification.rejected,
+        reason: reason,
       );
     }
   }
 
   /// Pro re-submits proof after a rejection — back to the review queue.
-  static void resubmitProof(String id, {String? proofPath}) {
+  ///
+  /// Returns `true` when the pending entry was found and re-queued, `false`
+  /// when no entry matches [id]. Callers MUST check the result and skip
+  /// their local account/profile updates on `false` (CodeRabbit): mutating
+  /// the session when the repository accepted nothing would desync the two.
+  static Future<bool> resubmitProof(String id, {String? proofPath}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(
       status: 'pending',
@@ -371,18 +460,56 @@ class AdminStore {
       docImage: proofPath,
     );
     pendingPros.value = list;
-    persistToPrefs();
+    await persistToPrefs();
     if (_hasEmail(list[idx].email)) {
-      UserStore.syncAccountVerificationByEmail(
+      // AWAITED (CodeRabbit): the credential write must settle before the
+      // caller (or a prefs reload in a restart simulation) reads it back.
+      await UserStore.syncAccountVerificationByEmail(
         list[idx].email,
         status: ProVerification.pending,
+        // Re-submission strips the old reason and re-binds the new proof.
+        clearReason: true,
+        proofPath: proofPath,
       );
     } else {
-      UserStore.syncAccountVerificationByPhone(
+      await UserStore.syncAccountVerificationByPhone(
         list[idx].phone,
         status: ProVerification.pending,
+        clearReason: true,
+        proofPath: proofPath,
       );
     }
+    // Live session sync (parity with approvePro/rejectPro): a currently
+    // logged-in pro sees the pending state instantly — WITHOUT a re-login.
+    // The match goes through the NON-EMPTY identifier guard, never a raw
+    // null/empty comparison that could flip an unrelated session.
+    if (_matchesCurrentSession(list[idx])) {
+      await UserStore.updateProVerification(
+        status: ProVerification.pending,
+        clearReason: true,
+        proofPath: proofPath,
+      );
+    }
+    return true;
+  }
+
+  /// Persists the DURABLE remote handle of an uploaded proof into the dossier
+  /// (CodeRabbit): a device-local path dies with the device — the registry
+  /// must also carry the backend path the admin can resolve from ANY device.
+  ///
+  /// Pure registry write: no status change, no notifications, fully awaited
+  /// so the caller knows the handle is durable before it leaves the flow.
+  static Future<void> attachProofRemotePath(
+    String id, {
+    required String remotePath,
+  }) async {
+    if (remotePath.trim().isEmpty) return;
+    final idx = pendingPros.value.indexWhere((p) => p.id == id);
+    if (idx == -1) return;
+    final list = List<PendingProModel>.from(pendingPros.value);
+    list[idx] = list[idx].copyWith(proofImagePath: remotePath.trim());
+    pendingPros.value = list;
+    await persistToPrefs();
   }
 
   /// Manual token adjustment from the admin detail modal (+/-).
@@ -413,7 +540,7 @@ class AdminStore {
   /// admin never mutates the logged-in session's global subscription store —
   /// and [syncSessionStoresForCurrentUser] preserves this exact expiry on
   /// every later login (no stacking of +30 days per sync).
-  static void grantSubscription(String id, {int days = 30}) {
+  static Future<void> grantSubscription(String id, {int days = 30}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
     final until = DateTime.now().add(Duration(days: days));
@@ -423,20 +550,20 @@ class AdminStore {
       paidUntilMs: until.millisecondsSinceEpoch,
     );
     pendingPros.value = list;
-    persistToPrefs();
-    _syncSubscriptionForSession(list[idx]);
+    await _syncSubscriptionForSession(list[idx]);
+    await persistToPrefs();
   }
 
   /// Reverts/expires the paid cycle of ONE pro — removes the paid flag and
   /// the expiry so the pro drops back to trial mode on next sync.
-  static void revokeSubscription(String id) {
+  static Future<void> revokeSubscription(String id) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return;
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(isPaid: false, paidUntilMs: null);
     pendingPros.value = list;
-    persistToPrefs();
-    _syncSubscriptionForSession(list[idx]);
+    await _syncSubscriptionForSession(list[idx]);
+    await persistToPrefs();
   }
 
   /// Live-session mirror for the pro that is CURRENTLY logged in on this
@@ -444,25 +571,40 @@ class AdminStore {
   /// expiration (never extends it); revoking drops straight to trial mode.
   /// No-op for any other registry entry (incl. the admin's own session), so a
   /// mutation can never touch a state that belongs to another account.
-  static void _syncSubscriptionForSession(PendingProModel entry) {
+  static Future<void> _syncSubscriptionForSession(PendingProModel entry) async {
     final u = UserStore.user.value;
     if (u == null || !u.isProfessional) return;
-    if (entry.proCode != u.proCode && entry.id != u.id && entry.proCode != u.id) {
-      return;
-    }
+    // IDENTIFIER GUARD (CodeRabbit): the same non-empty rule [entryForUser]
+    // enforces is applied HERE too — the comparison below used to accept a
+    // `null == null` / `'' == ''` match, so an identifier-less session (no PRO
+    // code, blank id) matched an entry that also carries none and the admin
+    // mutation leaked into an unrelated session's subscription state.
+    final sessionCode = (u.proCode ?? '').trim();
+    final sessionId = u.id.trim();
+    if (sessionCode.isEmpty && sessionId.isEmpty) return;
+    final entryCode = (entry.proCode ?? '').trim();
+    final matches = (sessionCode.isNotEmpty && entryCode == sessionCode) ||
+        (sessionId.isNotEmpty &&
+            (entry.id == sessionId ||
+                (entryCode.isNotEmpty && entryCode == sessionId)));
+    if (!matches) return;
     if (entry.isPaid && entry.paidUntilMs != null) {
       final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
-      SubscriptionStore.renew(at: start, ownerId: u.id);
+      // SEQUENTIAL renew→expire (CodeRabbit): both writers mutate the same
+      // subscription state — run them strictly one after the other so two
+      // overlapping calls can never interleave their read-modify-write
+      // cycles (the previous Future.wait raced renew() against expire()).
+      await SubscriptionStore.renew(at: start, ownerId: u.id);
       // Same rule as [syncSessionStoresForCurrentUser]: an ALREADY-ELAPSED
       // stamp must report 'expired' instead of silently re-opening a cycle
       // that is over (renew() flips the status back to 'active').
       if (SubscriptionStore.isCycleOver(start, DateTime.now())) {
-        SubscriptionStore.expire();
+        await SubscriptionStore.expire();
       }
     } else {
-      SubscriptionStore.reset();
+      await SubscriptionStore.reset();
     }
   }
 
@@ -484,14 +626,32 @@ class AdminStore {
   // the current pro's record — refreshed on login, on auto-login restore and
   // on every admin mutation touching the current session.
 
-  /// Finds the registry entry matching the CURRENT pro session
-  /// (matched by PRO code or account id).
+  /// Finds the registry entry matching the CURRENT pro session.
+  ///
+  /// IDENTIFIER-GUARDED MATCHING (CodeRabbit): a null/blank/whitespace
+  /// identifier is NEVER used for matching. Without that guard,
+  /// `p.proCode == u.proCode` evaluates as `null == null` for an
+  /// admin-seeded record that carries no PRO code, so a pro whose own code is
+  /// absent would be matched with a FOREIGN dossier (wrong approval state,
+  /// wrong token balance, wrong proof). A valid, NON-EMPTY PRO code is
+  /// required for a code match; the account id is accepted only as a legacy
+  /// fallback and must be non-empty as well.
   static PendingProModel? entryForUser(UserModel? u) {
     if (u == null || !u.isProfessional) return null;
+    final proCode = (u.proCode ?? '').trim();
+    final accountId = u.id.trim();
+    // Nothing usable to match on: never fall back to a `null == null`
+    // comparison — an identifier-less session owns no dossier.
+    if (proCode.isEmpty && accountId.isEmpty) return null;
     for (final p in pendingPros.value) {
-      if (p.proCode == u.proCode ||
-          p.id == u.id ||
-          p.proCode == u.id) {
+      final entryCode = (p.proCode ?? '').trim();
+      // PRO-code match: both sides must carry a real code.
+      if (proCode.isNotEmpty && entryCode == proCode) return p;
+      // Legacy id fallback: the session id (or, for records written before
+      // the PRO code existed, the entry's code) must be a real identifier.
+      if (accountId.isNotEmpty &&
+          (p.id == accountId ||
+              (entryCode.isNotEmpty && entryCode == accountId))) {
         return p;
       }
     }
@@ -503,7 +663,7 @@ class AdminStore {
   /// paid/activated pro always lands with the right subscription, token
   /// balance and approval state — even when the previous session on this
   /// device belonged to another account (e.g. the admin).
-  static void syncSessionStoresForCurrentUser() {
+  static Future<void> syncSessionStoresForCurrentUser() async {
     final u = UserStore.user.value;
     final entry = entryForUser(u);
     if (u == null || entry == null) return;
@@ -521,13 +681,13 @@ class AdminStore {
       final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
-      SubscriptionStore.renew(at: start, ownerId: u.id);
+      await SubscriptionStore.renew(at: start, ownerId: u.id);
       // An ALREADY-ELAPSED cycle must stay expired: renew() flips the status
       // back to 'active' unconditionally, which would silently un-paywall a
       // pro whose 30 days are over. Restore the truthful 'expired' state -
       // derived from THIS pro's own stamp, never from the session notifier.
       if (SubscriptionStore.isCycleOver(start, DateTime.now())) {
-        SubscriptionStore.expire();
+        await SubscriptionStore.expire();
       }
     } else if (entry.isPaid) {
       // Legacy granted flag without an expiry timestamp -> preserve the cycle
@@ -542,7 +702,7 @@ class AdminStore {
       // the registry - the authoritative source - confirms this account owns
       // the granted access. Without it the guard refuses and seeds a fresh
       // cycle rather than inheriting unattributed time.
-      SubscriptionStore.markPaidPreservingCycle(
+      await SubscriptionStore.markPaidPreservingCycle(
         ownerId: u.id,
         adoptUnownedLegacyCycle: true,
       );
@@ -552,13 +712,14 @@ class AdminStore {
       // discarded: 'expired' is only ever derived from the CURRENT pro's own
       // paid stamp (branch above), so a foreign session can never leak a
       // paywall into this one.
-      SubscriptionStore.reset();
+      await SubscriptionStore.reset();
     }
+    await SubscriptionStore.persistToPrefs();
 
     // Tokens: mirror the registry balance into the session store.
     if (ProProfileStore.tokens.value != entry.tokens) {
       ProProfileStore.tokens.value = entry.tokens;
-      ProProfileStore.persistToPrefs();
+      await ProProfileStore.persistToPrefs();
     }
 
     // Verification: the registry is authoritative. If the admin approved or
@@ -566,14 +727,18 @@ class AdminStore {
     // session follows immediately (no re-login required).
     final approved = entry.status == 'approved';
     if (approved && !u.verificationStatus.isApproved) {
-      UserStore.updateProVerification(
+      await UserStore.updateProVerification(
         status: ProVerification.approved,
         proofPath: entry.docImage,
       );
     } else if (!approved &&
         u.verificationStatus.isApproved &&
-        entry.status == 'pending') {
-      UserStore.updateProVerification(status: ProVerification.pending);
+        (entry.status == 'pending' || entry.status == 'rejected')) {
+      await UserStore.updateProVerification(
+        status: entry.status == 'rejected'
+            ? ProVerification.rejected
+            : ProVerification.pending,
+      );
     }
   }
 

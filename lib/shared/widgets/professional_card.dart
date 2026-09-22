@@ -110,8 +110,7 @@ class ProfessionalCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: const Color(0xFF057A55)),
+                          border: Border.all(color: const Color(0xFF057A55)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -122,8 +121,7 @@ class ProfessionalCard extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 tr(context,
-                                    fr: 'CIN Vérifié',
-                                    ar: 'بطاقة هويّة مفعلة'),
+                                    fr: 'CIN Vérifié', ar: 'بطاقة هويّة مفعلة'),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -174,7 +172,26 @@ class ProfessionalCard extends StatelessWidget {
                       iconColor: AppColors.error,
                       text: location,
                     ),
-                    if (priceFrom != null)
+                    if (pricingType == 'quote')
+                      // Quote-based pros: NO numeric price is ever rendered
+                      // or exposed — only the explicit "Sur devis" badge.
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySurface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          tr(context, fr: 'Sur devis', ar: 'حسب الطلب'),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      )
+                    else if (priceFrom != null)
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),

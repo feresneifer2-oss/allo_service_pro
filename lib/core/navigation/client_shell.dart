@@ -141,8 +141,23 @@ class _AccountLockedScreen extends StatelessWidget {
                 // entry point (same flow as the settings LogoutTile).
                 OutlinedButton.icon(
                   onPressed: () async {
-                    await UserStore.signOutAndReset();
+                    // GUARDED NAVIGATION: on a `false` the persisted cleanup
+                    // failed — the session stays ALIVE, so navigating to
+                    // Welcome would strand the user. Surface a retry prompt.
+                    final messenger = ScaffoldMessenger.of(context);
+                    final signedOut = await UserStore.signOutAndReset();
                     if (!context.mounted) return;
+                    if (!signedOut) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(tr(context,
+                              fr: 'Déconnexion impossible pour le moment — réessayez.',
+                              ar: 'تعذّر تسجيل الخروج حالياً — حاول مجدداً.')),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (_) => const WelcomeScreen()),

@@ -117,18 +117,18 @@ class SubscriptionStore {
   /// The opened cycle is attributed to [ownerId], defaulting to the live
   /// session account ([_liveSessionOwnerId]) — see
   /// [markPaidPreservingCycle] for the ownership guard that consumes it.
-  static void renew({DateTime? at, String? ownerId}) {
+  static Future<void> renew({DateTime? at, String? ownerId}) async {
     activatedAt.value = at ?? DateTime.now();
     status.value = SubscriptionStatus.active;
     isPaidSubscriber.value = true;
     _cycleOwnerId = ownerId ?? _liveSessionOwnerId();
-    persistToPrefs();
+    await persistToPrefs();
   }
 
   /// Marks the monthly plan as expired → dashboard gets paywalled.
-  static void expire() {
+  static Future<void> expire() async {
     status.value = SubscriptionStatus.expired;
-    persistToPrefs();
+    await persistToPrefs();
   }
 
   /// Mirrors a paid state WITHOUT restarting the 30-day cycle.
@@ -171,10 +171,10 @@ class SubscriptionStore {
   /// The store is device-global and carries no per-account key of its own, so
   /// silently adopting a foreign cycle would attribute another account's
   /// remaining time — or its paywall — to the account logging in now.
-  static void markPaidPreservingCycle({
+  static Future<void> markPaidPreservingCycle({
     String? ownerId,
     bool adoptUnownedLegacyCycle = false,
-  }) {
+  }) async {
     final start = activatedAt.value;
     final now = DateTime.now();
 
@@ -205,7 +205,7 @@ class SubscriptionStore {
     isPaidSubscriber.value = true;
     activatedAt.value = effectiveStart;
     _cycleOwnerId = ownerId;
-    persistToPrefs();
+    await persistToPrefs();
   }
 
   /// Wipes the persisted subscription state and restores the trial

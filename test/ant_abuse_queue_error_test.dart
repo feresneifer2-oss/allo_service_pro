@@ -86,7 +86,7 @@ void main() {
       AppErrorHandler.report(Exception('test failure'), StackTrace.current,
           context: 'test');
 
-            expect(AppErrorHandler.lastError.value, isA<Exception>());
+      expect(AppErrorHandler.lastError.value, isA<Exception>());
       expect(AppLogger.errors.length, 1);
       expect(AppLogger.errors.first.tag, 'AppError');
     });
@@ -142,7 +142,8 @@ void main() {
       AppLogger.minLevel = LogLevel.debug;
     });
 
-    testWidgets('ErrorWidget.builder renders the branded fallback, not a red screen',
+    testWidgets(
+        'ErrorWidget.builder renders the branded fallback, not a red screen',
         (WidgetTester tester) async {
       // flutter_test verifies (by IDENTITY) that ErrorWidget.builder was not
       // left changed — and it does so right after the test body, BEFORE any
@@ -203,8 +204,13 @@ void main() {
         address: 'Tunis',
         message: 'Test request',
         createdAt: DateTime.now(),
+        // The queue only ever stores transitions that `updateStatus`
+        // accepted, so the synthetic action below (→ completed) must start
+        // from a REACHABLE predecessor: `accepted → completed` is valid,
+        // while `pending → completed` is refused by the transition table.
+        status: RequestStatus.accepted,
       );
-      RequestStore.add(request);
+      await RequestStore.add(request);
 
       final action = QueuedAction(
         id: 'test-flush-1',
@@ -254,7 +260,8 @@ void main() {
       expect(OfflineQueue.pending.value.first.id, 'persist-1');
     });
 
-    test('offline status updates are queued and replayed when connectivity returns',
+    test(
+        'offline status updates are queued and replayed when connectivity returns',
         () async {
       await OfflineQueue.init();
       ConnectivityStore.debugSetOnline(false);
@@ -274,11 +281,26 @@ void main() {
       );
       RequestStore.add(request);
       expect(
-        RequestStore.updateStatus('req-offline-1', RequestStatus.accepted),
+        await RequestStore.updateStatus(
+            'req-offline-1', RequestStatus.accepted),
         isTrue,
       );
-      expect(RequestStore.byId('req-offline-1')?.status, RequestStatus.accepted);
-      expect(OfflineQueue.length, 1);
+      expect(
+        RequestStore.byId('req-offline-1')?.status,
+        RequestStatus.accepted,
+      );
+      // BOTH actions are now durable: the CREATION itself (CodeRabbit: an
+      // offline order must survive a kill / restart and still reach the pro)
+      // followed by its status transition. Sharing ONE FIFO queue is what
+      // guarantees the row is INSERTed before its `accepted` UPDATE.
+      expect(OfflineQueue.length, 2);
+      expect(
+        OfflineQueue.pending.value.map((a) => a.type).toList(),
+        <QueuedActionType>[
+          QueuedActionType.createOrder,
+          QueuedActionType.updateOrderStatus,
+        ],
+      );
 
       ConnectivityStore.debugSetOnline(true);
       for (var i = 0; i < 40; i++) {
@@ -290,7 +312,8 @@ void main() {
       }
 
       expect(OfflineQueue.isEmpty, isTrue);
-      expect(RequestStore.byId('req-offline-1')?.status, RequestStatus.accepted);
+      expect(
+          RequestStore.byId('req-offline-1')?.status, RequestStatus.accepted);
       ConnectivityStore.debugSetOnline(true);
     });
   });
@@ -342,7 +365,9 @@ void main() {
       expect(
         () => _queuedAction(
           'bad-nested',
-          payload: <String, dynamic>{'items': <Object?>['ok', Object()]},
+          payload: <String, dynamic>{
+            'items': <Object?>['ok', Object()]
+          },
         ),
         throwsArgumentError,
       );
@@ -399,7 +424,8 @@ void main() {
       );
     });
 
-    test('a legacy queue without seq keeps its stored order and stays ahead '
+    test(
+        'a legacy queue without seq keeps its stored order and stays ahead '
         'of new actions', () async {
       QueuedAction.debugResetSequence();
       const stamp = 1700000000000;
@@ -416,14 +442,16 @@ void main() {
             'attempts': 0,
           };
       SharedPreferences.setMockInitialValues(<String, Object>{
-        OfflineQueue.prefsKey:
-            jsonEncode(<Map<String, dynamic>>[legacyEntry('legacy-1'), legacyEntry('legacy-2')]),
+        OfflineQueue.prefsKey: jsonEncode(<Map<String, dynamic>>[
+          legacyEntry('legacy-1'),
+          legacyEntry('legacy-2')
+        ]),
       });
 
       await OfflineQueue.loadFromPrefs();
       final restored = OfflineQueue.pending.value;
-      expect(restored.map((a) => a.id).toList(),
-          <String>['legacy-1', 'legacy-2'],
+      expect(
+          restored.map((a) => a.id).toList(), <String>['legacy-1', 'legacy-2'],
           reason: 'the persisted array IS the enqueue order');
 
       // A relaunch must never enqueue an action that sorts BEFORE a stored one.
@@ -536,8 +564,9 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        () => _queuedAction('bad-list-inf',
-            payload: <String, dynamic>{'steps': <Object?>[1, double.nan]}),
+        () => _queuedAction('bad-list-inf', payload: <String, dynamic>{
+          'steps': <Object?>[1, double.nan]
+        }),
         throwsArgumentError,
       );
 
@@ -591,8 +620,8 @@ void main() {
       );
       expect(earlierSeqLaterStamp.compareTo(laterSeqEarlierStamp), lessThan(0),
           reason: 'seq decides, even against a conflicting timestamp');
-      expect(laterSeqEarlierStamp.compareTo(earlierSeqLaterStamp),
-          greaterThan(0));
+      expect(
+          laterSeqEarlierStamp.compareTo(earlierSeqLaterStamp), greaterThan(0));
 
       // Sorting any permutation reproduces the sequence order exactly.
       final shuffled = <QueuedAction>[
@@ -774,7 +803,8 @@ void main() {
       expect(find.text(AppConstants.adminSupportNumber), findsWidgets);
     });
 
-    testWidgets('AntiAbuseGate intercepts navigation and shows the support number',
+    testWidgets(
+        'AntiAbuseGate intercepts navigation and shows the support number',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(

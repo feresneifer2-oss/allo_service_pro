@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
@@ -18,6 +16,7 @@ import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/support/presentation/support_screen.dart'
     show SupportStore, SupportTicket, ChatMsg;
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/widgets/app_image.dart';
 import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +41,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
-    _searchController.addListener(() => setState(() {}));
+    // Mounted guard: the listener fires on every keystroke (a delayed async
+    // event source relative to dispose) — rebuilding a disposed screen
+    // throws, so the callback is a strict no-op once unmounted.
+    _searchController.addListener(() {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
 
   @override
@@ -60,8 +65,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       appBar: AppBar(
         backgroundColor: AppColors.slate900,
         foregroundColor: Colors.white,
-        title: Text(tr(context,
-            fr: 'Panneau d\'administration', ar: 'لوحة الإدارة')),
+        title: Text(
+            tr(context, fr: 'Panneau d\'administration', ar: 'لوحة الإدارة')),
       ),
       body: SafeArea(
         child: Column(
@@ -147,21 +152,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       Row(
                         children: [
-                          Expanded(child: _KpiCard(
+                          Expanded(
+                              child: _KpiCard(
                             label: tr(context, fr: 'Clients', ar: 'كليان'),
                             value: '${AdminStore.totalClients}',
                             icon: Icons.people_rounded,
                             color: const Color(0xFF3B82F6),
                           )),
                           const SizedBox(width: 8),
-                          Expanded(child: _KpiCard(
+                          Expanded(
+                              child: _KpiCard(
                             label: tr(context, fr: 'Pros', ar: 'حرفيون'),
                             value: '${AdminStore.totalProsCount}',
                             icon: Icons.engineering_rounded,
                             color: AppColors.primary,
                           )),
                           const SizedBox(width: 8),
-                          Expanded(child: _KpiCard(
+                          Expanded(
+                              child: _KpiCard(
                             label: tr(context,
                                 fr: 'Acceptés (jour)', ar: 'مقبولة اليوم'),
                             value: '${AdminStore.acceptedOrdersToday}',
@@ -169,7 +177,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                             color: AppColors.success,
                           )),
                           const SizedBox(width: 8),
-                          Expanded(child: _KpiCard(
+                          Expanded(
+                              child: _KpiCard(
                             label: tr(context,
                                 fr: 'Refusés (jour)', ar: 'مرفوضة اليوم'),
                             value: '${AdminStore.refusedOrdersToday}',
@@ -281,7 +290,8 @@ class _KpiCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: large ? 22 : 16),
           const SizedBox(height: 4),
-          FittedBox(child: Text(
+          FittedBox(
+              child: Text(
             value,
             style: TextStyle(
                 color: Colors.white,
@@ -321,7 +331,8 @@ class _ProsTab extends StatelessWidget {
         if (pros.isEmpty) {
           return _EmptyView(
             icon: Icons.engineering_rounded,
-            message: tr(context, fr: 'Aucun professionnel', ar: 'لا يوجد حرفيون'),
+            message:
+                tr(context, fr: 'Aucun professionnel', ar: 'لا يوجد حرفيون'),
           );
         }
         return ListView.separated(
@@ -348,51 +359,76 @@ class _ProManageCard extends StatelessWidget {
   void _showDocument(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: AppColors.slate900,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(tr(context, fr: 'Pièce d\'identité', ar: 'وثيقة الهوية'),
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 10),
-              Container(
-                height: 320,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: (pro.docImage == null)
-                    ? Center(
-                        child: Text(
-                            tr(context, fr: 'Aucune preuve fournie',
-                                ar: 'لا توجد وثيقة'),
-                            style: const TextStyle(
-                                color: AppColors.textSecondary)))
-                    : InteractiveViewer(
-                        maxScale: 4,
-                        child: pro.docImage!.startsWith('assets/')
-                            ? Image.asset(pro.docImage!, fit: BoxFit.contain)
-                            : Image.file(File(pro.docImage!),
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Center(
-                                    child: Text('Preuve illisible',
-                                        style: TextStyle(
-                                            color:
-                                                AppColors.textSecondary)))),
+        // RESPONSIVE DIALOG (CodeRabbit): same short-viewport guard as the
+        // shared proof viewer — the dialog is capped to 85% of the screen
+        // height / 92% width, the document box takes at most ~55% of that
+        // (clamped to 200–480px) and the whole content scrolls, so the
+        // previous FIXED 320px box can never overflow a compact phone.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxDialogH = MediaQuery.sizeOf(context).height * 0.85;
+            final maxDialogW = MediaQuery.sizeOf(context).width * 0.92;
+            final viewerH = (maxDialogH * 0.55).clamp(200.0, 480.0).toDouble();
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: maxDialogH,
+                maxWidth: maxDialogW,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                          tr(context,
+                              fr: 'Pièce d\'identité', ar: 'وثيقة الهوية'),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: viewerH,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: (pro.docImage == null)
+                            ? Center(
+                                child: Text(
+                                    tr(context,
+                                        fr: 'Aucune preuve fournie',
+                                        ar: 'لا توجد وثيقة'),
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary)))
+                            // Bounded + clipped + contain: the full document
+                            // must stay readable while the box can never
+                            // overflow the dialog.
+                            : InteractiveViewer(
+                                maxScale: 4,
+                                child: AppImage(
+                                  pro.docImage!,
+                                  fit: BoxFit.contain,
+                                  borderRadius: BorderRadius.circular(12),
+                                  errorIcon: Icons.broken_image_rounded,
+                                  placeholderColor: Colors.transparent,
+                                ),
+                              ),
                       ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -447,7 +483,15 @@ class _ProManageCard extends StatelessWidget {
                         style: const TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 15)),
                     Text(
-                      '${pro.proCode ?? '-'} • ${pro.phone}',
+                      // Dash-less join: an empty/- phone (the honest state
+                      // until real contact data lands via Supabase) no longer
+                      // renders as a dangling separator.
+                      [
+                        if (pro.proCode != null) pro.proCode!,
+                        if (pro.phone.trim().isNotEmpty &&
+                            pro.phone.trim() != '-')
+                          pro.phone.trim(),
+                      ].join(' • '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -466,8 +510,7 @@ class _ProManageCard extends StatelessWidget {
               IconButton(
                 tooltip: tr(context, fr: 'Voir le document', ar: 'عرض الوثيقة'),
                 onPressed: () => _showDocument(context),
-                icon:
-                    const Icon(Icons.badge_rounded, color: AppColors.primary),
+                icon: const Icon(Icons.badge_rounded, color: AppColors.primary),
               ),
             ],
           ),
@@ -514,8 +557,8 @@ class _ProManageCard extends StatelessWidget {
                   ),
                 if (pro.tokens <= 0)
                   _Chip(
-                    label: tr(context,
-                        fr: 'Tokens Épuisés', ar: 'نفدت التوكينات'),
+                    label:
+                        tr(context, fr: 'Tokens Épuisés', ar: 'نفدت التوكينات'),
                     color: AppColors.error,
                   ),
               ],
@@ -563,22 +606,27 @@ class _ProManageCard extends StatelessWidget {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     // +15 DT is logged on the target pro's own registry
                     // record: subscription flags + expiry live on the pro,
                     // the admin's global session store is never touched.
-                    AdminStore.grantSubscription(pro.id);
-                    _snack(context,
+                    // AWAITED (Qodo): the store mutation is async — wait for
+                    // the registry write to settle before reporting success.
+                    await AdminStore.grantSubscription(pro.id);
+                    if (!context.mounted) return;
+                    _snack(
+                        context,
                         'Abonnement activé (+15 DT) pour ${pro.name}',
                         'تم تفعيل اشتراك ${pro.name} (+15 د.ت)');
                   },
-                  icon:
-                      const Icon(Icons.check_circle_rounded, size: 15),
-                  label: FittedBox(child: Text(
-                      tr(context, fr: 'Activer 30j (+15DT)',
-                          ar: 'تفعيل 30ي (+15د.ت)'),
-                      maxLines: 1,
-                      style: const TextStyle(fontSize: 11.5))),
+                  icon: const Icon(Icons.check_circle_rounded, size: 15),
+                  label: FittedBox(
+                      child: Text(
+                          tr(context,
+                              fr: 'Activer 30j (+15DT)',
+                              ar: 'تفعيل 30ي (+15د.ت)'),
+                          maxLines: 1,
+                          style: const TextStyle(fontSize: 11.5))),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                     foregroundColor: Colors.white,
@@ -587,20 +635,22 @@ class _ProManageCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Expanded(child: ElevatedButton.icon(
+              Expanded(
+                  child: ElevatedButton.icon(
                 onPressed: () {
                   AdminStore.revokeSubscription(pro.id);
                   _snack(context, 'Abonnement expiré pour ${pro.name}',
                       'تم إنهاء اشتراك ${pro.name}');
                 },
                 icon: const Icon(Icons.block_rounded, size: 15),
-                label: FittedBox(child: Text(tr(context, fr: 'Expirer', ar: 'إلغاء'),
-                    style: const TextStyle(fontSize: 11.5))),
+                label: FittedBox(
+                    child: Text(tr(context, fr: 'Expirer', ar: 'إلغاء'),
+                        style: const TextStyle(fontSize: 11.5))),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.error,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 8, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 ),
               )),
             ],
@@ -614,11 +664,13 @@ class _ProManageCard extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: pro.deactivated
                       ? null
-                      : () {
+                      : () async {
                           // Suspends + notifies the pro ("تم تجميد حسابك").
-                          AdminStore.suspendPro(pro.id);
-                          _snack(context,
-                              'Compte de ${pro.name} suspendu',
+                          // AWAITED (Qodo): wait for the registry write to
+                          // settle before reporting success.
+                          await AdminStore.suspendPro(pro.id);
+                          if (!context.mounted) return;
+                          _snack(context, 'Compte de ${pro.name} suspendu',
                               'تم تجميد حساب ${pro.name}');
                         },
                   icon: const Icon(Icons.ac_unit_rounded, size: 15),
@@ -636,11 +688,13 @@ class _ProManageCard extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: !pro.deactivated
                       ? null
-                      : () {
+                      : () async {
                           // Re-activates + notifies ("تم إعادة تفعيل حسابك").
-                          AdminStore.reactivatePro(pro.id);
-                          _snack(context,
-                              'Compte de ${pro.name} réactivé',
+                          // AWAITED (Qodo): wait for the registry write to
+                          // settle before reporting success.
+                          await AdminStore.reactivatePro(pro.id);
+                          if (!context.mounted) return;
+                          _snack(context, 'Compte de ${pro.name} réactivé',
                               'تم إعادة تفعيل حساب ${pro.name}');
                         },
                   icon: const Icon(Icons.restart_alt_rounded, size: 15),
@@ -708,9 +762,69 @@ class _PendingTab extends StatelessWidget {
   }
 }
 
-class _PendingCard extends StatelessWidget {
+/// A pending-verification card. STATEFUL (CodeRabbit): the approve action is
+/// gated on the admin having OPENED every submitted proof image — the
+/// complete dossier renders first, approval-after-glance is impossible.
+class _PendingCard extends StatefulWidget {
   const _PendingCard({required this.pro});
+
   final PendingProModel pro;
+
+  @override
+  State<_PendingCard> createState() => _PendingCardState();
+}
+
+class _PendingCardState extends State<_PendingCard> {
+  /// True once the admin opened the document proof full-size. Defaults to
+  /// true when NO proof was submitted (nothing left to inspect — the
+  /// dossier explicitly renders the MISSING state instead). Same for the
+  /// selfie-with-document.
+  /// Mandatory document proof: an empty-string path counts as missing,
+  /// exactly like null. The selfie is recommended but OPTIONAL.
+  bool get _docPresent => (widget.pro.docImage ?? '').trim().isNotEmpty;
+  bool get _selfiePresent => (widget.pro.selfiePath ?? '').trim().isNotEmpty;
+
+  late bool _docViewed = !_docPresent;
+  late bool _selfieViewed = !_selfiePresent;
+
+  /// UNREADABLE-PROOF GUARD (CodeRabbit): a proof whose image FAILED to
+  /// decode (corrupted / missing file) can NEVER count as reviewed — the
+  /// flag stays locked until a readable version is submitted.
+  bool _docUnreadable = false;
+  bool _selfieUnreadable = false;
+
+  /// Approval gate: the mandatory document must EXIST, be READABLE and have
+  /// been opened, and an optional selfie (when submitted) must have been
+  /// opened too. Missing or unreadable proofs block approval STRICTLY.
+  bool get _allProofsViewed =>
+      _docPresent &&
+      _docViewed &&
+      !_docUnreadable &&
+      _selfieViewed &&
+      !_selfieUnreadable;
+
+  @override
+  void didUpdateWidget(covariant _PendingCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset the review flags when the State is recycled for a DIFFERENT
+    // pending pro (list reorder / update) — or when the SAME pro's proof
+    // PATHS change (a re-upload while the card is visible): the current
+    // proof set must always be inspected again before approval. An
+    // empty-string path counts as missing, exactly like null.
+    if (oldWidget.pro.id != widget.pro.id ||
+        oldWidget.pro.docImage != widget.pro.docImage ||
+        oldWidget.pro.selfiePath != widget.pro.selfiePath) {
+      setState(() {
+        _docViewed = !_docPresent;
+        _selfieViewed = !_selfiePresent;
+        _docUnreadable = false;
+        _selfieUnreadable = false;
+      });
+    }
+  }
+
+  /// Convenience accessor so the existing body keeps reading `pro.…`.
+  PendingProModel get pro => widget.pro;
 
   void _snack(BuildContext context, String fr, String ar) {
     ScaffoldMessenger.of(context)
@@ -719,6 +833,18 @@ class _PendingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // STALE-CALLBACK GUARD (CodeRabbit): the image review callbacks are
+    // bound to the EXACT owner (professional id) AND the exact proof path
+    // this build was created with — a late decode from a recycled card or
+    // an older (re-uploaded) proof path can never cross-contaminate the
+    // review state of another professional.
+    final boundPro = widget.pro;
+    bool docStillBound() =>
+        widget.pro.id == boundPro.id &&
+        widget.pro.docImage == boundPro.docImage;
+    bool selfieStillBound() =>
+        widget.pro.id == boundPro.id &&
+        widget.pro.selfiePath == boundPro.selfiePath;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -752,7 +878,16 @@ class _PendingCard extends StatelessWidget {
                         style: const TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 14.5)),
                     Text(
-                      '${pro.phone} • ${pro.professionFr} • ${pro.city ?? '-'}',
+                      // Dash-less join: an empty/- phone no longer renders as
+                      // a dangling separator (contact data will come from the
+                      // Supabase professionals row).
+                      [
+                        if (pro.phone.trim().isNotEmpty &&
+                            pro.phone.trim() != '-')
+                          pro.phone.trim(),
+                        pro.professionFr,
+                        if ((pro.city ?? '').trim().isNotEmpty) pro.city!,
+                      ].join(' • '),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -761,63 +896,47 @@ class _PendingCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (pro.docImage != null)
-                IconButton(
-                  tooltip: tr(context, fr: 'Voir le document', ar: 'الوثيقة'),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => Dialog(
-                        backgroundColor: AppColors.slate900,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              InteractiveViewer(
-                                maxScale: 4,
-                                child: pro.docImage!.startsWith('assets/')
-                                    ? Image.asset(pro.docImage!, fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) => const Center(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.broken_image_rounded,
-                                                    color: Colors.white70, size: 48),
-                                                SizedBox(height: 8),
-                                                Text('Image illisible',
-                                                    style: TextStyle(
-                                                        color: Colors.white70)),
-                                              ],
-                                            )))
-                                    : Image.file(File(pro.docImage!),
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) => const Center(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.broken_image_rounded,
-                                                    color: Colors.white70, size: 48),
-                                                SizedBox(height: 8),
-                                                Text('Image illisible',
-                                                    style: TextStyle(
-                                                        color: Colors.white70)),
-                                              ],
-                                            ))),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.badge_rounded, color: AppColors.secondary),
-                ),
             ],
+          ),
+          const SizedBox(height: 10),
+
+          // ── FULL verification dossier (CodeRabbit) ──
+          // Every submitted artifact — document proof, selfie-with-document
+          // and ALL payload details — is rendered inline so the admin
+          // reviews the complete dossier before approving.
+          // STALE-CALLBACK GUARD: callbacks below are bound to the owner +
+          // proof paths captured in build() (see top of this method).
+          _PendingDossier(
+            pro: pro,
+            onDocumentOpened: () {
+              if (!mounted) return;
+              if (docStillBound()) {
+                setState(() {
+                  _docViewed = true;
+                  // A successful decode supersedes any earlier failure: the
+                  // unreadable flag resets immediately so a retried / cached
+                  // image never leaves the proof permanently locked.
+                  _docUnreadable = false;
+                });
+              }
+            },
+            onSelfieOpened: () {
+              if (!mounted) return;
+              if (selfieStillBound()) {
+                setState(() {
+                  _selfieViewed = true;
+                  _selfieUnreadable = false;
+                });
+              }
+            },
+            onDocumentUnreadable: () {
+              if (!mounted) return;
+              if (docStillBound()) setState(() => _docUnreadable = true);
+            },
+            onSelfieUnreadable: () {
+              if (!mounted) return;
+              if (selfieStillBound()) setState(() => _selfieUnreadable = true);
+            },
           ),
           const SizedBox(height: 10),
 // @@THREAD@@
@@ -854,20 +973,55 @@ class _PendingCard extends StatelessWidget {
           _ReplyField(proId: pro.id),
           const SizedBox(height: 10),
 
-          // ── One-tap approval (auto-grants 'cin') ──
+          // ── One-tap approval (auto-grants 'cin') — GATED (CodeRabbit) ──
+          // Disabled until every submitted proof image has been OPENED full
+          // size: an approval without inspecting the payload is impossible.
+          if (!_allProofsViewed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_outlined,
+                      size: 14, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      tr(context,
+                          fr: !_docPresent
+                              ? 'Aucun document soumis — la validation est bloquée.'
+                              : (_docUnreadable || _selfieUnreadable)
+                                  ? 'Preuve illisible — demandez un nouvel envoi.'
+                                  : 'Ouvrez la preuve (document / selfie) pour activer la validation.',
+                          ar: !_docPresent
+                              ? 'لم تُرفع وثيقة — القبول مُعطّل.'
+                              : (_docUnreadable || _selfieUnreadable)
+                                  ? 'الإثبات غير مقروء — اطلب إعادة الإرسال.'
+                                  : 'افتح الإثبات (الوثيقة / السيلفي) لتفعيل القبول.'),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                AdminStore.approvePro(pro.id);
-                _snack(context,
-                    '${pro.name} approuvé — badge CIN Vérifié attribué',
-                    'تم قبول ${pro.name} — منح شارة الهوية المفعلة');
-              },
+              onPressed: _allProofsViewed
+                  ? () async {
+                      await AdminStore.approvePro(pro.id);
+                      if (!context.mounted) return;
+                      _snack(
+                          context,
+                          '${pro.name} approuvé — badge CIN Vérifié attribué',
+                          'تم قبول ${pro.name} — منح شارة الهوية المفعلة');
+                    }
+                  : null,
               icon: const Icon(Icons.how_to_reg_rounded),
-              label: FittedBox(child: Text(tr(context, fr: 'Approuver', ar: 'قبول الحساب'),
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w800))),
+              label: FittedBox(
+                  child: Text(tr(context, fr: 'Approuver', ar: 'قبول الحساب'),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w800))),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.success,
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -875,6 +1029,373 @@ class _PendingCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The COMPLETE verification dossier of a pending pro (CodeRabbit): document
+/// proof + selfie-with-document (tap → full size), and every payload detail
+/// — doc type, experience, pricing, description, specialties and the work
+/// gallery — rendered inline. A missing artifact is called out explicitly
+/// instead of being silently absent.
+class _PendingDossier extends StatelessWidget {
+  const _PendingDossier({
+    required this.pro,
+    required this.onDocumentOpened,
+    required this.onSelfieOpened,
+    required this.onDocumentUnreadable,
+    required this.onSelfieUnreadable,
+  });
+
+  final PendingProModel pro;
+  final VoidCallback onDocumentOpened;
+  final VoidCallback onSelfieOpened;
+  final VoidCallback onDocumentUnreadable;
+  final VoidCallback onSelfieUnreadable;
+
+  void _viewImage(
+    BuildContext context,
+    String? path,
+    String title, {
+    required VoidCallback onLoaded,
+    required VoidCallback onUnreadable,
+  }) {
+    if (path == null || path.isEmpty) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: AppColors.slate900,
+        // RESPONSIVE DIALOG (CodeRabbit): LayoutBuilder caps the dialog to
+        // the SHORT viewport (85% height / 92% width) and the viewer box
+        // takes at most ~55% of it with the WHOLE content scrollable — a
+        // 420px fixed box inside a compact phone screen can never overflow.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxDialogH = MediaQuery.sizeOf(context).height * 0.85;
+            final maxDialogW = MediaQuery.sizeOf(context).width * 0.92;
+            final viewerH = (maxDialogH * 0.55).clamp(200.0, 480.0).toDouble();
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: maxDialogH,
+                maxWidth: maxDialogW,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      // Overflow-proof viewer: bounded box + clipped (see AppImage).
+                      SizedBox(
+                        height: viewerH,
+                        width: double.infinity,
+                        child: InteractiveViewer(
+                          maxScale: 4,
+                          child: AppImage(
+                            path,
+                            fit: BoxFit.contain,
+                            errorIcon: Icons.broken_image_rounded,
+                            placeholderColor: Colors.transparent,
+                            // Mark reviewed ONLY when the proof actually decoded;
+                            // a corrupted image LOCKS the flag instead.
+                            onLoaded: onLoaded,
+                            onLoadError: onUnreadable,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: Text(tr(context, fr: 'Fermer', ar: 'إغلاق')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDoc = (pro.docImage ?? '').isNotEmpty;
+    final hasSelfie = (pro.selfiePath ?? '').isNotEmpty;
+    final docLabel = tr(context, fr: 'Pièce / document', ar: 'الوثيقة');
+    final selfieLabel =
+        tr(context, fr: 'Selfie avec document', ar: 'سيلفي مع الوثيقة');
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.slate400.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.slate400.withValues(alpha: .35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(tr(context, fr: 'Dossier de vérification', ar: 'ملف التحقق'),
+              style:
+                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          const SizedBox(height: 10),
+          // ── Proof images: doc + selfie side by side, tap = full size ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _ProofTile(
+                  label: docLabel,
+                  missingLabel: tr(context,
+                      fr: 'Aucun document soumis', ar: 'لم تُرفع وثيقة'),
+                  path: pro.docImage,
+                  onLoadError: onDocumentUnreadable,
+                  onTap: hasDoc
+                      ? () => _viewImage(
+                            context,
+                            pro.docImage,
+                            docLabel,
+                            onLoaded: onDocumentOpened,
+                            onUnreadable: onDocumentUnreadable,
+                          )
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ProofTile(
+                  label: selfieLabel,
+                  missingLabel: tr(context,
+                      fr: 'Aucun selfie soumis', ar: 'لم يُرفع سيلفي'),
+                  path: pro.selfiePath,
+                  onLoadError: onSelfieUnreadable,
+                  onTap: hasSelfie
+                      ? () => _viewImage(
+                            context,
+                            pro.selfiePath,
+                            selfieLabel,
+                            onLoaded: onSelfieOpened,
+                            onUnreadable: onSelfieUnreadable,
+                          )
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // ── Payload details ──
+          _DetailRow(
+            label: tr(context, fr: 'Type de document', ar: 'نوع الوثيقة'),
+            value:
+                pro.docType ?? tr(context, fr: 'non précisé', ar: 'غير محدد'),
+          ),
+          _DetailRow(
+            label: tr(context, fr: 'Expérience', ar: 'الخبرة'),
+            value: pro.experienceYears == null
+                ? tr(context, fr: 'non précisée', ar: 'غير محددة')
+                : tr(context,
+                    fr: '${pro.experienceYears} an(s)',
+                    ar: '${pro.experienceYears} سنة'),
+          ),
+          _DetailRow(
+            label: tr(context, fr: 'Tarification', ar: 'الأسعار'),
+            // Absent/null prices NEVER render as `0`: non-quote pros without
+            // a submitted price show the same placeholder as a missing doc
+            // type instead of a misleading zero.
+            value: pro.pricingType == null
+                ? '-'
+                : pro.pricingType == 'quote'
+                    ? tr(context, fr: 'Sur devis', ar: 'حسب الطلب')
+                    : pro.pricingType == 'hourly'
+                        ? pro.priceFrom == null
+                            ? tr(context, fr: 'non précisé', ar: 'غير محدد')
+                            : '${pro.priceFrom} DT/h'
+                        : pro.priceFrom == null
+                            ? tr(context, fr: 'non précisé', ar: 'غير محدد')
+                            : '${pro.priceFrom} DT',
+          ),
+          if ((pro.description ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(tr(context, fr: 'Description :', ar: 'الوصف:'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: 2),
+            Text(
+              pro.description!,
+              style: const TextStyle(
+                  fontSize: 12.5, color: AppColors.slate800, height: 1.35),
+            ),
+          ],
+          if (pro.specialtiesFr.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(tr(context, fr: 'Spécialités :', ar: 'الاختصاصات:'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (var i = 0; i < pro.specialtiesFr.length; i++)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      // Bilingual pair: FR label with the AR one after the
+                      // separator (the admin UI may run in either locale).
+                      (pro.specialtiesAr.length > i &&
+                              pro.specialtiesAr[i] != pro.specialtiesFr[i])
+                          ? '${pro.specialtiesFr[i]} · ${pro.specialtiesAr[i]}'
+                          : pro.specialtiesFr[i],
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          if (pro.galleryPhotos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(tr(context, fr: 'Galerie de travaux :', ar: 'معرض الأعمال:'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 72,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: pro.galleryPhotos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => GestureDetector(
+                  onTap: () => _viewImage(
+                      context,
+                      pro.galleryPhotos[i],
+                      tr(context,
+                          fr: 'Réalisation ${i + 1}', ar: 'عمل ${i + 1}'),
+                      // Gallery shots are not part of the approval gate —
+                      // no-op review callbacks.
+                      onLoaded: () {},
+                      onUnreadable: () {}),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 72,
+                      height: 72,
+                      child: AppImage(pro.galleryPhotos[i]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One proof tile: a fixed-height bounded image (tap → full-size dialog) or
+/// an explicit MISSING state — an absent artifact is never silently blank.
+class _ProofTile extends StatelessWidget {
+  const _ProofTile({
+    required this.label,
+    required this.missingLabel,
+    required this.path,
+    required this.onTap,
+    required this.onLoadError,
+  });
+
+  final String label;
+  final String missingLabel;
+  final String? path;
+  final VoidCallback? onTap;
+  final VoidCallback onLoadError;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = (path ?? '').isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5)),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: onTap,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: SizedBox(
+              height: 120,
+              width: double.infinity,
+              child: hasImage
+                  ? AppImage(
+                      path!,
+                      fit: BoxFit.cover,
+                      // A corrupted thumbnail instantly flags the proof
+                      // unreadable — it can never be marked reviewed.
+                      onLoadError: onLoadError,
+                    )
+                  : Container(
+                      color: AppColors.slate400.withValues(alpha: .12),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(6),
+                      child: Text(
+                        missingLabel,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One label/value row of the payload details.
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      // RESPONSIVE (CodeRabbit): label + value are rendered as ONE wrapping
+      // rich-text paragraph instead of a `Row(label, Expanded(value))`. The
+      // previous unconstrained label took its natural width and pushed a
+      // long localized label ('Motif du refus …' / 'رقم الهاتف …') past the
+      // dossier card on a 320px-wide phone, overflowing the Row by a few
+      // pixels. A single Text can never overflow: every run wraps.
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label : ',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(fontSize: 12.5, color: AppColors.slate800),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1012,8 +1533,8 @@ class _TicketsTab extends StatelessWidget {
         if (tickets.isEmpty) {
           return _EmptyView(
             icon: Icons.confirmation_number_outlined,
-            message: tr(context,
-                fr: 'Aucun ticket ouvert', ar: 'لا تذاكر مفتوحة'),
+            message:
+                tr(context, fr: 'Aucun ticket ouvert', ar: 'لا تذاكر مفتوحة'),
           );
         }
         return ListView.separated(
@@ -1063,8 +1584,8 @@ class _TicketsTab extends StatelessWidget {
                     t.message,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(color: AppColors.slate800, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppColors.slate800, fontSize: 13),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1079,7 +1600,8 @@ class _TicketsTab extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(child: TextButton.icon(
+                      Expanded(
+                          child: TextButton.icon(
                         onPressed: t.status == 'resolved'
                             ? null
                             : () {
@@ -1093,8 +1615,9 @@ class _TicketsTab extends StatelessWidget {
                                 );
                               },
                         icon: const Icon(Icons.close_rounded, size: 16),
-                        label: FittedBox(child: Text(tr(context,
-                            fr: '[Fermer Ticket]', ar: '[إغلاق التذكرة]'))),
+                        label: FittedBox(
+                            child: Text(tr(context,
+                                fr: '[Fermer Ticket]', ar: '[إغلاق التذكرة]'))),
                       )),
                     ],
                   ),
@@ -1133,7 +1656,9 @@ class _TicketReplySheetState extends State<_TicketReplySheet> {
       children: [
         Text(widget.ticket.subject,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 16)),
         const SizedBox(height: 8),
         for (final m in widget.ticket.conversation)
           Padding(
@@ -1152,7 +1677,8 @@ class _TicketReplySheetState extends State<_TicketReplySheet> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(m.text,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 13)),
                 ),
               ],
             ),
@@ -1190,7 +1716,9 @@ class _TicketReplySheetState extends State<_TicketReplySheet> {
               IconButton(
                 onPressed: () {
                   final text = _controller.text.trim();
-                  if (text.isEmpty) return; // reject blank/whitespace-only replies
+                  if (text.isEmpty) {
+                    return; // reject blank/whitespace-only replies
+                  }
                   SupportStore.addMessage(
                     widget.ticket.id,
                     ChatMsg(
@@ -1304,8 +1832,8 @@ class _ClientCard extends StatelessWidget {
                 ),
               ),
               _Chip(
-                label: tr(context,
-                    fr: 'Commandes: $orders', ar: 'طلبات: $orders'),
+                label:
+                    tr(context, fr: 'Commandes: $orders', ar: 'طلبات: $orders'),
                 color: AppColors.primary,
               ),
             ],
@@ -1399,8 +1927,8 @@ class _SettingsTabState extends State<_SettingsTab> {
     ));
     _broadcastController.clear();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(
-          tr(context, fr: 'Notification envoyée 🚀', ar: 'تم إرسال الإشعار 🚀')),
+      content: Text(tr(context,
+          fr: 'Notification envoyée 🚀', ar: 'تم إرسال الإشعار 🚀')),
     ));
   }
 
@@ -1416,8 +1944,8 @@ class _SettingsTabState extends State<_SettingsTab> {
         Row(
           children: [
             ChoiceChip(
-              label: Text(
-                  tr(context, fr: 'Tous les Clients', ar: 'كل العملاء')),
+              label:
+                  Text(tr(context, fr: 'Tous les Clients', ar: 'كل العملاء')),
               selected: _broadcastTarget == 'clients',
               onSelected: (_) => setState(() => _broadcastTarget = 'clients'),
               selectedColor: AppColors.secondary,
@@ -1428,8 +1956,7 @@ class _SettingsTabState extends State<_SettingsTab> {
             ),
             const SizedBox(width: 8),
             ChoiceChip(
-              label:
-                  Text(tr(context, fr: 'Tous les Pros', ar: 'كل الحرفيين')),
+              label: Text(tr(context, fr: 'Tous les Pros', ar: 'كل الحرفيين')),
               selected: _broadcastTarget == 'pros',
               onSelected: (_) => setState(() => _broadcastTarget = 'pros'),
               selectedColor: AppColors.secondary,
@@ -1497,7 +2024,8 @@ class _SettingsTabState extends State<_SettingsTab> {
                 child: ChoiceChip(
                   label: Text('${h}h'),
                   selected: ChatStore.expiryHours == h,
-                  onSelected: (_) => setState(() => ChatStore.setExpiryHours(h)),
+                  onSelected: (_) =>
+                      setState(() => ChatStore.setExpiryHours(h)),
                   selectedColor: AppColors.primary,
                   labelStyle: TextStyle(
                       color: ChatStore.expiryHours == h

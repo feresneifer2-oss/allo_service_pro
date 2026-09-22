@@ -22,7 +22,12 @@ class AntiAbuseGate extends StatelessWidget {
         if (!blocked) return child;
         return AntiAbuseBanGateScreen(
           signOutAndReset: () async {
-            await UserStore.signOutAndReset();
+            // GUARDED RESET: on a `false` the persisted cleanup failed and
+            // the account session is still ALIVE — the ban gate must stay
+            // up and the ban state untouched so the user retries instead of
+            // landing in a half-signed-out hybrid state.
+            final signedOut = await UserStore.signOutAndReset();
+            if (!signedOut) return;
             AntiAbuseStore.acknowledgeBanGate();
           },
         );

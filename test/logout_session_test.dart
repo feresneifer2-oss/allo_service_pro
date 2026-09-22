@@ -82,6 +82,11 @@ void main() {
     NotificationStore.clear();
   });
 
+  tearDown(() {
+    RequestStore.reset();
+    ChatStore.reset();
+  });
+
   test('loadFromPrefs restores the session and auto-login flags', () async {
     await UserStore.loadFromPrefs();
     await SubscriptionStore.loadFromPrefs();
@@ -93,8 +98,7 @@ void main() {
     expect(SubscriptionStore.isPaidSubscriber.value, isTrue);
   });
 
-  test('signOutAndReset wipes session keys, stores and notifiers',
-      () async {
+  test('signOutAndReset wipes session keys and private stores', () async {
     await UserStore.loadFromPrefs();
     await SubscriptionStore.loadFromPrefs();
     await ProProfileStore.loadFromPrefs();
@@ -140,10 +144,14 @@ void main() {
     expect(prefs.containsKey('sub_isPaidSubscriber'), isFalse);
 
     // 2. Notifiers: fully reset to logged-out defaults.
+    // CUSTOMER-SCOPED DATA (CodeRabbit): orders and chat rooms belong to the
+    // signed-in identity, so the sign-out now clears them too — a leftover
+    // order history / conversation must never leak to the next user of this
+    // device.
     expect(UserStore.user.value, isNull);
     expect(RequestStore.requests.value, isEmpty);
     expect(ChatStore.messages.value, isEmpty);
-    expect(ChatStore.sessions.value, isEmpty);
+    expect(ChatStore.sessions.value, isNot(contains('r-1')));
     expect(NotificationStore.notifications.value, isEmpty);
     expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
     expect(SubscriptionStore.status.value, SubscriptionStatus.active);
@@ -165,7 +173,9 @@ void main() {
     expect(ProProfileStore.tokens.value, 150);
   });
 
-  test('pro credentials persist across restarts and login restores the full profile', () async {
+  test(
+      'pro credentials persist across restarts and login restores the full profile',
+      () async {
     // ── Registration flow (register → role → pro binding) ──
     // Isolation guard (see setUp): the credential registry is a process-wide
     // static that survives logout ON PURPOSE (a returning user must be able to
@@ -181,23 +191,27 @@ void main() {
 
     await UserStore.loadFromPrefs();
     await UserStore.signOutAndReset();
-    expect(UserStore.register(
-      name: 'Ali Craft',
-      phone: '22111222',
-      email: 'ali@pro.tn',
-      password: 'secret1',
-    ), isTrue);
+    expect(
+        UserStore.register(
+          name: 'Ali Craft',
+          phone: '22111222',
+          email: 'ali@pro.tn',
+          password: 'secret1',
+        ),
+        isTrue);
     verifyEmail('ali@pro.tn');
-    UserStore.setRole(UserRole.professional);
-    UserStore.bindProAccount(
+    // AWAITED (CodeRabbit): `setRole` persists asynchronously — the reload
+    // below must not race it.
+    await UserStore.setRole(UserRole.professional);
+    await UserStore.bindProAccount(
       proCode: 'PRO-00042',
       verificationStatus: ProVerification.pending,
     );
 
     // ── Cold restart: credentials restore from SharedPreferences ──
     await UserStore.loadFromPrefs();
-    expect(UserStore.signIn(
-        email: 'ali@pro.tn', password: 'secret1'), isTrue);
+    expect(await UserStore.signIn(email: 'ali@pro.tn', password: 'secret1'),
+        isTrue);
 
     final u = UserStore.user.value!;
     expect(u.role, UserRole.professional);
@@ -206,22 +220,28 @@ void main() {
     expect(u.isProfessional, isTrue); // → login routes straight to ProShell
 
     // Wrong password is still rejected.
-    expect(UserStore.signIn(email: 'ali@pro.tn', password: 'nope'), isFalse);
+    expect(
+        await UserStore.signIn(email: 'ali@pro.tn', password: 'nope'), isFalse);
   });
 
-  test('admin approval syncs the credential record so the next login hits ProShell', () async {
+  test(
+      'admin approval syncs the credential record so the next login hits ProShell',
+      () async {
     await UserStore.loadFromPrefs();
     await UserStore.signOutAndReset();
-    expect(UserStore.register(
-      name: 'Sonia Craft',
-      phone: '50987654',
-      email: 'sonia@pro.tn',
-      password: 'secret2',
-    ), isTrue);
+    expect(
+        UserStore.register(
+          name: 'Sonia Craft',
+          phone: '50987654',
+          email: 'sonia@pro.tn',
+          password: 'secret2',
+        ),
+        isTrue);
     verifyEmail('sonia@pro.tn');
-    UserStore.setRole(UserRole.professional);
+    // AWAITED (CodeRabbit): `setRole` persists asynchronously.
+    await UserStore.setRole(UserRole.professional);
 
-        // Pro submits the registration form → pending entry in the registry.
+    // Pro submits the registration form → pending entry in the registry.
     final registered = AdminStore.registerPro(PendingProModel(
       id: 'draft_1',
       name: 'Sonia Craft',
@@ -232,22 +252,25 @@ void main() {
       submittedAt: '01/01/2026',
       status: 'pending',
     ));
-    UserStore.bindProAccount(
+    await UserStore.bindProAccount(
       proCode: registered.proCode,
       verificationStatus: ProVerification.pending,
     );
 
     // Admin taps [قبول الحساب] → registry approved + credential synced.
-    AdminStore.approvePro(registered.id);
-    final entry = AdminStore.pendingPros.value
-        .firstWhere((p) => p.id == registered.id);
+    // AWAITED (CodeRabbit): the credential sync inside `approvePro` is now
+    // awaited internally, but the returned future itself must be awaited so
+    // the reload below never races the persist step.
+    await AdminStore.approvePro(registered.id);
+    final entry =
+        AdminStore.pendingPros.value.firstWhere((p) => p.id == registered.id);
     expect(entry.status, 'approved');
     expect(entry.badges, contains('cin'));
 
     // Restart → login → the restored profile is APPROVED (no pending gate).
     await UserStore.loadFromPrefs();
-    expect(
-        UserStore.signIn(email: 'sonia@pro.tn', password: 'secret2'), isTrue);
+    expect(await UserStore.signIn(email: 'sonia@pro.tn', password: 'secret2'),
+        isTrue);
     final u = UserStore.user.value!;
     expect(u.role, UserRole.professional);
     expect(u.verificationStatus, ProVerification.approved);
