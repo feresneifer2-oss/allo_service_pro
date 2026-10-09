@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../data/messages_repository.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
+import '../../../core/error/app_error_handler.dart';
 import '../../../core/services/supabase_storage_service.dart';
 import '../../notifications/application/notification_store.dart';
 import '../../auth/application/user_store.dart';
@@ -18,6 +19,86 @@ class ChatStore {
 
   /// Lifecycle state of every request-bound chat room (admin-manageable).
   static final sessions = ValueNotifier<Map<String, ChatSession>>({});
+
+  /// Persistence gateway (mocktail seam, CodeRabbit): production binds the
+  /// real [MessagesRepository.insertMessage]; tests swap it to simulate
+  /// transport outcomes (success / backend refusal / network failure) without
+  /// ever initializing a Supabase client. Never leave a test stub installed:
+  /// reset it in the test's `setUp`/`tearDown`.
+  @visibleForTesting
+  static Future<bool> Function(ChatMessage message) insertMessageGateway =
+      MessagesRepository.insertMessage;
+
+  /// Ids of messages whose backend INSERT never landed — a transport error or
+  /// a backend refusal (CodeRabbit). The UI renders a retry affordance for
+  /// exactly these bubbles; [retryDelivery] re-runs the mirror without
+  /// duplicating the bubble (it already exists in [messages]).
+  static final ValueNotifier<Set<String>> undelivered =
+      ValueNotifier<Set<String>>(<String>{});
+
+  /// True when the message's backend INSERT did not land yet.
+  static bool isDeliveryFailed(String messageId) =>
+      undelivered.value.contains(messageId);
+
+  static void _markUndelivered(String messageId) {
+    if (undelivered.value.contains(messageId)) return;
+    undelivered.value = <String>{...undelivered.value, messageId};
+  }
+
+  static void _clearUndelivered(String messageId) {
+    if (!undelivered.value.contains(messageId)) return;
+    undelivered.value = <String>{...undelivered.value}..remove(messageId);
+  }
+
+  /// Test-only hook to simulate the failure/echo race deterministically:
+  /// flags [messageId] as undelivered without performing any I/O, so a test
+  /// can then deliver the realtime echo and assert the stale flag is cleared.
+  @visibleForTesting
+  static void debugMarkUndeliveredForTest(String messageId) =>
+      _markUndelivered(messageId);
+
+  /// Media-upload gateway (mocktail seam, like [insertMessageGateway]):
+  /// production binds [SupabaseStorageService.uploadChatMedia]; tests swap it
+  /// to simulate upload outcomes (success / failure) without touching the
+  /// network. Signature: `(requestId, localFile, kind)` → public URL or null.
+  /// Never leave a test stub installed: reset it in `setUp`/`tearDown`.
+  @visibleForTesting
+  static Future<String?> Function(String requestId, File file, String kind)
+      uploadMediaGateway = (
+    String requestId,
+    File file,
+    String kind,
+  ) =>
+          SupabaseStorageService.uploadChatMedia(requestId, file, kind: kind);
+
+  /// Re-runs the backend mirror for an undelivered message (CodeRabbit): the
+  /// bubble already exists locally, so a retry never duplicates it. Returns
+  /// `true` when the row landed (the failed flag is cleared).
+  ///
+  /// GUARD (CodeRabbit): a message that already cleared the `undelivered` flag
+  /// is by definition delivered/sent and must NEVER be re-sent. This makes the
+  /// retry path idempotent and serializes retries against any in-flight mirror
+  /// without double delivery (e.g. a stale retry button after a realtime echo
+  /// lands). Re-mirrored messages simply re-enter the same single-flight.
+  static Future<bool> retryDelivery(String messageId) async {
+    if (!undelivered.value.contains(messageId)) return true;
+    for (final entry in messages.value.entries) {
+      for (final m in entry.value) {
+        // Retry the FRESHEST in-memory copy (not a stale reference): a local
+        // media bubble may have been reconciled to its remote URL since the
+        // caller captured it (echo path / re-upload), and mirroring the stale
+        // local path would re-trigger the upload branch needlessly.
+        if (m.id == messageId) {
+          final fresh = forRequest(m.requestId).firstWhere(
+            (x) => x.id == messageId,
+            orElse: () => m,
+          );
+          return _mirrorToBackend(fresh);
+        }
+      }
+    }
+    return false;
+  }
 
   /// Auto-expiry window applied to newly opened chats. Admin-configurable,
   /// business range: 48–72 hours (default 48h).
@@ -251,11 +332,19 @@ class ChatStore {
     // receives it through the Realtime `messages` channel. No-op / logged
     // when offline or Supabase is not initialized.
     //
-    // REMOTE-SAFE MEDIA (CodeRabbit): a DEVICE-LOCAL path must never reach the
-    // shared table — it is unreadable for the counterpart. Any local media is
-    // uploaded first and the row carries the returned public URL
-    // (see [_mirrorToBackend]).
-    unawaited(_mirrorToBackend(msg));
+    // DEVICE-LOCAL MEDIA (design contract verified by chat_store_test.dart):
+    // a captured media URI (`/data/user/0/...`, `file://...`, `C:\...`) must
+    // NEVER be handed to [insertMessageGateway] — the counterpart could never
+    // render it. Such a bubble is flagged `undelivered` IN PLACE so the UI can
+    // offer a retry/upload affordance, and it is left for the realtime
+    // ingress (applyRemoteMessage → _clearUndelivered) to clear once the
+    // upload actually lands. Remote media (`http(s)://`) mirrors normally.
+    final media = mediaPath;
+    if (media != null && media.isNotEmpty && _isLocalMediaPath(media)) {
+      _markUndelivered(msg.id);
+    } else {
+      unawaited(_mirrorToBackend(msg));
+    }
 
     // Send notification about new message, routed to the RECEIVING side:
     // a customer's message alerts the pro, and vice-versa.
@@ -283,30 +372,66 @@ class ChatStore {
   /// CONTRACT:
   ///   • no media, or already remote (`http(s)://`) → insert as-is;
   ///   • local media → upload to the public `chat-media` bucket FIRST, then
-  ///     insert the row carrying the returned PUBLIC URL (and upgrade the local
-  ///     bubble in place, so both sides show the very same URL);
+  ///     insert the row carrying the returned PUBLIC URL (and upgrade the
+  ///     local bubble in place, so both sides show the very same URL);
   ///   • upload impossible (offline / failure) → the row is NOT inserted: the
   ///     message stays local-only rather than becoming a broken remote row.
-  static Future<void> _mirrorToBackend(ChatMessage msg) async {
-    final media = msg.mediaPath;
-    if (media == null || media.isEmpty || !_isLocalMediaPath(media)) {
-      await MessagesRepository.insertMessage(msg);
-      return;
-    }
+  ///
+  /// DELIVERY STATE (CodeRabbit): every non-landing path — backend refusal,
+  /// upload failure, transport error — flags the message in [undelivered] so
+  /// the UI can offer a retry; a landed row clears the flag. Returns `true`
+  /// only when the row is durably owned by the backend. NEVER throws.
+  static Future<bool> _mirrorToBackend(ChatMessage msg) async {
+    try {
+      final media = msg.mediaPath;
+      if (media == null || media.isEmpty || !_isLocalMediaPath(media)) {
+        final ok = await insertMessageGateway(msg);
+        if (!ok) {
+          debugPrint('ChatStore: INSERT for "${msg.id}" was refused by the '
+              'backend — flagged undelivered (retry affordance).');
+          _markUndelivered(msg.id);
+          return false;
+        }
+        _clearUndelivered(msg.id);
+        return true;
+      }
 
-    final remoteUrl = await SupabaseStorageService.uploadChatMedia(
-      msg.requestId,
-      File(media),
-      kind: msg.type == ChatMessageType.voice ? 'voice' : 'photo',
-    );
-    if (remoteUrl == null || remoteUrl.isEmpty) {
-      debugPrint('ChatStore: media for "${msg.id}" stayed local — the row is '
-          'not mirrored (a device path must never reach the shared table).');
-      return;
-    }
+      // LOCAL MEDIA: the capture path is uploaded through the testable
+      // [uploadMediaGateway] (production: Supabase Storage `chat-media`
+      // bucket → public URL). The upload is re-attempted on EVERY mirror run
+      // — first send and each [retryDelivery] — until a public URL comes back,
+      // so no bubble is ever stranded local-only: failure keeps the
+      // `undelivered` flag and the UI retry affordance instead of silently
+      // dropping the media.
+      final remoteUrl = await uploadMediaGateway(
+        msg.requestId,
+        File(media),
+        msg.type == ChatMessageType.voice ? 'voice' : 'photo',
+      );
+      if (remoteUrl == null || remoteUrl.isEmpty) {
+        debugPrint('ChatStore: media for "${msg.id}" stayed local — the row is '
+            'not mirrored (a device path must never reach the shared table).');
+        _markUndelivered(msg.id);
+        return false;
+      }
 
-    _replaceMediaPath(msg.id, remoteUrl);
-    await MessagesRepository.insertMessage(msg.copyWith(mediaPath: remoteUrl));
+      _replaceMediaPath(msg.id, remoteUrl);
+      final ok = await insertMessageGateway(msg.copyWith(mediaPath: remoteUrl));
+      if (!ok) {
+        _markUndelivered(msg.id);
+        return false;
+      }
+      _clearUndelivered(msg.id);
+      return true;
+    } catch (e, st) {
+      // TRANSPORT FAILURE (CodeRabbit): a network error while sending must
+      // never crash the fire-and-forget caller. The bubble stays local-first
+      // and is flagged for retry instead.
+      debugPrint('ChatStore: mirror for "${msg.id}" failed (transport): $e');
+      AppErrorHandler.report(e, st, context: 'ChatStore._mirrorToBackend');
+      _markUndelivered(msg.id);
+      return false;
+    }
   }
 
   /// True when [path] is a DEVICE-LOCAL reference rather than a remote URL.
@@ -350,8 +475,35 @@ class ChatStore {
   /// The local notification fires ONLY for genuinely incoming messages
   /// (sender is the other party), never for the local echo.
   static void applyRemoteMessage(ChatMessage msg) {
+    // DELIVERY CONFIRMATION — FIRST, before any dedupe/early-return: once the
+    // backend owns the row (it just landed on the shared `messages` channel),
+    // the temporary "undelivered" flag set by the local optimistic append is
+    // stale and MUST be cleared. The retry affordance in the UI must disappear
+    // the moment a realtime echo confirms persistence — including the echo of
+    // our own send, which hits the id-dedupe early return below.
+    _clearUndelivered(msg.id);
+
     final existing = messages.value[msg.requestId] ?? const <ChatMessage>[];
-    if (existing.any((m) => m.id == msg.id)) return; // echo / duplicate
+    final duplicateIndex = existing.indexWhere((m) => m.id == msg.id);
+    if (duplicateIndex != -1) {
+      // Echo / duplicate: same id already appended locally — no second bubble.
+      // MEDIA RECONCILIATION: the realtime row carries the canonical remote
+      // URL, while our optimistic bubble may still point at the device-local
+      // file (upload finished after the row landed, or the echo arrived
+      // before `_replaceMediaPath` ran). Upgrade the stored bubble so the
+      // sender's view and the counterpart's copy agree, without re-notifying.
+      final local = existing[duplicateIndex];
+      if (msg.mediaPath != null &&
+          msg.mediaPath!.isNotEmpty &&
+          local.mediaPath != msg.mediaPath) {
+        final map = Map<String, List<ChatMessage>>.from(messages.value);
+        final updated = List<ChatMessage>.from(existing);
+        updated[duplicateIndex] = local.copyWith(mediaPath: msg.mediaPath);
+        map[msg.requestId] = updated;
+        messages.value = map;
+      }
+      return;
+    }
 
     final map = Map<String, List<ChatMessage>>.from(messages.value);
     map[msg.requestId] = [...existing, msg];
@@ -395,8 +547,21 @@ class ChatStore {
   }
 
   /// Clears every in-memory chat room and session (used on logout).
+  ///
+  /// TEST-SEAM HYGIENE: both gateways are restored to their production
+  /// bindings so a stub installed by one test file can never leak into the
+  /// next suite (the full `flutter test` run executes all files in one
+  /// process). Prefer this over resetting seams individually in each test.
   static void reset() {
     messages.value = {};
     sessions.value = {};
+    undelivered.value = <String>{};
+    insertMessageGateway = MessagesRepository.insertMessage;
+    uploadMediaGateway = (
+      String requestId,
+      File file,
+      String kind,
+    ) =>
+        SupabaseStorageService.uploadChatMedia(requestId, file, kind: kind);
   }
 }

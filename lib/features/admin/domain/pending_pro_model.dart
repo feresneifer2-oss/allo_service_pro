@@ -16,6 +16,7 @@ class PendingProModel {
     required this.status,
     this.badge,
     this.proCode,
+    this.authUid,
     this.tokens = 0,
     this.isPaid = false,
     this.paidUntilMs,
@@ -68,6 +69,16 @@ class PendingProModel {
 
   /// Unique public identifier: PRO-XXXXX.
   final String? proCode;
+
+  /// Supabase Auth UUID (`auth.users.id` / `profiles.id`) of the professional
+  /// behind this registry entry — the identity a server-backed `orders.pro_id`
+  /// will eventually carry.
+  ///
+  /// Kept SEPARATE from [proCode] on purpose: the PRO-XXXXX code remains the
+  /// display / routing identifier, while this field is never shown to a user
+  /// and is null for records saved before the field existed (and for
+  /// admin-seeded / draft entries never bound to an auth session).
+  final String? authUid;
   final int tokens;
   final bool isPaid;
 
@@ -116,6 +127,15 @@ class PendingProModel {
     return keepNewest ? out.sublist(out.length - max) : out.sublist(0, max);
   }
 
+  /// Tolerant decode of the persisted `authUid`: a missing key (record saved
+  /// before the field existed), a blank string or a non-string value all mean
+  /// "no bound auth identity" — never a crash on the registry load path.
+  static String? _cleanAuthUid(Object? raw) {
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   /// Remote Supabase Storage paths of the proof / selfie / work-gallery
   /// captures, captured when the upload succeeds (CodeRabbit: previously the
   /// upload return value was discarded, so the remote handle was lost and the
@@ -162,6 +182,7 @@ class PendingProModel {
     String? status,
     String? badge,
     String? proCode,
+    String? authUid,
     int? tokens,
     bool? isPaid,
     Object? paidUntilMs = _unset,
@@ -198,6 +219,9 @@ class PendingProModel {
       status: status ?? this.status,
       badge: badge ?? this.badge,
       proCode: proCode ?? this.proCode,
+      // Merge-only (like [proCode]): an auth identity is never cleared by an
+      // omitted argument — approval / rejection / karma updates carry it over.
+      authUid: authUid ?? this.authUid,
       tokens: tokens ?? this.tokens,
       isPaid: isPaid ?? this.isPaid,
       paidUntilMs: identical(paidUntilMs, _unset)
@@ -237,6 +261,7 @@ class PendingProModel {
         'status': status,
         'badge': badge,
         'proCode': proCode,
+        'authUid': authUid,
         'tokens': tokens,
         'isPaid': isPaid,
         'paidUntilMs': paidUntilMs,
@@ -272,6 +297,9 @@ class PendingProModel {
         status: json['status'] as String,
         badge: json['badge'] as String?,
         proCode: json['proCode'] as String?,
+        // BACKWARD COMPATIBLE (Phase 3J): a record persisted before this field
+        // existed carries NO 'authUid' key at all -> null, never a crash.
+        authUid: _cleanAuthUid(json['authUid']),
         tokens: (json['tokens'] as num?)?.toInt() ?? 0,
         isPaid: (json['isPaid'] as bool?) ?? false,
         paidUntilMs: (json['paidUntilMs'] as num?)?.toInt(),

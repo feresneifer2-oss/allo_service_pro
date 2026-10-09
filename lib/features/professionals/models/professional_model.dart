@@ -30,6 +30,16 @@ class ProfessionalModel {
   /// [ProfessionalsRepository].
   final List<String> badges;
 
+  /// Supabase Auth UUID (`auth.users.id` / `profiles.id`) of the approved
+  /// professional behind this catalog entry — the identity a server-backed
+  /// `orders.pro_id` will eventually carry.
+  ///
+  /// Phase 3J (local-model propagation only): populated from
+  /// `PendingProModel.authUid` for live registrations, `null` for the curated
+  /// mock catalog (which has no auth identity). The public `id` / PRO-XXXXX
+  /// routing identifier is UNCHANGED — this field is never displayed.
+  final String? authUid;
+
   const ProfessionalModel({
     required this.id,
     required this.name,
@@ -57,9 +67,52 @@ class ProfessionalModel {
     required this.servicesAr,
     this.reviewCount = 24,
     this.badges = const [],
+    this.authUid,
   });
 
   String getCityName(String languageCode) {
     return languageCode == 'ar' ? city : (cityFr.isEmpty ? city : cityFr);
+  }
+
+  /// Returns a copy carrying [value] as [availableNow], or `this` when nothing
+  /// would change.
+  ///
+  /// Used by [ProfessionalsRepository] to overlay the LIVE availability board
+  /// (`ProAvailabilityStore`) onto the curated / registered feed without
+  /// mutating the source catalog — the immutable model stays a value object,
+  /// and every non-availability field is carried over verbatim.
+  ProfessionalModel withAvailability(bool value) {
+    if (value == availableNow) return this;
+    return ProfessionalModel(
+      id: id,
+      name: name,
+      professionFr: professionFr,
+      professionAr: professionAr,
+      serviceIds: serviceIds,
+      rating: rating,
+      city: city,
+      cityFr: cityFr,
+      servicesCount: servicesCount,
+      verified: verified,
+      availableNow: value,
+      distanceKm: distanceKm,
+      priceFrom: priceFrom,
+      pricingType: pricingType,
+      workImages: workImages,
+      punctualityRate: punctualityRate,
+      acceptanceRate: acceptanceRate,
+      responseTimeMin: responseTimeMin,
+      hasBrandedUniform: hasBrandedUniform,
+      experienceYears: experienceYears,
+      aboutFr: aboutFr,
+      aboutAr: aboutAr,
+      servicesFr: servicesFr,
+      servicesAr: servicesAr,
+      reviewCount: reviewCount,
+      badges: badges,
+      // Phase 3J: availability overlay is a clone — the auth identity must
+      // survive it, otherwise a realtime toggle would strip the UID.
+      authUid: authUid,
+    );
   }
 }

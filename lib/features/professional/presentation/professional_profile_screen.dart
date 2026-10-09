@@ -76,6 +76,9 @@ class ProfessionalProfileScreen extends StatelessWidget {
                 .toList()
             : pro.servicesAr,
         reviewCount: pro.reviewCount,
+        // Phase 3J: this screen rebuilds the model for the owner's own
+        // profile — carry the auth identity across the clone.
+        authUid: pro.authUid,
       );
     }
 

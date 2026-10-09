@@ -41,9 +41,13 @@ class ProProfileScreen extends StatelessWidget {
               child: ValueListenableBuilder<UserModel?>(
                 valueListenable: UserStore.user,
                 builder: (_, user, __) {
-                  final name = (user != null && user.name.trim().isNotEmpty)
-                      ? user.name.trim()
-                      : UserStore.displayName;
+                  // Phase A: the session name is a REAL name (auth metadata or
+                  // registration) — never an e-mail fragment. When nothing is
+                  // known, show a nameless placeholder instead of the e-mail.
+                  final raw = user?.name.trim() ?? '';
+                  final name = raw.isNotEmpty
+                      ? raw
+                      : tr(context, fr: 'Sans nom', ar: 'بدون اسم');
                   return Text(
                     name,
                     style: const TextStyle(
@@ -196,20 +200,37 @@ class ProProfileScreen extends StatelessWidget {
                 );
               },
             ),
-            // Abonnement : badge dynamique (Actif / Expiré)
+            // Abonnement : badge dynamique (Actif / Expiré / Aucun).
+            // `inactive` (never activated) shows a neutral "no subscription"
+            // state — it must never read as a paid plan.
             ValueListenableBuilder<SubscriptionStatus>(
               valueListenable: SubscriptionStore.status,
               builder: (_, status, __) {
                 final isActive = status == SubscriptionStatus.active;
+                final isInactive = status == SubscriptionStatus.inactive;
+                final badgeColor = isActive
+                    ? AppColors.success
+                    : isInactive
+                        ? AppColors.slate400
+                        : AppColors.error;
+                final badgeLabel = tr(context,
+                    fr: isActive
+                        ? 'Actif'
+                        : isInactive
+                            ? 'Aucun'
+                            : 'Expiré',
+                    ar: isActive
+                        ? 'نشط'
+                        : isInactive
+                            ? 'لا اشتراك'
+                            : 'منتهي');
                 return ListTile(
-                  leading: Icon(Icons.workspace_premium_rounded,
-                      color: isActive ? AppColors.success : AppColors.error),
+                  leading:
+                      Icon(Icons.workspace_premium_rounded, color: badgeColor),
                   title: Text(tr(context, fr: 'Abonnement', ar: 'الاشتراك')),
                   trailing: _PillBadge(
-                    label: tr(context,
-                        fr: isActive ? 'Actif' : 'Expiré',
-                        ar: isActive ? 'نشط' : 'منتهي'),
-                    color: isActive ? AppColors.success : AppColors.error,
+                    label: badgeLabel,
+                    color: badgeColor,
                   ),
                 );
               },

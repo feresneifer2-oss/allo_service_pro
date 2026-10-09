@@ -37,6 +37,92 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^6.0.0
+  mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+
+# ── OFFICIAL LAUNCHER ICON (home screen + Google Play) ───────────────────────
+# SINGLE SOURCE OF TRUTH: `assets/icon/app_icon.png` (1254x1254, opaque).
+# Never re-draw, re-export or replace that file; the tool below only PACKAGES
+# it into the per-platform / per-density resources each OS expects (Android
+# mipmaps + Android 8+ adaptive icon, iOS + macOS asset catalogs, web icons +
+# favicon, Windows .ico):
+#
+#   dart run flutter_launcher_icons
+#
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  android: true
+  ios: true
+  # The App Store refuses an alpha channel on the 1024x1024 icon. The source is
+  # already opaque (24-bit RGB); the flag keeps that guarantee if the artwork is
+  # ever re-exported.
+  remove_alpha_ios: true
+  # Android 8+ (API 26+) adaptive icon = the standard production look
+  # (Facebook / YouTube): the SAME artwork is drawn on a white layer and scaled
+  # into the launcher safe zone by the inset below, so no launcher mask (circle,
+  # squircle, rounded square) can ever crop the AS monogram.
+  adaptive_icon_background: "#FFFFFF"     # colour of the artwork canvas
+  adaptive_icon_foreground: assets/icon/app_icon.png
+  adaptive_icon_foreground_inset: 20      # artwork drawn at 60% -> inside safe zone
+  web:
+    generate: true
+    image_path: assets/icon/app_icon.png
+    # Colours SAMPLED from the artwork: white squircle background, brand blue.
+    background_color: "#FFFFFF"
+    theme_color: "#0058F9"
+  windows:
+    generate: true
+    image_path: assets/icon/app_icon.png
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: assets/icon/app_icon.png
+
+# ── NATIVE SPLASH SCREEN (app launch) ────────────────────────────────────────
+# WIDE BRAND LOCKUP: `assets/images/logo.png` (1774x313, "AS + Allo Service").
+# That is the exact artwork the in-app Flutter splash already uses
+# (`SplashScreen` -> `AlloServiceLogo` -> Image.asset) - nothing is redrawn,
+# padded or restyled by this configuration:
+#
+#   dart run flutter_native_splash:create
+#
+# * Android < 12 / iOS : the wide logo, centred on white, aspect ratio always
+#   preserved (no `fill` gravity, no stretching) -> no distortion.
+# * Android 12+ : the platform draws the splash icon inside a MANDATORY
+#   circular mask, so the wide lockup would be cropped there.
+#   `assets/icon/android12_splash.png` is that same lockup centred on the
+#   1152x1152 canvas Android 12 itself recommends, which keeps it completely
+#   inside the mask (nothing clipped, nothing stretched).
+flutter_native_splash:
+  color: "#FFFFFF"
+  # The in-app Flutter splash is white too -> no colour jump at hand-over.
+  color_dark: "#FFFFFF"
+  image: assets/images/logo.png
+  android: true
+  ios: true
+  # web stays false on purpose: the package would inject CSS and rewrite the
+  # viewport meta tag of web/index.html, and the Flutter splash already covers
+  # web. Flip it to true only if that behaviour is wanted.
+  web: false
+  fullscreen: false
+  # `center` keeps the bitmap at its intrinsic size and aspect ratio
+  # (`fill` would stretch the lockup).
+  android_gravity: center
+  # Project minSdk (android/app/build.gradle) -> the package then writes the
+  # compact drawable/ + drawable-night/ set instead of legacy -v21 duplicates.
+  android_min_sdk: 23
+  # Portrait lock MainActivity already had: it must be declared here, otherwise
+  # the package strips `android:screenOrientation` from AndroidManifest.xml.
+  android_screen_orientation: portrait
+  # Fit the lockup inside every iPhone / iPad width instead of relying on its
+  # intrinsic 443pt size.
+  ios_content_mode: scaleAspectFit
+  android_12:
+    color: "#FFFFFF"
+    color_dark: "#FFFFFF"
+    image: assets/icon/android12_splash.png
+
 
 flutter:
   uses-material-design: true

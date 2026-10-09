@@ -107,14 +107,13 @@ class RequestStore {
     return mirrored;
   }
 
-  /// Client-generated, collision-resistant id (RFC-4122 v4 shape) used when an
-  /// order has to be RE-KEYED.
+  /// Client-generated, collision-resistant id (RFC-4122 v4 shape) used by the
+  /// order CREATION sites (Phase 3L: the wire primary key `orders.id` is a
+  /// uuid) and whenever an order has to be RE-KEYED.
   ///
-  /// Why a UUID and not another epoch stamp: the ids this app mints are
-  /// `millisecondsSinceEpoch` strings — precisely what collides across devices
-  /// and replays. A v4 UUID keeps the replacement unique with no new
-  /// dependency.
-  @visibleForTesting
+  /// Why a UUID and not an epoch stamp: `millisecondsSinceEpoch` ids collide
+  /// across devices and replays — and the live schema rejects anything that
+  /// is not a uuid. A v4 UUID keeps every key unique with no new dependency.
   static String newClientId() {
     final random = Random.secure();
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
@@ -692,7 +691,12 @@ class RequestStore {
     if (idx == -1) {
       list.insert(0, remote);
     } else {
-      list[idx] = remote;
+      // Phase 3L: the wire row now carries `professionalAuthUid` as `pro_id`,
+      // but a legacy/foreign row may still decode without it — a bare replace
+      // would strip the identity captured at creation, so it is inherited
+      // from the local draft being overwritten (a uid the remote carries
+      // always wins).
+      list[idx] = _inheritAuthUid(local: list[idx], remote: remote);
     }
     requests.value = list;
 
@@ -718,6 +722,24 @@ class RequestStore {
     }
   }
 
+  /// Carries the LOCAL `professionalAuthUid` into a wire-built [remote] copy
+  /// of the SAME order (Phase 3K helper, kept active after Phase 3L).
+  ///
+  /// Since Phase 3L the wire row carries `pro_id`, so a freshly decoded
+  /// remote usually wins by itself; the guard still matters for rows that
+  /// decode WITHOUT a uid (legacy/pre-3L rows) where every remote merge —
+  /// the realtime echo of your own INSERT, duplicate verification, startup
+  /// hydration — would otherwise strip the identity captured at creation.
+  /// A uid the remote already carries always wins over the local one.
+  static ServiceRequest _inheritAuthUid({
+    required ServiceRequest? local,
+    required ServiceRequest remote,
+  }) {
+    final localUid = local?.professionalAuthUid;
+    if (localUid == null || remote.professionalAuthUid != null) return remote;
+    return remote.copyWith(professionalAuthUid: localUid);
+  }
+
   /// Clears every in-memory order (used on logout).
   static void reset() => requests.value = [];
 
@@ -728,7 +750,9 @@ class RequestStore {
   /// MERGE RULES:
   ///   • remote rows REPLACE local rows with the same id (the server is the
   ///     authoritative history — an offline device that just reconnected
-  ///     adopts the truth, including transitions made from another device);
+  ///     adopts the truth, including transitions made from another device),
+  ///     inheriting the local `professionalAuthUid` when the wire row decodes
+  ///     without `pro_id` (legacy rows);
   ///   • local-only rows are KEPT at the top (they were created offline and
   ///     their INSERT is still queued / in flight — dropping them would lose
   ///     work);
@@ -741,15 +765,31 @@ class RequestStore {
     final remote = await OrdersRepository.fetchOrders();
     if (remote.isEmpty) return false;
 
-    final remoteById = {for (final r in remote) r.id: r};
-    final merged = <ServiceRequest>[
-      // Local-only first (offline-created, still pushing).
-      for (final r in requests.value)
-        if (!remoteById.containsKey(r.id)) r,
-      // Then the authoritative remote history.
-      ...remote,
-    ];
-    requests.value = merged;
+    requests.value = mergeHydrated(requests.value, remote);
+    // Phase A: real stats — the dashboard/profile badges mirror the loaded
+    // orders (0/0.0 for a new pro), never a seed.
+    ProProfileStore.computeFromOrders(requests.value);
     return true;
+  }
+
+  /// Pure form of the [hydrateFromSupabase] merge — extracted in Phase 3K so
+  /// the auth-uid inheritance (and the MERGE RULES documented above) is
+  /// unit-testable without a live backend.
+  @visibleForTesting
+  static List<ServiceRequest> mergeHydrated(
+    List<ServiceRequest> local,
+    List<ServiceRequest> remote,
+  ) {
+    final remoteById = {for (final r in remote) r.id: r};
+    final localById = {for (final r in local) r.id: r};
+    return <ServiceRequest>[
+      // Local-only first (offline-created, still pushing).
+      for (final r in local)
+        if (!remoteById.containsKey(r.id)) r,
+      // Then the authoritative remote history — with the local auth uid
+      // inherited into rows that decode without `pro_id` (legacy rows).
+      for (final r in remote)
+        _inheritAuthUid(local: localById[r.id], remote: r),
+    ];
   }
 }

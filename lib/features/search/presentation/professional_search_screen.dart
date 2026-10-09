@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
@@ -23,6 +24,39 @@ class _ProfessionalSearchScreenState extends State<ProfessionalSearchScreen> {
   List<ProfessionalModel> _filteredProfessionals = [];
 
   List<ProfessionalModel> get _allProfessionals => ProfessionalsRepository.all;
+
+  @override
+  void initState() {
+    super.initState();
+    // REALTIME AVAILABILITY: the results live in STATE, so a persisted toggle
+    // arriving on `realtime:public:pro_availability` would never reach the
+    // already-rendered cards without this listener — the "Indisponible" badge
+    // and the "Demander" button would keep a stale value until the next search.
+    ProAvailabilityStore.onlineByProCode.addListener(_onAvailabilityChanged);
+  }
+
+  @override
+  void dispose() {
+    // Symmetric teardown: the store outlives every screen, so a listener left
+    // behind would keep a disposed State alive (memory leak).
+    ProAvailabilityStore.onlineByProCode.removeListener(_onAvailabilityChanged);
+    super.dispose();
+  }
+
+  /// Re-applies the LIVE availability onto the cached results.
+  ///
+  /// Deliberately NOT a full `_applyFilters()`: no filter CRITERION changed
+  /// (availability is not part of the search form) — only the flags of the pros
+  /// already on screen — so the visible list keeps its order and the user's
+  /// criteria stay untouched. Runs on a store event, never during build.
+  void _onAvailabilityChanged() {
+    if (!mounted) return;
+    setState(() {
+      _filteredProfessionals = ProfessionalsRepository.withLiveAvailability(
+        _filteredProfessionals,
+      );
+    });
+  }
 
   List<String> get _governorates {
     final isArabic = appLocale.value.languageCode == 'ar';

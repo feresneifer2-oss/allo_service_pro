@@ -263,11 +263,22 @@ class _BookingScreenState extends State<BookingScreen> {
     final proName =
         widget.professionalName.isNotEmpty ? widget.professionalName : pro.name;
 
+    // Phase 3K: the auth identity travels ALONGSIDE the display id. It is
+    // resolved from the SAME id stored on the order — the cached model when
+    // it IS the pro being stored, otherwise a registry lookup that yields
+    // null for an id the catalog does not know (never a foreign pro's uid).
+    final resolvedAuthUid = pro.id == resolvedProId
+        ? pro.authUid
+        : ProfessionalsRepository.byId(resolvedProId)?.authUid;
+
     final request = ServiceRequest(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      // Phase 3L: `orders.id` is a uuid — mint an RFC-4122 v4 id (the same
+      // helper the RE-KEY seam uses), never a millisecond stamp.
+      id: RequestStore.newClientId(),
       serviceTitleFr: widget.serviceTitleFr,
       serviceTitleAr: widget.serviceTitleAr,
       professionalId: resolvedProId,
+      professionalAuthUid: resolvedAuthUid,
       professionalName: proName,
       customerName: UserStore.displayName,
       customerId: UserStore.user.value?.id ?? '',

@@ -2,16 +2,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 
+import 'support/fake_admin_auth.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // Phase 3P: approval is SERVER-FIRST — the fake boundary confirms the
+  // provisioning (`admin_provision_professional`); no real RPC is reachable
+  // from tests.
+  tearDown(AdminAuth.resetToDefault);
+
   setUp(() {
+    AdminAuth.configure(FakeAdminAuthRepository(enrolled: true));
     SharedPreferences.setMockInitialValues(<String, Object>{});
     AdminStore.pendingPros.value = [
       PendingProModel(
@@ -24,6 +33,9 @@ void main() {
         docImage: 'assets/images/doc_placeholder.png',
         status: 'pending',
         proCode: 'PRO-00777',
+        // Valid Supabase identity: the server-first approval gate requires a
+        // real uuid before the provisioning RPC may run.
+        authUid: '66666666-6666-4666-8666-666666666666',
         tokens: 40,
       ),
     ];
@@ -89,11 +101,13 @@ void main() {
     expect(SubscriptionStore.status.value, SubscriptionStatus.active);
     expect(ProProfileStore.tokens.value, 25);
 
-    // · an expired subscription reverts the session to trial mode.
+    // · an expired subscription reverts the session to trial mode, which
+    //   honestly reports "inactive" (no paid cycle) instead of the old
+    //   fake "active" default.
     AdminStore.setPaid('pp_sync_1', isPaid: false);
     await AdminStore.syncSessionStoresForCurrentUser();
     expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
-    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+    expect(SubscriptionStore.status.value, SubscriptionStatus.inactive);
   });
 
   test('3 · live token depletion is pushed into the admin registry', () async {
@@ -193,6 +207,8 @@ void main() {
       professionAr: 'كهربائي',
       submittedAt: '02/01/2026',
       status: 'pending',
+      // Server-first approval (Phase 3P) needs the Supabase identity.
+      authUid: '77777777-7777-4777-8777-777777777777',
     ));
     await UserStore.bindProAccount(
       proCode: registered.proCode,
@@ -303,10 +319,10 @@ void main() {
     loginAsPro(); // PRO-00777, entry().isPaid == false, paidUntilMs == null
     await AdminStore.syncSessionStoresForCurrentUser();
 
-    // Trial, not "expired": a status left behind by the previous session is
-    // never attributed to the pro logging in now.
+    // Trial (reported as "inactive"), not "expired": a status left behind by
+    // the previous session is never attributed to the pro logging in now.
     expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
-    expect(SubscriptionStore.status.value, SubscriptionStatus.active,
+    expect(SubscriptionStore.status.value, SubscriptionStatus.inactive,
         reason: 'a foreign expired state must not leak across sessions');
 
     // ── But THIS pro's own elapsed cycle still reports the truth ──────────

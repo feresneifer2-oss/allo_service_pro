@@ -2,87 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 
+import 'support/fake_admin_auth.dart';
+
+// Phase 1 note: the credential-comparison groups (`matchesAdmin`, the
+// `debug*AdminCredentials` hooks and the configured-identity signature) were
+// REMOVED with the client-side gate. Admin authorization is now decided
+// server-side — its coverage lives in test/admin_authorization_test.dart and
+// test/startup_session_test.dart (cold-start re-validation).
+
 void main() {
-  const testAdminEmail = 'admin@allo.test';
-  const testAdminPassword = 'test-pass-1234';
-
-  setUp(() {
-    // Explicit fixture injection: the repository has NO source defaults.
-    AdminStore.debugSetAdminCredentials(
-      email: testAdminEmail,
-      password: testAdminPassword,
-    );
-  });
-
-  tearDown(AdminStore.debugResetAdminCredentials);
-  group('AdminStore · credential constants', () {
-    test('verifies the injected admin pair', () async {
-      expect(
-        await AdminStore.matchesAdmin(
-          testAdminEmail,
-          testAdminPassword,
-        ),
-        isTrue,
-      );
-    });
-  });
-
-  group('AdminStore.matchesAdmin · smart matching logic', () {
-    test('accepts the exact admin pair', () async {
-      expect(
-        await AdminStore.matchesAdmin(
-          testAdminEmail,
-          testAdminPassword,
-        ),
-        isTrue,
-      );
-    });
-
-    test('accepts literal expected values', () async {
-      expect(
-        await AdminStore.matchesAdmin(testAdminEmail, testAdminPassword),
-        isTrue,
-      );
-    });
-
-    test('rejects a wrong password', () async {
-      expect(
-        await AdminStore.matchesAdmin(testAdminEmail, 'wrong-pass'),
-        isFalse,
-      );
-    });
-
-    test('rejects a wrong email', () async {
-      expect(
-        await AdminStore.matchesAdmin('user@alloservice.tn', testAdminPassword),
-        isFalse,
-      );
-    });
-
-    test('rejects empty credentials', () async {
-      expect(await AdminStore.matchesAdmin('', ''), isFalse);
-    });
-
-    test('rejects a non-admin email even with the right password', () async {
-      expect(
-        await AdminStore.matchesAdmin('feres@example.com', testAdminPassword),
-        isFalse,
-      );
-    });
-
-    test('matching is strict (case-sensitive) by design', () async {
-      expect(
-        await AdminStore.matchesAdmin('ADMIN@ALLO.TEST', testAdminPassword),
-        isFalse,
-      );
-      expect(
-        await AdminStore.matchesAdmin(testAdminEmail, 'test-pass-1234X'),
-        isFalse,
-      );
-    });
-  });
+  tearDown(AdminAuth.resetToDefault);
 
   group('AdminStore · counters sanity', () {
     test('pendingCount counts only pending pros', () {
@@ -114,6 +46,9 @@ void main() {
     });
 
     test('approval removes the pro from the pending counter', () async {
+      // Phase 3P — SERVER-FIRST: the approval provisions the professional on
+      // the backend first. The fake boundary confirms it (no real RPC).
+      AdminAuth.configure(FakeAdminAuthRepository(enrolled: true));
       final pro = AdminStore.registerPro(PendingProModel(
         id: 'sync-test-2',
         name: 'Amel Jlassi',
@@ -122,12 +57,14 @@ void main() {
         professionAr: 'دهانة',
         status: 'pending',
         submittedAt: DateTime.now().toIso8601String(),
+        // The server gate requires a REAL Supabase identity (uuid shape).
+        authUid: '11111111-2222-4333-8444-555555555555',
       ));
       final before = AdminStore.pendingCount;
 
       // AWAITED (CodeRabbit): `approvePro` persists + syncs the credential
       // record asynchronously — settle it before asserting the registry.
-      await AdminStore.approvePro(pro.id);
+      expect(await AdminStore.approvePro(pro.id), isTrue);
 
       expect(AdminStore.pendingCount, before - 1);
       expect(

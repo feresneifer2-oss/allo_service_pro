@@ -1,8 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/shared/validators.dart';
+
+import 'supabase_auth_service.dart';
 
 /// Email OTP (6-digit) issue & verification service.
 ///
@@ -124,10 +127,17 @@ class EmailOtpService {
   /// Whether a usable OTP delivery channel exists for THIS build.
   ///
   /// Debug builds always have the in-app demo channel. Release/profile
-  /// builds have one ONLY after a real provider is wired (see [_deliver]).
+  /// builds have one when EITHER a real provider is wired (see [_deliver])
+  /// OR a configured Supabase client is present: `SupabaseAuthService` is a
+  /// REAL delivery channel — the provider e-mails the 6-digit code
+  /// server-side (Phase 3T). Without this term a correctly configured
+  /// release build would refuse registration ("service e-mail non
+  /// configuré") even though the OTP screen would happily use the live
+  /// channel.
   /// Registration flows MUST consult this before issuing a code - see
   /// [requireDeliveryChannel].
-  static bool get hasDeliveryChannel => demoMode || _hasExternalProvider;
+  static bool get hasDeliveryChannel =>
+      demoMode || _hasExternalProvider || SupabaseAuthService.isConfigured;
 
   /// True once a real (non-demo) SMTP/API provider is wired into [_deliver].
   /// Flip to true as part of wiring the provider - until then, release and
@@ -245,6 +255,43 @@ class EmailOtpService {
     _pending.remove(key); // single-use consumption
     _lastDemoCode = null;
     return true;
+  }
+
+  /// ── "OTP ALREADY COMPLETED ON THIS DEVICE" (Phase 3U) ────────────────────
+  /// The e-mail code is the sign-UP second factor: it must be demanded ONCE
+  /// per identity (and per device), and every later sign-in must enter
+  /// directly. The persisted Supabase session is the PRIMARY mechanism; this
+  /// persisted flag is the local SAFETY NET that survives a session wipe, so a
+  /// returning user is never challenged with yet another code by mistake.
+  /// Keyed on the NORMALIZED address (same normalization as the codes
+  /// themselves), so `A@X.tn`, `a@x.tn ` and `a@x.tn` share one marker.
+  static String verifiedFlagKey(String email) =>
+      'otp_verified_${_normalize(email)}';
+
+  /// Whether [email] already completed the e-mail code handshake on this
+  /// device. A storage failure answers `false` — FAIL-CLOSED: the code is
+  /// demanded again rather than skipped.
+  static Future<bool> hasVerifiedBefore(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(verifiedFlagKey(email)) ?? false;
+    } catch (e) {
+      debugPrint('EmailOtpService.hasVerifiedBefore failed: $e');
+      return false;
+    }
+  }
+
+  /// Records that [email] completed the handshake (idempotent).
+  ///
+  /// Best-effort by design: a storage failure must never block the successful
+  /// flow that just validated the code.
+  static Future<void> markVerifiedForNextLogin(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(verifiedFlagKey(email), true);
+    } catch (e) {
+      debugPrint('EmailOtpService.markVerifiedForNextLogin failed: $e');
+    }
   }
 
   /// Whether a fresh, unconsumed OTP exists for [email].

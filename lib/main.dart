@@ -17,6 +17,7 @@ import 'features/anti_abuse/application/anti_abuse_bindings.dart';
 import 'features/anti_abuse/application/anti_abuse_store.dart';
 import 'features/auth/application/supabase_auth_bindings.dart';
 import 'features/auth/application/user_store.dart';
+import 'features/pro_dashboard/application/pro_availability_store.dart';
 import 'features/pro_dashboard/application/pro_profile_store.dart';
 import 'features/pro_dashboard/application/subscription_store.dart';
 import 'features/requests/application/request_store.dart';
@@ -26,154 +27,182 @@ import 'shared/widgets/anti_abuse_gate.dart';
 import 'shared/widgets/offline_overlay.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // ENVIRONMENT BOOT GUARD (CodeRabbit): a missing/corrupt `.env` used to
-  // crash the app OUTRIGHT (dotenv.load threw, and the `!` null-assertions on
-  // the credentials followed it). The app is local-first by design, so a
-  // missing config must degrade to LOCAL-ONLY mode: log cleanly, skip
-  // Supabase initialization (every Supabase call site guards on
-  // `isConfigured`), and surface a visible warning banner in the shell.
-  // ASSET-FREE ENV RESOLUTION (CodeRabbit): `.env` is gitignored, so it is
-  // NOT declared as a Flutter asset anymore — a fresh clone / CI checkout
-  // must not carry a bundling reference to an untracked file. Precedence:
-  // 1) dotenv (local dev, file present), 2) `--dart-define=SUPABASE_URL=…`
-  // / `SUPABASE_ANON_KEY=…` (release/CI builds), 3) LOCAL-ONLY degradation
-  // via the guard below.
-  var supaUrl = '';
-  var supaKey = '';
-  String? configWarning;
-  try {
-    await dotenv.load(fileName: ".env");
-    supaUrl = (dotenv.env['SUPABASE_URL'] ?? '').trim();
-    supaKey = (dotenv.env['SUPABASE_ANON_KEY'] ?? '').trim();
-  } catch (e) {
-    debugPrint('main(): .env failed to load ($e) — falling back to '
-        '--dart-define / LOCAL-ONLY mode.');
-  }
-  if (supaUrl.isEmpty || supaKey.isEmpty) {
-    supaUrl = const String.fromEnvironment('SUPABASE_URL').trim();
-    supaKey = const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
-  }
-  if (supaUrl.isEmpty || supaKey.isEmpty) {
-    configWarning = '.env introuvable — mode local uniquement / '
-        'ملف البيئة مفقود — وضع محلي فقط';
-    debugPrint('main(): $configWarning');
-  }
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Initialize Supabase using the credentials from .env (only when the
-  // configuration is actually usable — see the guard above).
-  if (configWarning == null) {
-    // BOOT GUARD (CodeRabbit): `Supabase.initialize` itself can still fail —
-    // a malformed URL, a unreachable/timeouted first round-trip, or a plugin
-    // error on a broken device. The failure must degrade to the SAME
-    // local-only boot as a missing .env (never crash the app at startup).
+  // ZONE CONTRACT (audit remediation): the Flutter bindings and `runApp` must
+  // live in the SAME zone. `ensureInitialized()` used to run in the ROOT zone
+  // while only `runApp` was wrapped in `runZonedGuarded`, which made the
+  // framework throw "Zone mismatch: the Flutter bindings were initialized in a
+  // different zone than is now being used" during `runApp`. The WHOLE boot
+  // body — environment guard, Supabase initialization, every hydration and
+  // `runApp` — now executes INSIDE the guarded zone: same ordering, same error
+  // routing through [AppErrorHandler], one single zone.
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    // ENVIRONMENT BOOT GUARD (CodeRabbit): a missing/corrupt `.env` used to
+    // crash the app OUTRIGHT (dotenv.load threw, and the `!` null-assertions on
+    // the credentials followed it). The app is local-first by design, so a
+    // missing config must degrade to LOCAL-ONLY mode: log cleanly, skip
+    // Supabase initialization (every Supabase call site guards on
+    // `isConfigured`), and surface a visible warning banner in the shell.
+    // ASSET-FREE ENV RESOLUTION (CodeRabbit): `.env` is gitignored, so it is
+    // NOT declared as a Flutter asset anymore — a fresh clone / CI checkout
+    // must not carry a bundling reference to an untracked file. Precedence:
+    // 1) dotenv (local dev, file present), 2) `--dart-define=SUPABASE_URL=…`
+    // / `SUPABASE_ANON_KEY=…` (release/CI builds), 3) LOCAL-ONLY degradation
+    // via the guard below.
+    var supaUrl = '';
+    var supaKey = '';
+    String? configWarning;
     try {
-      // INITIALIZATION TIMEOUT (audit remediation): `Supabase.initialize` can
-      // hang on a stalled first round-trip (captive portal, dead DNS). A hard
-      // ceiling degrades to LOCAL-ONLY mode instead of freezing the splash.
-      await Supabase.initialize(
-        url: supaUrl,
-        publishableKey: supaKey,
-      ).timeout(const Duration(seconds: 10));
-    } on TimeoutException {
-      configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
-          'Connexion au serveur impossible — mode local uniquement';
-      debugPrint('main(): Supabase.initialize timed out — starting in '
-          'LOCAL-ONLY mode.');
-    } catch (e, st) {
-      configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
-          'Connexion au serveur impossible — mode local uniquement';
-      debugPrint('main(): Supabase.initialize failed ($e) — starting in '
-          'LOCAL-ONLY mode.');
-      AppErrorHandler.report(e, st, context: 'main:Supabase.initialize');
+      await dotenv.load(fileName: ".env");
+      supaUrl = (dotenv.env['SUPABASE_URL'] ?? '').trim();
+      supaKey = (dotenv.env['SUPABASE_ANON_KEY'] ?? '').trim();
+    } catch (e) {
+      debugPrint('main(): .env failed to load ($e) — falling back to '
+          '--dart-define / LOCAL-ONLY mode.');
     }
-  }
+    if (supaUrl.isEmpty || supaKey.isEmpty) {
+      supaUrl = const String.fromEnvironment('SUPABASE_URL').trim();
+      supaKey = const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
+    }
+    if (supaUrl.isEmpty || supaKey.isEmpty) {
+      configWarning = '.env introuvable — mode local uniquement / '
+          'ملف البيئة مفقود — وضع محلي فقط';
+      debugPrint('main(): $configWarning');
+    }
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
 
-  // Restore the persisted language choice before the first frame.
-  await loadLocale();
+    // Initialize Supabase using the credentials from .env (only when the
+    // configuration is actually usable — see the guard above).
+    if (configWarning == null) {
+      // BOOT GUARD (CodeRabbit): `Supabase.initialize` itself can still fail —
+      // a malformed URL, a unreachable/timeouted first round-trip, or a plugin
+      // error on a broken device. The failure must degrade to the SAME
+      // local-only boot as a missing .env (never crash the app at startup).
+      try {
+        // INITIALIZATION TIMEOUT (audit remediation): `Supabase.initialize` can
+        // hang on a stalled first round-trip (captive portal, dead DNS). A hard
+        // ceiling degrades to LOCAL-ONLY mode instead of freezing the splash.
+        // SESSION PERSISTENCE (Phase 3U): both flags already default to `true`
+        // upstream, but they are pinned EXPLICITLY because the whole "OTP only
+        // once" contract rests on them — [persistSession] keeps the
+        // authenticated session on disk so the NEXT launch enters directly
+        // (SplashScreen / LoginScreen re-use that session instead of dispatching
+        // another code), and [autoRefreshToken] keeps it usable without a manual
+        // re-login.
+        await Supabase.initialize(
+          url: supaUrl,
+          publishableKey: supaKey,
+          authOptions: const FlutterAuthClientOptions(
+            autoRefreshToken: true,
+            persistSession: true,
+          ),
+        ).timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
+            'Connexion au serveur impossible — mode local uniquement';
+        debugPrint('main(): Supabase.initialize timed out — starting in '
+            'LOCAL-ONLY mode.');
+      } catch (e, st) {
+        configWarning = 'تعذّر الاتصال بالخادم — وضع محلي فقط / '
+            'Connexion au serveur impossible — mode local uniquement';
+        debugPrint('main(): Supabase.initialize failed ($e) — starting in '
+            'LOCAL-ONLY mode.');
+        AppErrorHandler.report(e, st, context: 'main:Supabase.initialize');
+      }
+    }
 
-  // Global error boundary + logger: must run before runApp so every
-  // zone/async error is captured (never a red screen).
-  AppErrorHandler.install();
+    // Restore the persisted language choice before the first frame.
+    await loadLocale();
 
-  // Anti-abuse: bind the session terminator (logout on auto-ban).
-  AntiAbuseBindings.register();
+    // Global error boundary + logger: must run before runApp so every
+    // zone/async error is captured (never a red screen).
+    AppErrorHandler.install();
 
-  // Restore locally persisted state BEFORE the first frame — everything is
-  // awaited so the very first widgets render with truthful state:
-  // admin registry + suspended/banned clients · registered clients ·
-  // user session · tokens · subscription · anti-abuse counters.
-  await AntiAbuseStore.loadFromPrefs();
-  await AdminStore.loadFromPrefs();
-  await UserStore.loadFromPrefs();
-  await UserStore.loadRegisteredClients();
-  await SubscriptionStore.loadFromPrefs();
-  await ProProfileStore.loadFromPrefs();
+    // Anti-abuse: bind the session terminator (logout on auto-ban).
+    AntiAbuseBindings.register();
 
-  // Zero-desync: mirror the persisted admin registry (subscription ·
-  // tokens · approval state) into the live session stores for any
-  // auto-logged-in pro — so gates & paywall reflect the truth instantly.
-  await AdminStore.syncSessionStoresForCurrentUser();
+    // Restore locally persisted state BEFORE the first frame — everything is
+    // awaited so the very first widgets render with truthful state:
+    // admin registry + suspended/banned clients · registered clients ·
+    // user session · tokens · subscription · anti-abuse counters.
+    await AntiAbuseStore.loadFromPrefs();
+    await AdminStore.loadFromPrefs();
+    await UserStore.loadFromPrefs();
+    await UserStore.loadRegisteredClients();
+    await SubscriptionStore.loadFromPrefs();
+    await ProProfileStore.loadFromPrefs();
 
-  // Supabase Auth ↔ UserStore bridge: binds the onAuthStateChange listener
-  // so remote sign-in/out events map onto the local session dynamically
-  // (logged-in user appears without a manual re-login, a remote sign-out
-  // clears the session). No-op when Supabase was not initialized (tests /
-  // offline demo builds) — the local auth flow remains fully functional.
-  bindSupabaseAuthListener();
+    // Zero-desync: mirror the persisted admin registry (subscription ·
+    // tokens · approval state) into the live session stores for any
+    // auto-logged-in pro — so gates & paywall reflect the truth instantly.
+    await AdminStore.syncSessionStoresForCurrentUser();
 
-  // Global connectivity listener (Uber-style offline overlay).
-  ConnectivityStore.init();
+    // Supabase Auth ↔ UserStore bridge: binds the onAuthStateChange listener
+    // so remote sign-in/out events map onto the local session dynamically
+    // (logged-in user appears without a manual re-login, a remote sign-out
+    // clears the session). No-op when Supabase was not initialized (tests /
+    // offline demo builds) — the local auth flow remains fully functional.
+    bindSupabaseAuthListener();
 
-  // Offline action queue: register domain executors, restore pending work and
-  // drain it. Deliberately the LAST hydration step: [OfflineQueue.init] may
-  // replay a queued operation immediately, and that replay goes through
-  // RequestStore / SubscriptionStore / ProProfileStore. Arming it before those
-  // stores were hydrated (and before the session was mirrored) would replay
-  // the professional's queued work against empty / default state.
-  //
-  // `armAutoFlush` is the connectivity-driven half of the wiring (CodeRabbit):
-  // it binds the listener that pushes queued creations & transitions to
-  // Supabase the moment the device is back online. It is awaited explicitly —
-  // never a hidden side effect of `registerAll` — so the ordering above is
-  // enforced and unit tests stay free to register executors without arming an
-  // auto-flush.
-  OfflineQueueBindings.registerAll();
-  await OfflineQueueBindings.armAutoFlush();
+    // Global connectivity listener (Uber-style offline overlay).
+    ConnectivityStore.init();
 
-  // LIVE BACKEND HYDRATION (Supabase `orders`): after the local stores and
-  // the offline queue are restored, pull the RLS-scoped order history so the
-  // very first screen reflects the live backend. Fire-and-forget and
-  // failure-tolerant: a slow/unreachable backend must never delay boot —
-  // the local state stays usable and the fetch lands when it lands. A
-  // no-op when Supabase is not initialized (tests / offline demo builds).
-  unawaited(RequestStore.hydrateFromSupabase());
+    // Offline action queue: register domain executors, restore pending work and
+    // drain it. Deliberately the LAST hydration step: [OfflineQueue.init] may
+    // replay a queued operation immediately, and that replay goes through
+    // RequestStore / SubscriptionStore / ProProfileStore. Arming it before those
+    // stores were hydrated (and before the session was mirrored) would replay
+    // the professional's queued work against empty / default state.
+    //
+    // `armAutoFlush` is the connectivity-driven half of the wiring (CodeRabbit):
+    // it binds the listener that pushes queued creations & transitions to
+    // Supabase the moment the device is back online. It is awaited explicitly —
+    // never a hidden side effect of `registerAll` — so the ordering above is
+    // enforced and unit tests stay free to register executors without arming an
+    // auto-flush.
+    OfflineQueueBindings.registerAll();
+    await OfflineQueueBindings.armAutoFlush();
 
-  // Push notifications: safe no-op in tests and until ONESIGNAL_APP_ID is
-  // provided via --dart-define. Awaited-after-binding but never fatal —
-  // failures are logged, boot continues.
-  await OneSignalService.initialize();
+    // LIVE BACKEND HYDRATION (Supabase `orders`): after the local stores and
+    // the offline queue are restored, pull the RLS-scoped order history so the
+    // very first screen reflects the live backend. Fire-and-forget and
+    // failure-tolerant: a slow/unreachable backend must never delay boot —
+    // the local state stays usable and the fetch lands when it lands. A
+    // no-op when Supabase is not initialized (tests / offline demo builds).
+    unawaited(RequestStore.hydrateFromSupabase());
 
-  // Background location: kicked off but deliberately NOT awaited — GPS
-  // prompts, slow fixes or a disabled radio must never delay runApp()/
-  // first frame. Detection completes asynchronously and, when ready, sets
-  // resolvedAddress / governorate without blocking the boot flow.
-  unawaited(LocationService.instance.init());
+    // PERSISTED AVAILABILITY BOARD (Supabase `pro_availability`): the client
+    // feed's badges and the pro's own switch must reflect the state that was
+    // durably stored — not a connection heuristic and not a restart default.
+    // Same contract as the orders hydration above: fire-and-forget, and a no-op
+    // when Supabase is not initialized. A failed read leaves the board as it is
+    // (the local cached flag already restored the pro's own value inside
+    // `ProProfileStore.loadFromPrefs`), and the realtime channel keeps it fresh.
+    unawaited(ProAvailabilityStore.hydrateFromSupabase());
 
-  // runApp wrapped in runZonedGuarded so even synchronous + async uncaught
-  // errors outside the Flutter pipeline are routed through AppErrorHandler.
-  runZonedGuarded(
-    () {
-      runApp(AlloServiceProApp(configWarning: configWarning));
-    },
-    (error, stackTrace) {
-      AppErrorHandler.report(error, stackTrace, context: 'runZonedGuarded');
-    },
-  );
+    // Push notifications: safe no-op in tests and until ONESIGNAL_APP_ID is
+    // provided via --dart-define. Awaited-after-binding but never fatal —
+    // failures are logged, boot continues.
+    await OneSignalService.initialize();
+
+    // Background location: kicked off but deliberately NOT awaited — GPS
+    // prompts, slow fixes or a disabled radio must never delay runApp()/
+    // first frame. Detection completes asynchronously and, when ready, sets
+    // resolvedAddress / governorate without blocking the boot flow.
+    unawaited(LocationService.instance.init());
+
+    // Everything above (environment guard, Supabase, every hydration) ran
+    // inside the guarded zone, so this `runApp` now shares the zone of
+    // `WidgetsFlutterBinding.ensureInitialized()` — the framework no longer
+    // reports a Zone mismatch — while every synchronous + async uncaught error
+    // keeps being routed through [AppErrorHandler].
+    runApp(AlloServiceProApp(configWarning: configWarning));
+  }, (error, stackTrace) {
+    AppErrorHandler.report(error, stackTrace, context: 'runZonedGuarded');
+  });
 }
 
 class AlloServiceProApp extends StatelessWidget {

@@ -153,12 +153,19 @@ class UserStore {
   static const String _kIsLoggedIn = 'is_logged_in';
   static const String _kUserRole = 'user_role';
 
-  /// Signed admin-session marker (CodeRabbit): written ONLY by a real admin
-  /// sign-in ([setAdminSession]) and re-validated against the LIVE configured
-  /// identity in [checkInitialSession] — a raw `user_role:'admin'`
-  /// preference without (or with a stale) signature can never route to the
-  /// admin shell.
-  static const String _kAdminSig = 'admin_session_sig';
+  /// VERIFIED admin-session marker (Phase 1): the `auth.uid()` the BACKEND
+  /// confirmed as an administrator at sign-in ([setAdminSession]).
+  /// [checkInitialSession] re-runs the server-side check
+  /// (`public.is_admin()`) against the current authenticated session and
+  /// requires it to match this UID — a raw `user_role:'admin'` preference, or
+  /// a marker left behind by another identity, can never route to the admin
+  /// shell.
+  static const String _kAdminUid = 'admin_uid';
+
+  /// LEGACY pre-Phase-1 client-side admin signature key. Never written again;
+  /// still wiped on sign-out so a stale marker from an older build cannot
+  /// survive an upgrade on disk.
+  static const String _kLegacyAdminSig = 'admin_session_sig';
 
   /// Canonical persisted role string: 'client' or 'professionnel'.
   static String _roleKey(UserRole role) =>
@@ -217,31 +224,41 @@ class UserStore {
   /// (`loadFromPrefs`) otherwise.
   ///
   /// The persisted role key is authoritative for the client/professional
-  /// routes. The ADMIN route is different (CodeRabbit): an unsigned raw
-  /// preference must never grant admin routing, so the persisted marker is
-  /// re-validated against the signature derived from the LIVE configured
-  /// admin identity — a forged `user_role:'admin'` flag written outside a
-  /// real admin sign-in carries no (or a stale) signature and is ignored.
+  /// routes. The ADMIN route is different (Phase 1): it is decided FIRST, by
+  /// the SERVER — `public.is_admin()` must still confirm the current
+  /// authenticated identity (`auth.uid()`) as the administrator a real admin
+  /// sign-in persisted (`admin_uid`), and it therefore OUTRANKS the role
+  /// string. A raw `user_role:'admin'` preference never grants the route, and
+  /// offline / refused → FAIL-CLOSED (guest).
   ///
   /// Returns the route key — 'admin' | 'professionnel' | 'client' — or null
   /// when the device has no active session (guest / signed out).
   static Future<String?> checkInitialSession() async {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool(_kIsLoggedIn) ?? false)) return null;
-    final roleKey = prefs.getString(_kUserRole);
-    if (roleKey != null && roleKey.isNotEmpty) {
-      if (roleKey == 'admin') {
-        // SIGNATURE GATE (CodeRabbit): the marker must match the CURRENTLY
-        // configured identity exactly. An unconfigured (closed) gate has no
-        // signature at all — every persisted admin flag is unsigned by
-        // definition and falls through to the legacy derivation below
-        // (which cannot return 'admin').
-        final expected = AdminAuth.sessionSignature;
-        final stored = prefs.getString(_kAdminSig);
-        if (expected == null || stored == null || stored != expected) {
-          return null;
-        }
+
+    // ── ADMIN FIRST (Phase 1 — SERVER-SIDE) ────────────────────────────────
+    // The authority over the admin route is the SERVER (`public.is_admin()`
+    // keyed on the current `auth.uid()`), bound to the uid a real admin
+    // sign-in persisted. It is evaluated BEFORE the role string so that
+    // neither a concurrent Supabase auth bind nor a stale `user_role` can
+    // demote an operator into a client/pro shell. Every failure — no marker,
+    // no Supabase session, offline, RPC error, revoked enrolment, uid
+    // mismatch — is FAIL-CLOSED (`null` → guest).
+    final adminUid = prefs.getString(_kAdminUid);
+    if (adminUid != null && adminUid.isNotEmpty) {
+      final confirmed = await AdminAuth.instance.isAdmin();
+      if (confirmed && AdminAuth.instance.lastVerifiedUserId == adminUid) {
+        return 'admin';
       }
+      return null;
+    }
+
+    final roleKey = prefs.getString(_kUserRole);
+    // A forged / legacy `'admin'` string carries NO server-verified marker by
+    // this point: the client can never grant itself the admin route.
+    if (roleKey == 'admin') return null;
+    if (roleKey != null && roleKey.isNotEmpty) {
       return roleKey;
     }
     // Legacy sessions saved before the role key existed: derive the route
@@ -389,13 +406,44 @@ class UserStore {
   /// older snapshot can never overwrite a fresher one.
   static Future<void>? _writeQueue;
 
+  /// The zone that created the current [_writeQueue] tail. Chaining onto a
+  /// tail born in ANOTHER zone is deliberately refused: a late `.then` on an
+  /// already-completed future schedules its propagation microtask in the
+  /// future's CREATION zone (`_Future._addListener`, dart:async), and for a
+  /// finished testWidgets FakeAsync that queue is never drained again — the
+  /// new link (and every later `await _writeQueue`) would hang forever. A
+  /// foreign-zone tail is always settled by the time another zone runs (its
+  /// chain drained before its zone ended), so a fresh local chain preserves
+  /// the write ordering.
+  static Zone? _writeQueueZone;
+
   static Future<void> _enqueueWrite(Future<void> Function() task) {
-    final run = (_writeQueue ?? Future<void>.value()).then((_) => task());
+    _writesInFlight++;
+    // The chain is created in the CALLER's zone: a testWidgets/FakeAsync body
+    // that awaits this future must resume inside its own zone — running the
+    // chain on Zone.root strands that resumption microtask in a fake-async zone
+    // nobody pumps again, hanging the harness until the 10-minute test timeout.
+    final prev = identical(_writeQueueZone, Zone.current) ? _writeQueue : null;
+    final run = (prev ?? Future<void>.value()).then((_) => task());
     // Keep the chain alive after a failure — the NEXT write must still run
     // (each task handles its own errors internally).
-    _writeQueue = run.then((_) {}, onError: (_) {});
+    final tail = run.then((_) {}, onError: (e) {
+      debugPrint('UserStore: write failed: $e');
+    });
+    // Settle the in-flight marker as soon as this link finishes.
+    tail.whenComplete(() => _writesInFlight--);
+    _writeQueue = tail;
+    _writeQueueZone = Zone.current;
     return run;
   }
+
+  /// How many writes are still AWAITING their chain link. Mirrors the tail of
+  /// [_writeQueue] synchronously so a restore can tell — WITHOUT awaiting —
+  /// whether anything is actually in flight. Awaiting an already SETTLED
+  /// future buys nothing and can strand the continuation inside a caller zone
+  /// that is no longer being pumped (frozen test harness / disposed zone),
+  /// which would freeze the restore forever.
+  static int _writesInFlight = 0;
 
   /// Drains the pending write chain so a READ (session / registry restore)
   /// can never observe a STALE snapshot while a just-issued write is still
@@ -409,6 +457,9 @@ class UserStore {
   /// be lost). Waiting for the tail future guarantees the read happens
   /// strictly after every write scheduled before it.
   static Future<void> _awaitPendingWrites() async {
+    // FAST PATH: nothing in flight → this read is already ordered strictly
+    // after every write ever scheduled, so there is nothing to wait for.
+    if (_writesInFlight <= 0) return;
     final pending = _writeQueue;
     if (pending == null) return;
     // The chain itself never throws (failures are absorbed per task), but a
@@ -656,6 +707,15 @@ class UserStore {
     return true;
   }
 
+  /// The role persisted on the credential record keyed by [email] — the same
+  /// registry lookup as every other credential decision (normalized key).
+  ///
+  /// `null` when the identity has no record yet or never picked a role. Used
+  /// by the auth-state binding so a KNOWN identity can never be downgraded to
+  /// `role = null` (which would skip the pro verification gate).
+  static UserRole? credentialRoleFor(String email) =>
+      _accounts[_accountKey(email)]?.role;
+
   /// Whether a persisted credential record exists for [email].
   ///
   /// Used by the OTP screen to distinguish a genuine unlock failure
@@ -787,11 +847,11 @@ class UserStore {
         await _persistAccounts();
       }
     } else {
-      // Brand-new remote identity: derive a display name from the verified
-      // e-mail when none was provided (the user can rename it in-profile).
-      final name = (fullName?.trim().isNotEmpty ?? false)
-          ? fullName!.trim()
-          : key.split('@').first;
+      // Brand-new remote identity with NO provided name: store an EMPTY
+      // name — never an e-mail fragment. An e-mail-derived placeholder here
+      // would leak into greetings, profile displays and (via the auth
+      // binding) `profiles.full_name` (Phase A).
+      const name = '';
       _accounts[key] = _LocalAccount(
         name: name,
         phone: '',
@@ -1085,19 +1145,21 @@ class UserStore {
   /// Persists the admin session through the same auto-login flag path used by
   /// client and professional sessions.
   ///
-  /// [signature] binds the persisted routing flag to the ACTUAL configured
-  /// admin identity (CodeRabbit): [checkInitialSession] re-derives the
-  /// expected signature from the live credentials on every cold start and
-  /// refuses to route on a missing/stale marker, so a raw
-  /// `user_role: 'admin'` preference written outside a real admin sign-in
+  /// [adminUid] is the `auth.uid()` the SERVER confirmed as an administrator
+  /// (`public.is_admin()`, see `SupabaseAdminAuthRepository`):
+  /// [checkInitialSession] re-runs that server check against the live
+  /// Supabase session on every cold start and requires the confirmed identity
+  /// to equal this marker, so a raw `user_role: 'admin'` preference written
+  /// outside a real admin sign-in — or a marker left by another identity —
   /// can never grant the admin shell.
-  static Future<void> setAdminSession({String? signature}) async {
+  static Future<void> setAdminSession({required String adminUid}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kIsLoggedIn, true);
     await prefs.setString(_kUserRole, 'admin');
-    if (signature != null) {
-      await prefs.setString(_kAdminSig, signature);
-    }
+    await prefs.setString(_kAdminUid, adminUid);
+    // A pre-Phase-1 marker is meaningless now (it was derived from the
+    // removed client-side credential gate) — never let it linger on disk.
+    await prefs.remove(_kLegacyAdminSig);
   }
 
   /// Binds the professional identity (PRO-XXXXX + verification state) to the
@@ -1325,11 +1387,14 @@ class UserStore {
             (await _removeKey(prefs, _kIsLoggedIn)) & sessionKeysClean;
         sessionKeysClean =
             (await _removeKey(prefs, _kUserRole)) & sessionKeysClean;
-        // The signed admin marker must die with the session — a leftover
-        // signature paired with a re-forged `user_role:'admin'` flag would
-        // survive the logout otherwise.
+        // The VERIFIED admin marker must die with the session — a leftover
+        // uid paired with a re-forged `user_role:'admin'` flag would
+        // otherwise survive the logout. The legacy pre-Phase-1 signature key
+        // is wiped alongside it so an upgraded device starts clean.
         sessionKeysClean =
-            (await _removeKey(prefs, _kAdminSig)) & sessionKeysClean;
+            (await _removeKey(prefs, _kAdminUid)) & sessionKeysClean;
+        sessionKeysClean =
+            (await _removeKey(prefs, _kLegacyAdminSig)) & sessionKeysClean;
         sessionKeysClean = (await _removeKey(prefs, _kId)) & sessionKeysClean;
         sessionKeysClean = (await _removeKey(prefs, _kName)) & sessionKeysClean;
         sessionKeysClean =

@@ -17,6 +17,17 @@ enum QueuedActionType {
   /// create-then-transition order: a status UPDATE can never be replayed
   /// before the row it targets has been inserted (FIFO + stop-on-first-retry).
   createOrder,
+
+  /// `ProProfileStore.setAvailability` replay (craftsman online/offline flag
+  /// toggled while the device had no usable network).
+  ///
+  /// The payload carries `{'proId': auth-uid, 'proCode': PRO-XXXXX | null,
+  /// 'isAvailable': bool}` and the executor is an idempotent UPSERT of the
+  /// caller's OWN `pro_availability` row, keyed by `pro_id` — so a replay can
+  /// never create a duplicate row and the LAST user action wins
+  /// (`ProProfileStore` re-keys the single pending entry per pro instead of
+  /// stacking one action per tap).
+  updateProAvailability,
 }
 
 /// One locally-stored operation awaiting a network round-trip.

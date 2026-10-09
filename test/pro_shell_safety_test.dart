@@ -39,8 +39,8 @@ void main() {
     // Every mutable field is back to its factory default.
     expect(ProProfileStore.tokens.value, 150);
     expect(ProProfileStore.isAvailable.value, isTrue);
-    expect(ProProfileStore.completedServices.value, 127);
-    expect(ProProfileStore.rating.value, 4.9);
+    expect(ProProfileStore.completedServices.value, 0);
+    expect(ProProfileStore.rating.value, 0.0);
     expect(ProProfileStore.selectedSpecialties.value, isEmpty);
     expect(ProProfileStore.pricingType.value, 'fixed');
     expect(ProProfileStore.priceFrom.value, 50);
@@ -49,8 +49,8 @@ void main() {
     expect(ProProfileStore.acceptanceRate.value, 0.96);
     expect(ProProfileStore.responseTimeMin.value, 15);
     expect(ProProfileStore.hasBrandedUniform.value, isTrue);
-    expect(ProProfileStore.serviceZones.value, ['Ariana', 'Tunis']);
-    expect(ProProfileStore.zones, ['Ariana', 'Tunis']);
+    expect(ProProfileStore.serviceZones.value, isEmpty);
+    expect(ProProfileStore.zones, isEmpty);
     expect(ProProfileStore.professionFr, isNull);
     expect(ProProfileStore.professionAr, isNull);
     expect(ProProfileStore.tokensConsumed.value, isFalse);

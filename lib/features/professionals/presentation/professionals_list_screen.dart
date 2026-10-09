@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
 import 'package:allo_service_pro/features/professional/presentation/professional_profile_screen.dart';
 import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart'
     show allCities;
@@ -34,6 +35,26 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
   bool _verifiedOnly = false;
   bool _availableOnly = false;
   double _maxDistance = 20;
+
+  @override
+  void initState() {
+    super.initState();
+    // REALTIME AVAILABILITY: `_filtered` is recomputed on every build, so this
+    // screen only needs the REBUILD trigger — a persisted toggle (own device or
+    // another one) then re-applies the "Disponibles uniquement" filter live.
+    ProAvailabilityStore.onlineByProCode.addListener(_onAvailabilityChanged);
+  }
+
+  @override
+  void dispose() {
+    ProAvailabilityStore.onlineByProCode.removeListener(_onAvailabilityChanged);
+    super.dispose();
+  }
+
+  void _onAvailabilityChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   List<ProfessionalModel> get _filtered {
     var list = widget.serviceId.isEmpty

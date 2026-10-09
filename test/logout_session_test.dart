@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
@@ -12,6 +13,8 @@ import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
+
+import 'support/fake_admin_auth.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -154,7 +157,10 @@ void main() {
     expect(ChatStore.sessions.value, isNot(contains('r-1')));
     expect(NotificationStore.notifications.value, isEmpty);
     expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
-    expect(SubscriptionStore.status.value, SubscriptionStatus.active);
+    // Phase A: reset() restores the honest default — a signed-out device
+    // holds NO cycle, so the status is `inactive` (never activated), not
+    // `active`.
+    expect(SubscriptionStore.status.value, SubscriptionStatus.inactive);
     expect(ProProfileStore.tokens.value, 150);
   });
 
@@ -251,6 +257,8 @@ void main() {
       professionAr: 'نجّارة',
       submittedAt: '01/01/2026',
       status: 'pending',
+      // Server-first approval (Phase 3P) needs the Supabase identity.
+      authUid: '88888888-8888-4888-8888-888888888888',
     ));
     await UserStore.bindProAccount(
       proCode: registered.proCode,
@@ -261,7 +269,12 @@ void main() {
     // AWAITED (CodeRabbit): the credential sync inside `approvePro` is now
     // awaited internally, but the returned future itself must be awaited so
     // the reload below never races the persist step.
-    await AdminStore.approvePro(registered.id);
+    // Phase 3P — SERVER-FIRST: the fake boundary confirms the provisioning
+    // (no real RPC in tests); the local approval only runs on that
+    // confirmation.
+    AdminAuth.configure(FakeAdminAuthRepository(enrolled: true));
+    addTearDown(AdminAuth.resetToDefault);
+    expect(await AdminStore.approvePro(registered.id), isTrue);
     final entry =
         AdminStore.pendingPros.value.firstWhere((p) => p.id == registered.id);
     expect(entry.status, 'approved');

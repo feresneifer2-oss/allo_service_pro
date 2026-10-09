@@ -6,6 +6,28 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/error/app_error_handler.dart';
 import '../../../core/network/connectivity_store.dart';
 
+/// Outcome of one live OTP dispatch (`auth.signInWithOtp`).
+///
+/// PHASE 3T: the previous `bool` conflated every failure into one bucket, so
+/// the UI could not tell the provider's RATE LIMITER (HTTP 429 — "try again
+/// later") from a genuine channel refusal (SMTP not wired, unknown account
+/// under `shouldCreateUser: false`, invalid address). Transport failures
+/// (offline / DNS / timeout) are NOT represented here: [SupabaseAuthService.sendOtp]
+/// RETHROWS them, keeping the retryable network classification intact.
+enum OtpSendOutcome {
+  /// The provider accepted the request; the code is on its way.
+  sent,
+
+  /// HTTP 429 (or a throttle-marked provider message): the rate limiter
+  /// refused this attempt. Retrying immediately cannot help — the UI shows a
+  /// dedicated "try again later" state.
+  rateLimited,
+
+  /// Any other provider-side refusal. Retrying with the same configuration
+  /// cannot help.
+  refused,
+}
+
 /// Thin gateway around Supabase Auth for the Email-OTP flow.
 ///
 /// ISOLATION CONTRACT: this class must stay free of any app-store import
@@ -19,9 +41,53 @@ import '../../../core/network/connectivity_store.dart';
 class SupabaseAuthService {
   SupabaseAuthService._();
 
+  /// TEST SEAM (Phase 3T): overrides [isConfigured] so focused tests can
+  /// exercise the LIVE branches (login/registration OTP dispatch, 429
+  /// classification) without a real backend. `null` = real detection.
+  @visibleForTesting
+  static bool? debugConfiguredOverride;
+
+  /// TEST SEAM (Phase 3T): stands in for the live `signInWithOtp` dispatch.
+  /// `null` = real client call.
+  @visibleForTesting
+  static Future<OtpSendOutcome> Function(
+    String email, {
+    required bool shouldCreateUser,
+  })? debugSendOtpOverride;
+
+  /// TEST SEAM (Phase 3T): stands in for the live `verifyOTP` exchange.
+  /// `null` = real client call.
+  @visibleForTesting
+  static Future<bool> Function(String email, String token)?
+      debugVerifyOtpOverride;
+
+  /// TEST SEAM: stands in for the live `signInWithPassword` exchange.
+  /// `null` = real client call.
+  @visibleForTesting
+  static Future<bool> Function(String email, String password)?
+      debugSignInWithPasswordOverride;
+
+  /// TEST SEAM: stands in for the live `updateUser` password save.
+  /// `null` = real client call.
+  @visibleForTesting
+  static Future<bool> Function(String password)? debugSetPasswordOverride;
+
+  /// Clears every test seam (Phase 3T) — call from test `setUp`/`tearDown`
+  /// so a simulated configuration can never leak into another test.
+  @visibleForTesting
+  static void debugResetOverrides() {
+    debugConfiguredOverride = null;
+    debugSendOtpOverride = null;
+    debugVerifyOtpOverride = null;
+    debugSignInWithPasswordOverride = null;
+    debugSetPasswordOverride = null;
+  }
+
   /// Whether `Supabase.initialize()` ran in this process. Accessing the
   /// client before initialization throws — that throw IS the detection.
   static bool get isConfigured {
+    final override = debugConfiguredOverride;
+    if (override != null) return override;
     try {
       Supabase.instance.client.auth.currentSession;
       return true;
@@ -39,23 +105,46 @@ class SupabaseAuthService {
   /// instead of inventing an identity.
   static String? get currentUserId {
     if (!isConfigured) return null;
-    final id = Supabase.instance.client.auth.currentUser?.id;
-    if (id == null) return null;
-    final trimmed = id.trim();
-    return trimmed.isEmpty ? null : trimmed;
+    try {
+      final id = Supabase.instance.client.auth.currentUser?.id;
+      if (id == null) return null;
+      final trimmed = id.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    } catch (e) {
+      // Seam safety: a simulated/void client must degrade to "no identity"
+      // instead of crashing every backend call that reads this.
+      debugPrint('SupabaseAuthService.currentUserId unavailable: $e');
+      return null;
+    }
   }
 
   /// Triggers the 6-digit e-mail OTP (`signInWithOtp`). Supabase emails the
-  /// code and creates the user row on first sign-in (`shouldCreateUser`).
-  /// Returns `false` on ANY failure (network, rate limit, invalid address) —
-  /// never throws into the UI layer.
-  static Future<bool> sendOtp(String email) async {
+  /// code and — when [shouldCreateUser] — creates the user row on first
+  /// sign-in.
+  ///
+  /// REGISTRATION dispatches with the default (`true`). The LOGIN path
+  /// (Phase 3T) passes `false`: signing in must never provision a brand-new
+  /// account behind the user's back; an unknown address is answered with an
+  /// [OtpSendOutcome.refused] (the UI nudges towards sign-up instead).
+  ///
+  /// Returns an [OtpSendOutcome] for provider-side answers. A TRANSPORT
+  /// failure (offline / DNS / timeout — no HTTP status) is RETHROWN so
+  /// callers keep the retryable network classification distinct from a
+  /// channel refusal.
+  static Future<OtpSendOutcome> sendOtp(
+    String email, {
+    bool shouldCreateUser = true,
+  }) async {
+    final override = debugSendOtpOverride;
+    if (override != null) {
+      return override(email, shouldCreateUser: shouldCreateUser);
+    }
     try {
       await Supabase.instance.client.auth.signInWithOtp(
         email: email,
-        shouldCreateUser: true,
+        shouldCreateUser: shouldCreateUser,
       );
-      return true;
+      return OtpSendOutcome.sent;
     } on AuthException catch (e) {
       // TRANSPORT FIRST (CodeRabbit): a network-class failure carries no HTTP
       // status — it is RETRYABLE and must be rethrown (the OTP screen shows
@@ -67,19 +156,47 @@ class SupabaseAuthService {
         rethrow;
       }
       // Provider/CHANNEL-side refusal (SMTP not wired, rate limit, invalid
-      // address): retrying with the same configuration cannot help.
-      debugPrint('SupabaseAuthService.sendOtp rejected by the channel: $e');
-      return false;
+      // address): retrying with the same configuration cannot help — but a
+      // RATE LIMIT (429) gets its own outcome so the UI never tells the user
+      // "e-mail not configured" for a throttle.
+      final outcome = classifySendFailure(
+        statusCode: e.statusCode,
+        message: e.message,
+      );
+      debugPrint('SupabaseAuthService.sendOtp refused ($outcome): $e');
+      return outcome;
     } on StateError catch (e) {
       // Supabase not initialized (tests / local-only mode): no channel at all.
       debugPrint('SupabaseAuthService.sendOtp: not configured: $e');
-      return false;
+      return OtpSendOutcome.refused;
     } catch (e) {
       // TRANSPORT failure (offline / DNS / timeout) — rethrown so the OTP
       // screen can distinguish it from a channel refusal (CodeRabbit).
       debugPrint('SupabaseAuthService.sendOtp transport failure: $e');
       rethrow;
     }
+  }
+
+  /// PURE 429 classifier (Phase 3T) — exposed for focused tests.
+  ///
+  /// HTTP 429 (or a provider message carrying a throttle marker, e.g.
+  /// GoTrue's "For security purposes, you can only request this after N
+  /// seconds") means the provider's RATE LIMITER refused this attempt: the
+  /// UI must show a "try again later" state, never "e-mail not configured".
+  /// Everything else is a plain [OtpSendOutcome.refused].
+  @visibleForTesting
+  static OtpSendOutcome classifySendFailure({
+    Object? statusCode,
+    required String message,
+  }) {
+    if (statusCode?.toString() == '429') return OtpSendOutcome.rateLimited;
+    final text = message.toLowerCase();
+    if (text.contains('rate limit') ||
+        text.contains('too many') ||
+        text.contains('security purposes')) {
+      return OtpSendOutcome.rateLimited;
+    }
+    return OtpSendOutcome.refused;
   }
 
   /// RETRYABLE-TRANSPORT CLASSIFIER (CodeRabbit, evaluated BEFORE any generic
@@ -105,6 +222,8 @@ class SupabaseAuthService {
   /// response means the code was correct, unconsumed and unexpired — the
   /// remote identity is now authenticated.
   static Future<bool> verifyOtp(String email, String token) async {
+    final override = debugVerifyOtpOverride;
+    if (override != null) return override(email, token);
     try {
       final res = await Supabase.instance.client.auth.verifyOTP(
         email: email,
@@ -130,6 +249,66 @@ class SupabaseAuthService {
       return false;
     }
   }
+
+  /// Password sign-in (`signInWithPassword`) — the ONE remote credential
+  /// exchange in the app, used EXCLUSIVELY by the server-side admin gate
+  /// (`SupabaseAdminAuthRepository`).
+  ///
+  /// Regular users authenticate with the 6-digit e-mail OTP; an operator
+  /// enrolled in `public.admins` gets their Supabase identity from the
+  /// Dashboard (e-mail + password) and therefore needs this path. No secret
+  /// ships in the binary: the only authority over admin membership stays the
+  /// backend (`public.is_admin()` keyed on `auth.uid()`).
+  ///
+  /// Returns `true` only when a session now authenticates this identity.
+  /// Every failure (wrong password, unconfirmed e-mail, provider disabled,
+  /// network) is a `false` — never a throw into the UI layer.
+  static Future<bool> signInWithPassword(String email, String password) async {
+    if (!isConfigured) return false;
+    final signInOverride = debugSignInWithPasswordOverride;
+    if (signInOverride != null) return signInOverride(email, password);
+    try {
+      final res = await Supabase.instance.client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+      return res.session != null;
+    } on AuthException catch (e) {
+      debugPrint('SupabaseAuthService.signInWithPassword rejected: $e');
+      return false;
+    } catch (e) {
+      debugPrint('SupabaseAuthService.signInWithPassword failed: $e');
+      return false;
+    }
+  }
+
+  /// Saves a password onto the CURRENT authenticated Supabase session.
+  /// Used after OTP verification during registration, while the session
+  /// created by verifyOTP is still valid.
+  /// Returns true on success, false otherwise (never throws to UI).
+  static Future<bool> setPassword(String password) async {
+    if (!isConfigured) return false;
+    final setOverride = debugSetPasswordOverride;
+    if (setOverride != null) return setOverride(password);
+    try {
+      final res = await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: password),
+      );
+      return res.user != null;
+    } catch (e) {
+      debugPrint('SupabaseAuthService.setPassword failed: $e');
+      return false;
+    }
+  }
+
+  /// Drops the locally stored Supabase session WITHOUT any remote revocation
+  /// (`scope: local`).
+  ///
+  /// Used by the admin gate when an authenticated identity turns out NOT to
+  /// be enrolled server-side: the session this sign-in attempt just created
+  /// must not linger on disk (it would be re-hydrated on the next boot) nor
+  /// displace the local app session.
+  static Future<bool> clearLocalSession() => _stripLocalSession();
 
   /// Remote sign-out.
   ///
@@ -224,16 +403,24 @@ class SupabaseAuthService {
   /// Identity of the currently authenticated remote user, if any.
   static ({String email, String? fullName})? get currentUser {
     if (!isConfigured) return null;
-    final u = Supabase.instance.client.auth.currentUser;
-    if (u?.email == null) return null;
-    final meta = u!.userMetadata;
-    // SAFE METADATA CAST (CodeRabbit): user metadata is untrusted JSON — a
-    // value typed as num/bool by the writer must never crash an
-    // `as String?` cast. Stringify defensively and trim.
-    final rawName = meta is Map<String, dynamic>
-        ? (meta['full_name'] ?? meta['name'])?.toString()
-        : null;
-    final name = (rawName?.trim().isNotEmpty ?? false) ? rawName!.trim() : null;
-    return (email: u.email!, fullName: name);
+    try {
+      final u = Supabase.instance.client.auth.currentUser;
+      if (u?.email == null) return null;
+      final meta = u!.userMetadata;
+      // SAFE METADATA CAST (CodeRabbit): user metadata is untrusted JSON — a
+      // value typed as num/bool by the writer must never crash an
+      // `as String?` cast. Stringify defensively and trim.
+      final rawName = meta is Map<String, dynamic>
+          ? (meta['full_name'] ?? meta['name'])?.toString()
+          : null;
+      final name =
+          (rawName?.trim().isNotEmpty ?? false) ? rawName!.trim() : null;
+      return (email: u.email!, fullName: name);
+    } catch (e) {
+      // Seam safety (Phase 3T): identical contract to `currentUserId` — a
+      // simulated/void client degrades to "no remote identity".
+      debugPrint('SupabaseAuthService.currentUser unavailable: $e');
+      return null;
+    }
   }
 }

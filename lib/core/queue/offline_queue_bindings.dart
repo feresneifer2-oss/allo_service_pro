@@ -3,6 +3,7 @@ import 'package:allo_service_pro/core/logging/app_logger.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/queue/offline_queue.dart';
 import 'package:allo_service_pro/core/queue/queued_action.dart';
+import 'package:allo_service_pro/features/pro_dashboard/data/pro_availability_repository.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 
 /// Wires [OfflineQueue] executors to domain stores.
@@ -25,6 +26,10 @@ class OfflineQueueBindings {
     OfflineQueue.registerExecutor(
       QueuedActionType.createOrder,
       _replayCreateOrder,
+    );
+    OfflineQueue.registerExecutor(
+      QueuedActionType.updateProAvailability,
+      _replayUpdateProAvailability,
     );
   }
 
@@ -144,6 +149,65 @@ class OfflineQueueBindings {
         error,
         stackTrace,
         context: 'OfflineQueueBindings._replayUpdateOrderStatus',
+      );
+      return QueueExecutionResult.retry;
+    }
+  }
+
+  /// Replays an offline availability toggle (`pro_availability`).
+  ///
+  /// Idempotent BY CONSTRUCTION: the executor performs the exact same UPSERT
+  /// the online path performs, keyed by `pro_id` — replaying it once or ten
+  /// times converges on the same row, and no duplicate can ever be created.
+  ///
+  /// The payload carries the value the pro last chose; `ProProfileStore`
+  /// re-keys the single pending entry per professional on every new toggle, so
+  /// the replayed value is always the LATEST action — the final persisted state
+  /// and the local switch can therefore never disagree.
+  ///
+  /// A payload that can never be replayed (missing uid / non-bool flag) is
+  /// dropped; a backend that did not answer keeps the entry for the next
+  /// connectivity window.
+  static Future<QueueExecutionResult> _replayUpdateProAvailability(
+    QueuedAction action,
+  ) async {
+    try {
+      final payload = action.payload;
+      final rawProId = payload['proId'];
+      final rawFlag = payload['isAvailable'];
+
+      // Type-guards FIRST: a persisted payload may come from an older writer.
+      if (rawProId is! String || rawFlag is! bool) {
+        AppLogger.error(
+          'OfflineQueue',
+          'non-string updateProAvailability payload: '
+              'proId=${rawProId.runtimeType}, flag=${rawFlag.runtimeType}',
+        );
+        return QueueExecutionResult.drop;
+      }
+      final proId = rawProId.trim();
+      if (proId.isEmpty) {
+        AppLogger.error(
+          'OfflineQueue',
+          'malformed updateProAvailability payload: empty proId',
+        );
+        return QueueExecutionResult.drop;
+      }
+
+      final rawCode = payload['proCode'];
+      final applied = await ProAvailabilityRepository.upsertAvailability(
+        proId: proId,
+        proCode: rawCode is String ? rawCode : null,
+        isAvailable: rawFlag,
+      );
+      return applied
+          ? QueueExecutionResult.applied
+          : QueueExecutionResult.retry;
+    } catch (error, stackTrace) {
+      AppErrorHandler.report(
+        error,
+        stackTrace,
+        context: 'OfflineQueueBindings._replayUpdateProAvailability',
       );
       return QueueExecutionResult.retry;
     }

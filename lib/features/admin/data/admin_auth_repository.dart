@@ -1,183 +1,301 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/security/hashing.dart';
+import '../../../core/error/app_error_handler.dart';
+import '../../auth/application/supabase_auth_service.dart';
 
 /// ─── Admin Auth Repository ──────────────────────────────────────────────
 ///
-/// Abstraction for admin credential verification. The client NEVER verifies
-/// credentials itself beyond delegating to this boundary — swap the
-/// implementation for a server-side role check (e.g. a Supabase RPC or
-/// edge function) without touching any call site.
+/// SERVER-SIDE admin authorization boundary (Phase 1 hardening).
+///
+/// The client NEVER sees, stores or compares admin credentials: the ONLY
+/// authority is the backend — `public.is_admin()`, a SECURITY DEFINER SQL
+/// predicate keyed on `auth.uid()` (see
+/// `supabase/migrations/20260927173046_phase1_admin_authorization.sql`).
 ///
 /// SECURITY CONTRACT:
-///  * No implementation may persist or log plaintext credentials.
-///  * Production implementations MUST verify server-side; the local
-///    implementation below is an explicit, temporary mock seam.
+///  * No secret ships in the binary: the previous compile-time admin
+///    e-mail/password defines and every client-side credential comparison are
+///    GONE — nothing left to extract from a built APK/IPA.
+///  * Every positive answer comes from a LIVE server round-trip bound to the
+///    authenticated Supabase identity.
+///  * Every failure mode — offline, RPC error, no session, unknown identity —
+///    is FAIL-CLOSED (`false` / `null`): a network fault can never grant the
+///    admin shell.
+///  * The persisted cold-start marker carries the verified `auth.uid()` only
+///    and is re-checked server-side on every boot (see
+///    `UserStore.setAdminSession` / `UserStore.checkInitialSession`).
 /// ────────────────────────────────────────────────────────────────────────
 abstract class AdminAuthRepository {
-  /// Returns true when [email]/[password] identify an administrator.
-  Future<bool> verify({required String email, required String password});
+  /// Server-side check for the CURRENT authenticated identity: `true` if and
+  /// only if the backend confirms it is enrolled as an administrator.
+  Future<bool> isAdmin();
 
-  /// Whether this environment has a configured admin identity at all.
-  /// A closed (unconfigured) gate must always deny verification.
+  /// Admin sign-in attempt: authenticates [email]/[password] against
+  /// Supabase Auth, then asks the backend whether that identity is an
+  /// administrator.
+  ///
+  /// Returns the VERIFIED admin UID on success, `null` on ANY failure
+  /// (wrong credentials, not an admin, unknown identity, Supabase not
+  /// configured, network error).
+  Future<String?> verifyAdminCredentials({
+    required String email,
+    required String password,
+  });
+
+  /// Server-side professional provisioning —
+  /// `public.admin_provision_professional` (Phase 3P).
+  ///
+  /// Creates (or re-verifies) the backend row `public.professionals.id =
+  /// [userId]` through the admin-only SECURITY DEFINER RPC and reports whether
+  /// the server CONFIRMED it. [specialty] / [bio] are optional descriptive
+  /// values (never authorization inputs): the RPC stores a null as null and
+  /// preserves an already-stored value on conflict.
+  ///
+  /// Returns the VERIFIED `professional_id` on success; `null` on ANY failure
+  /// — unconfigured boundary, no authenticated session, RPC error (offline,
+  /// `42501` revoked admin, `23503` missing profile), or an answer that is not
+  /// a confirmed `professional_is_verified = true`.
+  ///
+  /// FAIL-CLOSED and NEVER swallowed: the error is reported through the app
+  /// error boundary and surfaced to the caller as `null`, which MUST abort the
+  /// local approval — the UI may never show an approved professional the
+  /// server does not know. No credential/token/key is ever passed here.
+  Future<String?> provisionProfessional({
+    required String userId,
+    String? specialty,
+    String? bio,
+  });
+
+  /// Server-side professional rejection —
+  /// `public.admin_reject_professional` (Phase 3P).
+  ///
+  /// Flips the backend row `public.professionals.id = [userId]` to
+  /// `status = 'rejected'`, stores [reason] as `rejection_reason` and clears
+  /// `is_verified`, through the admin-only SECURITY DEFINER RPC, and reports
+  /// whether the server CONFIRMED it (the returned `professional_id` row).
+  ///
+  /// Returns `true` only when the server answered with that confirmation;
+  /// `false` on ANY failure — unconfigured boundary, blank identity, no
+  /// authenticated session, RPC error (offline, `42501` revoked admin,
+  /// `23503` missing profile) or an empty answer. FAIL-CLOSED and NEVER
+  /// swallowed: the error is reported through the app error boundary and
+  /// surfaced to the caller as `false`, which MUST abort the local rejection —
+  /// the UI may never show a professional rejected locally that the server
+  /// still holds as pending/approved. No credential/token/key is ever passed.
+  Future<bool> rejectProfessional({
+    required String userId,
+    required String reason,
+  });
+
+  /// Whether this environment can reach the authorization backend at all.
+  /// A closed (unconfigured) boundary must always deny.
   bool get isConfigured;
 
-  /// Signature binding an admin SESSION to the configured identity.
+  /// UID of the identity confirmed by the LAST successful check, or `null`
+  /// when that check failed or never ran.
   ///
-  /// Persisted alongside the admin routing flag at sign-in and re-derived
-  /// from the LIVE credentials on every cold start: a raw `user_role:'admin'`
-  /// preference written by anything other than a real admin sign-in carries
-  /// either no marker or a stale one and can never route to the admin shell
-  /// (CodeRabbit — unsigned preferences must not grant admin routing).
-  /// `null` while the gate is closed (no identity configured).
-  String? get sessionSignature => null;
+  /// [UserStore] binds the persisted admin routing marker to this UID, so a
+  /// marker left behind by ANOTHER identity can never route to the admin
+  /// shell.
+  String? get lastVerifiedUserId;
 }
 
-/// Work factor for the admin-session signature KDF (CodeRabbit): the shared
-/// default (`pbkdf2DefaultIterations`, 20k) is a credential-store baseline;
-/// a session signature is a long-lived auth-boundary credential, so it
-/// derives with a stiffer work factor. It runs only on admin sign-in and
-/// session restore — the one-off latency is irrelevant, and the raised
-/// offline brute-force cost is exactly the point.
-const int adminSignatureKdfIterations = 100000;
-
-/// Deterministic admin-session signature, derived with a real KDF
-/// (PBKDF2-HMAC-SHA256 at [adminSignatureKdfIterations] rounds — CodeRabbit): a single raw SHA-256 pass
-/// is too cheap against offline brute-force of a leaked signature. The
-/// password is the PBKDF2 key material and the domain-separated
-/// `<namespace>|<email>` tuple is the per-identity salt. Only a caller that
-/// knows BOTH configured credentials (i.e. the real admin sign-in) can
-/// produce it. Signatures persisted by older builds fail this derivation and
-/// close the gate (fail-closed) — re-signing-in re-derives it.
-String adminSessionSignature({
-  required String email,
-  required String password,
-}) =>
-    pbkdf2Hex(
-      password,
-      'allo-service-pro/admin-session/v1|$email',
-      iterations: adminSignatureKdfIterations,
-    );
-
-/// TEMPORARY MOCK SEAM — local verification for development & tests only.
+/// PRODUCTION implementation — Supabase Auth (`signInWithPassword`) + the
+/// `public.is_admin()` RPC.
 ///
-/// Resolves the expected admin identity exclusively from compile-time
-/// defines (no source-level defaults, ever):
+/// SIGN-IN FLOW: the operator presents their REAL Supabase e-mail/password —
+/// there is no client-side secret to compare against, because the secret does
+/// not exist in the binary. Supabase Auth creates the session and the backend
+/// then decides membership from that session's `auth.uid()`.
 ///
-///   --dart-define=ADMIN_EMAIL=... --dart-define=ADMIN_PASSWORD=...
-///
-/// If either define is absent, the gate is CLOSED (verify always false) —
-/// an unauthenticated state. Tests inject fixtures explicitly through
-/// [debugConfigure]; unit tests may also call `flutter test
-/// --dart-define=...` if they prefer environment-driven fixtures.
-///
-/// This class is the ONLY place in the client where credential comparison
-/// happens, and it exists purely until the Supabase backend lands. It is
-/// NOT a production security boundary — passwords on the client are, by
-/// definition, inspectable.
-class LocalAdminAuthRepository implements AdminAuthRepository {
-  final String _defineEmail = const String.fromEnvironment(
-    'ADMIN_EMAIL',
-    defaultValue: '',
-  );
-  final String _definePassword = const String.fromEnvironment(
-    'ADMIN_PASSWORD',
-    defaultValue: '',
-  );
-
-  String? _testEmailOverride;
-  String? _testPasswordOverride;
+/// COLD START: [isAdmin] re-runs the same server check against the persisted
+/// Supabase session, so an enrolment revoked server-side closes the admin
+/// route at the next launch instead of surviving on a stale preference.
+class SupabaseAdminAuthRepository implements AdminAuthRepository {
+  String? _lastVerifiedUserId;
 
   @override
-  bool get isConfigured =>
-      _expectedEmail.isNotEmpty && _expectedPassword.isNotEmpty;
-
-  String get _expectedEmail {
-    if (_testEmailOverride != null) return _testEmailOverride!;
-    return _defineEmail;
-  }
-
-  String get _expectedPassword {
-    if (_testPasswordOverride != null) return _testPasswordOverride!;
-    return _definePassword;
-  }
+  bool get isConfigured => SupabaseAuthService.isConfigured;
 
   @override
-  String? get sessionSignature {
-    final email = _expectedEmail;
-    final password = _expectedPassword;
-    if (email.isEmpty || password.isEmpty) return null;
-    return adminSessionSignature(email: email, password: password);
-  }
+  String? get lastVerifiedUserId => _lastVerifiedUserId;
 
-  /// True when the release/profile gate is properly armed via defines.
-  bool get isReleaseConfigured =>
-      _defineEmail.isNotEmpty && _definePassword.isNotEmpty;
-
-  /// Test hook: injects credentials (debug/test builds only). Throws in
-  /// release/profile so no optimized binary can re-arm a bypass.
-  @visibleForTesting
-  void debugConfigure({String? email, String? password}) {
-    if (kReleaseMode || kProfileMode) {
-      throw StateError(
-        'debugConfigure is unavailable in release/profile builds.',
-      );
+  @override
+  Future<bool> isAdmin() async {
+    // Reset FIRST: a failed check must never leave a previously verified UID
+    // behind for a caller (UserStore) to trust.
+    _lastVerifiedUserId = null;
+    final uid = SupabaseAuthService.currentUserId;
+    if (uid == null) return false;
+    try {
+      final answer = await Supabase.instance.client.rpc('is_admin');
+      // PostgREST answers with a JSON boolean; anything else is NOT a `true`.
+      final confirmed = answer == true;
+      if (confirmed) _lastVerifiedUserId = uid;
+      return confirmed;
+    } catch (e, st) {
+      AppErrorHandler.report(e, st, context: 'AdminAuth.isAdmin');
+      return false; // FAIL-CLOSED: no server answer, no admin route.
     }
-    _testEmailOverride = email;
-    _testPasswordOverride = password;
-  }
-
-  /// Test hook: clears injected credentials.
-  @visibleForTesting
-  void debugReset() {
-    _testEmailOverride = null;
-    _testPasswordOverride = null;
   }
 
   @override
-  Future<bool> verify({
+  Future<String?> provisionProfessional({
+    required String userId,
+    String? specialty,
+    String? bio,
+  }) async {
+    // Same fail-closed boundary as [isAdmin]: an unreachable backend can
+    // never CONFIRM a provisioning, so the attempt is refused up front.
+    if (!SupabaseAuthService.isConfigured) return null;
+    if (userId.trim().isEmpty) return null;
+    // The RPC authorizes through auth.uid()/is_admin(): without an
+    // authenticated session it can only be refused server-side, so it is
+    // refused here first (no round-trip, no raw failure surfaced as success).
+    if (SupabaseAuthService.currentUserId == null) return null;
+    try {
+      final answer = await Supabase.instance.client.rpc(
+        'admin_provision_professional',
+        // Parameter names ONLY: no credential, token or key is sent — the
+        // call rides the existing authenticated session's JWT, and the
+        // backend re-decides with `public.is_admin()`.
+        params: <String, dynamic>{
+          'p_user_id': userId,
+          'p_specialty': specialty,
+          'p_bio': bio,
+        },
+      );
+      return _verifiedProvisionedId(answer);
+    } catch (e, st) {
+      // NOT swallowed: the provisioning failure is reported with context…
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'AdminAuth.provisionProfessional',
+      );
+      // …and handed back as `null` — the caller's hard fail-closed signal.
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> rejectProfessional({
+    required String userId,
+    required String reason,
+  }) async {
+    // Same fail-closed boundary as [provisionProfessional]: an unreachable
+    // backend can never CONFIRM a rejection, so the attempt is refused up
+    // front.
+    if (!SupabaseAuthService.isConfigured) return false;
+    if (userId.trim().isEmpty) return false;
+    // The RPC authorizes through auth.uid()/is_admin(): without an
+    // authenticated session it can only be refused server-side, so it is
+    // refused here first (no round-trip, no raw failure surfaced as success).
+    if (SupabaseAuthService.currentUserId == null) return false;
+    try {
+      final answer = await Supabase.instance.client.rpc(
+        'admin_reject_professional',
+        // Parameter names ONLY: no credential, token or key is sent — the
+        // call rides the existing authenticated session's JWT, and the
+        // backend re-decides with `public.is_admin()`.
+        params: <String, dynamic>{
+          'p_user_id': userId,
+          'p_reason': reason,
+        },
+      );
+      return _rejectedProfessionalId(answer) != null;
+    } catch (e, st) {
+      // NOT swallowed: the rejection failure is reported with context…
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'AdminAuth.rejectProfessional',
+      );
+      // …and handed back as `false` — the caller's hard fail-closed signal.
+      return false;
+    }
+  }
+
+  /// Extracts the confirmed `professional_id` from an RPC answer shaped
+  /// `returns table (professional_id uuid)` — `null` unless the server
+  /// returned a row. A LIST of row objects is what PostgREST hands back for
+  /// `returns table`; a composite answer arrives as a single object — both
+  /// shapes are accepted. An empty list (RPC matched nothing) or any other
+  /// shape is NOT a confirmation.
+  static String? _rejectedProfessionalId(Object? answer) {
+    final Map<String, dynamic>? row;
+    if (answer is Map<String, dynamic>) {
+      row = answer;
+    } else if (answer is List &&
+        answer.isNotEmpty &&
+        answer.first is Map<String, dynamic>) {
+      row = answer.first as Map<String, dynamic>;
+    } else {
+      return null;
+    }
+    final id = row['professional_id'];
+    if (id is! String || id.trim().isEmpty) return null;
+    return id.trim();
+  }
+
+  /// Extracts the professional UUID from the RPC answer — `null` unless the
+  /// server explicitly confirmed `professional_is_verified = true`.
+  ///
+  /// `returns table (…)` reaches PostgREST clients as a LIST of row objects
+  /// (a composite answer would arrive as a single object), so both shapes are
+  /// accepted; anything else is NOT a confirmed provisioning.
+  static String? _verifiedProvisionedId(Object? answer) {
+    final Map<String, dynamic>? row;
+    if (answer is Map<String, dynamic>) {
+      row = answer;
+    } else if (answer is List &&
+        answer.isNotEmpty &&
+        answer.first is Map<String, dynamic>) {
+      row = answer.first as Map<String, dynamic>;
+    } else {
+      row = null;
+    }
+    if (row == null) return null;
+    if (row['professional_is_verified'] != true) return null;
+    final id = row['professional_id'];
+    if (id is! String || id.trim().isEmpty) return null;
+    return id.trim();
+  }
+
+  @override
+  Future<String?> verifyAdminCredentials({
     required String email,
     required String password,
   }) async {
-    if (email.isEmpty || password.isEmpty) return false;
-    final expectedEmail = _expectedEmail;
-    final expectedPassword = _expectedPassword;
-    // Closed gate: no credentials configured for this build.
-    if (expectedEmail.isEmpty || expectedPassword.isEmpty) return false;
-    return email == expectedEmail && password == expectedPassword;
+    _lastVerifiedUserId = null;
+    if (email.isEmpty || password.isEmpty) return null;
+    if (!SupabaseAuthService.isConfigured) return null;
+    final signedIn =
+        await SupabaseAuthService.signInWithPassword(email, password);
+    if (!signedIn) return null;
+    // Membership is decided on the uid that just authenticated — never on the
+    // e-mail string the caller typed.
+    if (await isAdmin()) return _lastVerifiedUserId;
+    // Correct credentials but NOT an administrator: drop the session this
+    // attempt created (local scope — a valid identity is not revoked
+    // remotely) so a non-admin Supabase session neither lingers on disk nor
+    // displaces the local app session.
+    await SupabaseAuthService.clearLocalSession();
+    return null;
   }
-}
-
-/// PRODUCTION TARGET — server-side verification (NOT wired yet).
-///
-/// When the Supabase backend lands, implement this class to call a remote
-/// RPC (e.g. `postgrest.rpc('admin_verify', params: {...})` or a dedicated
-/// auth/role check) so the password never ships with the client at all.
-/// Until then, calling it fails loudly instead of silently denying.
-class SupabaseAdminAuthRepository implements AdminAuthRepository {
-  @override
-  Future<bool> verify({required String email, required String password}) {
-    throw UnsupportedError(
-      'SupabaseAdminAuthRepository is not wired yet: admin verification '
-      'must move server-side before production. Wire a remote RPC here.',
-    );
-  }
-
-  @override
-  bool get isConfigured => false;
-
-  @override
-  String? get sessionSignature => null;
 }
 
 /// Resolution point for the active [AdminAuthRepository].
 ///
-/// Defaults to the local mock seam; tests may inject alternatives via
-/// [configure]. Call sites (AdminStore) depend only on the abstraction.
+/// The DEFAULT is the production, server-side Supabase implementation — the
+/// client-side credential seam was removed in Phase 1. Call sites (AdminStore,
+/// LoginScreen, UserStore) depend only on the abstraction, and tests inject
+/// fakes via [configure].
 class AdminAuth {
   AdminAuth._();
 
-  static AdminAuthRepository _repository = LocalAdminAuthRepository();
+  static AdminAuthRepository _repository = SupabaseAdminAuthRepository();
 
   static AdminAuthRepository get instance => _repository;
 
@@ -192,29 +310,9 @@ class AdminAuth {
     _repository = repository;
   }
 
-  /// Test hook: restore the default local seam.
+  /// Test hook: restore the default (production) repository.
   @visibleForTesting
   static void resetToDefault() {
-    _repository = LocalAdminAuthRepository();
+    _repository = SupabaseAdminAuthRepository();
   }
-
-  /// Convenience access to the local seam's debug hooks. Public (not
-  /// @visibleForTesting) because AdminStore legitimately forwards its own
-  /// @visibleForTesting hooks here; the underlying [LocalAdminAuthRepository.
-  /// debugConfigure] enforces the release/profile guard at runtime.
-  static LocalAdminAuthRepository get _local =>
-      _repository is LocalAdminAuthRepository
-          ? _repository as LocalAdminAuthRepository
-          : throw StateError(
-              'Admin debug credential hooks require the local auth seam.',
-            );
-
-  static void debugSetCredentials({String? email, String? password}) =>
-      _local.debugConfigure(email: email, password: password);
-
-  static void debugResetCredentials() => _local.debugReset();
-
-  /// Signature of the ACTIVE auth boundary's configured admin identity
-  /// (see [AdminAuthRepository.sessionSignature]).
-  static String? get sessionSignature => _repository.sessionSignature;
 }

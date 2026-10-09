@@ -20,6 +20,8 @@ import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/offline_overlay.dart';
 
+import 'support/fake_admin_auth.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -185,6 +187,10 @@ void main() {
     });
 
     test('admin approval and suspension are IDEMPOTENT (CodeRabbit)', () async {
+      // Phase 3P — SERVER-FIRST: the fake boundary confirms the provisioning
+      // (no real RPC in tests); the approval only runs on that confirmation.
+      AdminAuth.configure(FakeAdminAuthRepository(enrolled: true));
+      addTearDown(AdminAuth.resetToDefault);
       const id = 'chaos-pro-1';
       AdminStore.pendingPros.value = [
         const PendingProModel(
@@ -196,14 +202,16 @@ void main() {
           submittedAt: '19/09/2026',
           proCode: 'PRO-CHAOS',
           status: 'pending',
+          // The server-first gate needs a real Supabase identity (uuid).
+          authUid: '99999999-9999-4999-8999-999999999999',
         ),
       ];
       final before = AdminStore.totalPros.value;
 
       // Repeat calls on an ALREADY-approved entry replay NO side effect:
       // tokens granted once, badge added once, KPI counter incremented once.
-      await AdminStore.approvePro(id);
-      await AdminStore.approvePro(id);
+      expect(await AdminStore.approvePro(id), isTrue);
+      expect(await AdminStore.approvePro(id), isTrue);
       final approved = AdminStore.pendingPros.value.single;
       expect(AdminStore.totalPros.value - before, 1);
       expect(approved.tokens, 150);
@@ -287,31 +295,30 @@ void main() {
   });
 
   group('Phase 5 · hidden failure modes and state integrity', () {
-    test('unsigned raw admin preferences NEVER grant admin routing', () async {
+    test('raw admin preferences NEVER grant admin routing (server gate)',
+        () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         'is_logged_in': true,
         'user_role': 'admin',
       });
       UserStore.user.value = null;
 
-      // SECURITY INVARIANT (CodeRabbit): a raw routing flag written outside a
-      // real admin sign-in carries no session signature — the cold start
-      // refuses it and the device stays a guest.
+      // SECURITY INVARIANT (Phase 1): a raw routing flag written outside a
+      // real admin sign-in carries no server-verified identity marker — the
+      // cold start refuses it and the device stays a guest EVEN when the
+      // backend would confirm an administrator.
+      AdminAuth.configure(
+        FakeAdminAuthRepository(enrolled: true, uid: 'uid-chaos-admin'),
+      );
+      addTearDown(AdminAuth.resetToDefault);
       expect(await UserStore.checkInitialSession(), isNull);
 
-      // Only a REAL sign-in — which stores the signature of the configured
-      // identity — restores the admin route on a cold start.
-      AdminStore.debugSetAdminCredentials(
-        email: 'boss@chaos.test',
-        password: 'pw-chaos',
-      );
-      addTearDown(AdminStore.debugResetAdminCredentials);
-      final signature = AdminAuth.sessionSignature;
-      expect(signature, isNotNull);
+      // Only a REAL sign-in — which persists the SERVER-confirmed uid —
+      // restores the admin route on a cold start.
       SharedPreferences.setMockInitialValues(<String, Object>{
         'is_logged_in': true,
         'user_role': 'admin',
-        'admin_session_sig': signature!,
+        'admin_uid': 'uid-chaos-admin',
       });
       UserStore.user.value = null;
       expect(await UserStore.checkInitialSession(), 'admin');

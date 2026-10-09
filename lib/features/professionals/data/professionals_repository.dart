@@ -1,6 +1,7 @@
 import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
 import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 
@@ -10,6 +11,13 @@ import 'package:allo_service_pro/features/professionals/models/professional_mode
 /// admin approved (PRO-XXXXX holders), so newly verified pros show up in
 /// the home feed, search and booking sheets immediately — no Firebase,
 /// straight from the local AdminStore registry (SharedPreferences-backed).
+///
+/// AVAILABILITY OVERLAY: each entry's `availableNow` reflects the persisted
+/// `pro_availability` row of that professional (online = "accepts new
+/// requests"), merged through [ProAvailabilityStore] — hydrated at boot and
+/// kept fresh by the `realtime:public:pro_availability` channel. When a pro has
+/// no row yet (never toggled) the entry's own default stands: the overlay only
+/// ever applies a value somebody actually set.
 class ProfessionalsRepository {
   ProfessionalsRepository._();
 
@@ -21,6 +29,7 @@ class ProfessionalsRepository {
         .toList();
 
     return approved.map((p) {
+      final code = p.proCode ?? p.id;
       final cityFr = p.city ?? 'Tunis';
       final loc = TunisianLocations.getLocationByFr(cityFr);
       // Live listing mirrors the registration payload: the pro's submitted
@@ -33,7 +42,7 @@ class ProfessionalsRepository {
       final aboutArFallback =
           'محترف موثّق من Allo Service (المعرّف ${p.proCode ?? p.id}).';
       return ProfessionalModel(
-        id: p.proCode ?? p.id,
+        id: code,
         name: p.name,
         professionFr: p.professionFr,
         professionAr: p.professionAr,
@@ -43,7 +52,11 @@ class ProfessionalsRepository {
         cityFr: cityFr,
         servicesCount: 0,
         verified: true,
-        availableNow: true,
+        // PERSISTED availability (Supabase `pro_availability`): an approved pro
+        // is listed according to their own flag, not unconditionally. `true` is
+        // only the fallback for a pro who has no row yet — the value the
+        // registration flow implies until the very first toggle.
+        availableNow: ProAvailabilityStore.isOnline(code, fallback: true),
         // Quote mode is preserved verbatim: a pro who registered with
         // pricingType 'quote' carries priceFrom == null, and the client UI
         // branches on pricingType FIRST ('Sur devis' badge) so the `?? 50`
@@ -73,12 +86,45 @@ class ProfessionalsRepository {
         workImages: List<String>.from(p.galleryPhotos),
         reviewCount: 0,
         badges: p.badges,
+        // Phase 3J: propagate the registered auth identity into the
+        // client-facing model. The public `id` above stays the PRO-XXXXX
+        // routing code — `authUid` travels alongside it, never replaces it.
+        authUid: p.authUid,
       );
     }).toList();
   }
 
+  /// Applies the live availability overlay to an ALREADY-CACHED list.
+  ///
+  /// Screens that store their results in state (the search screen does) would
+  /// otherwise keep rendering the flags captured when the list was built: this
+  /// is the single seam they call on a realtime change, so a toggle reaches a
+  /// card that was materialized minutes earlier. Non-availability fields are
+  /// preserved, and unknown pros are returned untouched.
+  static List<ProfessionalModel> withLiveAvailability(
+    Iterable<ProfessionalModel> pros,
+  ) =>
+      pros.map(_withRemoteAvailability).toList();
+
   /// The full client-facing feed: curated catalog first, live pros on top.
-  static List<ProfessionalModel> get all => [...live, ...allProfessionals];
+  ///
+  /// Every curated entry passes through the availability overlay
+  /// ([_withRemoteAvailability]) exactly like the live registrations, so one
+  /// realtime toggle repaints the whole feed with a single rule.
+  static List<ProfessionalModel> get all => [
+        ...live,
+        ...allProfessionals.map(_withRemoteAvailability),
+      ];
+
+  /// Applies the PERSISTED availability of [p] when the backend knows one.
+  ///
+  /// `null` (unknown pro / no row) leaves the entry UNCHANGED: the source
+  /// model's own default stands, so a failed or pending hydration can never
+  /// flip the whole catalog to "unavailable".
+  static ProfessionalModel _withRemoteAvailability(ProfessionalModel p) {
+    final remote = ProAvailabilityStore.remoteFlagFor(p.id);
+    return remote == null ? p : p.withAvailability(remote);
+  }
 
   static ProfessionalModel? byId(String id) {
     for (final p in all) {

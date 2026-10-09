@@ -25,11 +25,26 @@ class LogRecord {
   final String message;
   final DateTime at;
   final Object? error;
-  final StackTrace? stackTrace;
+
+  /// Redacted stack-trace TEXT (CodeRabbit): raw stack traces carry absolute
+  /// local paths — and therefore usernames — so the PII redaction is applied
+  /// BEFORE storage, and no destination (console, in-memory history, remote
+  /// sink) ever receives the raw form.
+  final String? stackTrace;
 
   /// Single-line rendering (the only shape ever printed).
+  ///
+  /// PII / SECRET REDACTION (Task 1 — HIGH IMPACT security fix): the raw
+  /// `error` Object is NEVER interpolated verbatim. Custom `toString()`
+  /// overrides on the error can embed credentials, tokens, device paths or
+  /// account identifiers; interpolating `$error` would leak all of them into
+  /// the console, the in-memory [AppLogger.history] ring buffer and any remote
+  /// LogSink — making logs a PII side channel. Redaction is unified here so
+  /// the getter is safe even if a caller constructs [LogRecord] directly
+  /// without going through [AppLogger._log]'s redaction.
   String get line {
-    final detail = error == null ? '' : ' | $error';
+    final detail =
+        error == null ? '' : ' | ${AppLogger.redact(error.toString())}';
     return '${level.name.toUpperCase()} $tag: $message$detail';
   }
 
@@ -108,8 +123,15 @@ class AppLogger {
 
   // ─── PII / SECRET REDACTION (audit remediation) ────────────────────────────
 
+  // WEB-SAFE FLAGS (CodeRabbit): the patterns deliberately use the
+  // `caseSensitive: false` PARAMETER instead of an inline `(?i)` flag — a
+  // bare inline flag is a SyntaxError in JavaScript RegExp, and this project
+  // ships a `web/` target where Dart RegExp compiles to JS (the class would
+  // crash at first use on web). Identical behaviour on the mobile VMs.
+
   /// E-mail addresses → `[email]` (identity, never needed in a log line).
-  static final RegExp _emailPattern = RegExp(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+');
+  static final RegExp _emailPattern =
+      RegExp(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+');
 
   /// Long digit runs (phones, OTP codes) → `[phone]`. A run of ≥ 6 digits is
   /// never meaningful in a diagnostic message but frequently IS an OTP or a
@@ -117,11 +139,14 @@ class AppLogger {
   static final RegExp _digitRunPattern = RegExp(r'\d{6,}');
 
   /// Bearer / API-key tokens → `[redacted]` (whole secret removed).
-  static final RegExp _bearerPattern =
-      RegExp(r'(?i)(bearer\s+)[A-Za-z0-9._~+/=-]{8,}');
+  static final RegExp _bearerPattern = RegExp(
+    r'(bearer\s+)[A-Za-z0-9._~+/=-]{8,}',
+    caseSensitive: false,
+  );
   static final RegExp _secretKeyValuePattern = RegExp(
-    r'(?i)((?:password|passwd|secret|api[_-]?key|token|anon[_-]?key)'
-    r'["\']?\s*[:=]\s*["\']?)[^\s"\',;&]+',
+    r'((?:password|passwd|secret|api[_-]?key|token|anon[_-]?key)'
+    r'[\x22\x27]?\s*[:=]\s*[\x22\x27]?)[^\s\x22\x27,;&]+',
+    caseSensitive: false,
   );
 
   /// Scrubs credentials and personal identifiers from [input] so no log
@@ -129,9 +154,10 @@ class AppLogger {
   /// receives them. Idempotent and never throws.
   static String redact(String input) {
     var out = input;
+    out =
+        out.replaceAllMapped(_bearerPattern, (m) => '${m.group(1)}[redacted]');
     out = out.replaceAllMapped(
-        _bearerPattern, (m) => '${m.group(1)}[redacted]');
-    out = out.replaceAllMapped(_secretKeyValuePattern, (m) => '${m.group(1)}[redacted]');
+        _secretKeyValuePattern, (m) => '${m.group(1)}[redacted]');
     out = out.replaceAll(_emailPattern, '[email]');
     out = out.replaceAll(_digitRunPattern, '[phone]');
     return out;
@@ -158,13 +184,26 @@ class AppLogger {
     // remote sink. Logs must never become a side channel for credentials or
     // personal data (contract: "No implementation may persist or log
     // plaintext credentials").
+    //
+    // HOSTILE-TOSTRING GUARD (edge case): a custom error's toString()
+    // override may itself throw (hostile/exceptional objects on a crash
+    // path) — the "logging must never throw" contract covers that too, so
+    // the fallback is the runtime type, never a propagated exception.
+    String? errorText;
+    if (error != null) {
+      try {
+        errorText = error.toString();
+      } catch (_) {
+        errorText = '<unprintable ${error.runtimeType}>';
+      }
+    }
     final record = LogRecord(
       level: level,
       tag: tag,
       message: redact(message),
       at: DateTime.now(),
-      error: error == null ? null : redact(error.toString()),
-      stackTrace: stackTrace,
+      error: errorText == null ? null : redact(errorText),
+      stackTrace: stackTrace == null ? null : redact(stackTrace.toString()),
     );
 
     // Bounded ring buffer: newest first, oldest evicted.
@@ -184,8 +223,13 @@ class AppLogger {
   /// Best-effort remote forwarding: a sink may never break a caller.
   static void _forward(LogRecord record) {
     final sink = _sink;
-    if (sink == null || !sink.isConfigured) return;
+    if (sink == null) return;
     try {
+      // isConfigured is INSIDE the guarded region (CodeRabbit edge case): a
+      // hostile/broken sink implementation may throw from its GETTER as
+      // well — the "logging must never fail a caller" contract covers that
+      // exactly like a failing write.
+      if (!sink.isConfigured) return;
       sink.write(record).then<void>((_) {}, onError: (Object _) {});
     } catch (_) {
       // Deliberately swallowed: logging is never allowed to fail.

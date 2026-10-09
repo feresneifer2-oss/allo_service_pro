@@ -1009,12 +1009,25 @@ class _PendingCardState extends State<_PendingCard> {
             child: ElevatedButton.icon(
               onPressed: _allProofsViewed
                   ? () async {
-                      await AdminStore.approvePro(pro.id);
+                      // Phase 3P — SERVER-FIRST: `approvePro` provisions the
+                      // professional on the backend and reports success ONLY
+                      // when the server confirmed it. The success snack is
+                      // shown on that confirmation alone; a failure leaves the
+                      // card PENDING and shows a generic, non-sensitive
+                      // message (no internal error text, no tokens/secrets).
+                      final approved = await AdminStore.approvePro(pro.id);
                       if (!context.mounted) return;
-                      _snack(
-                          context,
-                          '${pro.name} approuvé — badge CIN Vérifié attribué',
-                          'تم قبول ${pro.name} — منح شارة الهوية المفعلة');
+                      if (approved) {
+                        _snack(
+                            context,
+                            '${pro.name} approuvé — badge CIN Vérifié attribué',
+                            'تم قبول ${pro.name} — منح شارة الهوية المفعلة');
+                      } else {
+                        _snack(
+                            context,
+                            'Activation serveur impossible — ${pro.name} reste en attente.',
+                            'تعذّر التفعيل من الخادم — ${pro.name} ما زال قيد المراجعة.');
+                      }
                     }
                   : null,
               icon: const Icon(Icons.how_to_reg_rounded),

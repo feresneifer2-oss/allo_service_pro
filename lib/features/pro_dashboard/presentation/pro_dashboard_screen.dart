@@ -1,12 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
-import 'package:allo_service_pro/features/pro_dashboard/presentation/service_zones_screen.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -45,14 +47,34 @@ class ProDashboardScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  tr(context,
-                                      fr: 'Bonjour Ahmed 👋',
-                                      ar: 'مرحبا Ahmed 👋'),
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w800),
+                                ValueListenableBuilder<UserModel?>(
+                                  valueListenable: UserStore.user,
+                                  builder: (_, user, __) {
+                                    // Real session name — never an e-mail or a
+                                    // placeholder: empty resolves to a nameless
+                                    // greeting, exactly like the profile page.
+                                    final raw = user?.name.trim() ?? '';
+                                    final name = raw.isNotEmpty
+                                        ? raw.split(' ').first
+                                        : '';
+                                    return Text(
+                                      name.isNotEmpty
+                                          ? tr(
+                                              context,
+                                              fr: 'Bonjour $name 👋',
+                                              ar: 'مرحبا $name 👋',
+                                            )
+                                          : tr(
+                                              context,
+                                              fr: 'Bonjour 👋',
+                                              ar: 'مرحبا 👋',
+                                            ),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w800),
+                                    );
+                                  },
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
@@ -90,35 +112,16 @@ class ProDashboardScreen extends StatelessWidget {
                           Switch(
                             value: available,
                             activeThumbColor: AppColors.success,
+                            // PERSISTENT TOGGLE: the notifier is flipped inside
+                            // `setAvailability` (same frame as before) and the
+                            // choice is then mirrored to the `pro_availability`
+                            // row — queued automatically when the device is
+                            // offline. Unawaited on purpose: the UI must never
+                            // block on the network, the store settles it.
                             onChanged: (v) =>
-                                ProProfileStore.isAvailable.value = v,
+                                unawaited(ProProfileStore.setAvailability(v)),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ServiceZonesScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.location_city_rounded, size: 18),
-                        label: Text(
-                          tr(context,
-                              fr: 'Zones de service', ar: 'مناطق الخدمة'),
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.secondary,
-                          side: const BorderSide(color: AppColors.secondary),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 24),
                       Row(

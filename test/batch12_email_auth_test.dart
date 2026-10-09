@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
@@ -12,6 +13,8 @@ import 'package:allo_service_pro/features/auth/presentation/otp_screen.dart';
 import 'package:allo_service_pro/features/auth/presentation/register_screen.dart';
 import 'package:allo_service_pro/features/auth/presentation/login_screen.dart';
 import 'package:allo_service_pro/shared/validators.dart';
+
+import 'support/fake_admin_auth.dart';
 
 /// Batch 12 regression tests — Email-OTP authentication (the SMS/phone
 /// sign-up channel is gone):
@@ -97,13 +100,21 @@ void main() {
     EmailOtpService.reset();
   });
 
-  testWidgets('admin credentials bypass the user registry and route to admin',
+  testWidgets('server-confirmed admin bypasses the registry and routes to admin',
       (tester) async {
-    AdminStore.debugSetAdminCredentials(
-      email: 'admin@batch12.test',
-      password: 'admin-pass',
+    // Phase 1 — SERVER-SIDE AUTHORIZATION: nothing in the client decides this
+    // any more. The operator's real Supabase credentials are exchanged for a
+    // session and the backend answers `is_admin()` for that auth.uid(); the
+    // widget test injects that answer through the AdminAuth boundary.
+    AdminAuth.configure(
+      FakeAdminAuthRepository(
+        enrolled: true,
+        uid: 'uid-admin-b12',
+        expectedEmail: 'admin@batch12.test',
+        expectedPassword: 'admin-pass',
+      ),
     );
-    addTearDown(AdminStore.debugResetAdminCredentials);
+    addTearDown(AdminAuth.resetToDefault);
     await tester.pumpWidget(_testApp(const LoginScreen()));
     await tester.enterText(find.byType(TextField).at(0), 'admin@batch12.test');
     await tester.enterText(find.byType(TextField).at(1), 'admin-pass');
@@ -112,6 +123,33 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('is_logged_in'), isTrue);
     expect(prefs.getString('user_role'), 'admin');
+    // The SERVER-verified uid is what gets persisted for the cold start.
+    expect(prefs.getString('admin_uid'), 'uid-admin-b12');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('a NON-admin identity behind the same form never routes to admin',
+      (tester) async {
+    // Identical credentials, but the backend says "not an administrator":
+    // the session must NOT be persisted and no admin shell may appear.
+    AdminAuth.configure(
+      FakeAdminAuthRepository(
+        enrolled: false,
+        uid: 'uid-not-admin',
+        expectedEmail: 'admin@batch12.test',
+        expectedPassword: 'admin-pass',
+      ),
+    );
+    addTearDown(AdminAuth.resetToDefault);
+    await tester.pumpWidget(_testApp(const LoginScreen()));
+    await tester.enterText(find.byType(TextField).at(0), 'admin@batch12.test');
+    await tester.enterText(find.byType(TextField).at(1), 'admin-pass');
+    await tester.tap(find.text('Se connecter'));
+    await tester.pump(const Duration(seconds: 1));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('user_role'), isNot('admin'));
+    expect(prefs.getString('admin_uid'), isNull);
+    expect(prefs.getBool('is_logged_in') ?? false, isFalse);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -336,6 +374,8 @@ void main() {
         professionAr: 'نجّارة',
         submittedAt: '01/01/2026',
         status: 'pending',
+        // Server-first approval (Phase 3P) needs the Supabase identity.
+        authUid: '44444444-4444-4444-8444-444444444444',
       ));
       await UserStore.bindProAccount(
         proCode: registered.proCode,
@@ -343,7 +383,12 @@ void main() {
       );
 
       // Admin approves → the credential record must follow the e-mail.
-      await AdminStore.approvePro(registered.id);
+      // Phase 3P — SERVER-FIRST: the fake boundary confirms the server
+      // provisioning (no real RPC in tests); the local approval only runs on
+      // that confirmation.
+      AdminAuth.configure(FakeAdminAuthRepository(enrolled: true));
+      addTearDown(AdminAuth.resetToDefault);
+      expect(await AdminStore.approvePro(registered.id), isTrue);
 
       // Cold restart → the pro signs in with e-mail + password only.
       await Future<void>.delayed(Duration.zero);

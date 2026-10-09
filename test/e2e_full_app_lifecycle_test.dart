@@ -34,14 +34,6 @@ const professionalEmail = 'lifecycle.pro@allo.test';
 const professionalPhone = '22110002';
 const professionalPassword = 'pro-pass';
 
-// TEST-ONLY PLACEHOLDERS (CodeRabbit): the harness used to seed the admin
-// gate with a REAL-looking personal e-mail/password pair — test fixtures must
-// never resemble genuine credentials (leaks into logs/screenshots would look
-// like a compromised account). These are synthetic and only valid inside this
-// file's process.
-const adminEmail = 'admin@test.com';
-const adminPassword = 'admin-test-pass';
-
 const _geolocatorChannel = MethodChannel('flutter.baseflow.com/geolocator');
 const _geocodingChannel = MethodChannel('flutter.baseflow.com/geocoding');
 const _connectivityChannel =
@@ -79,10 +71,6 @@ void main() {
     await SubscriptionStore.reset();
     await ProProfileStore.reset();
     AdminStore.pendingPros.value = [];
-    AdminStore.debugSetAdminCredentials(
-      email: adminEmail,
-      password: adminPassword,
-    );
   });
 
   tearDown(() async {
@@ -92,7 +80,7 @@ void main() {
         .setMockMethodCallHandler(_geocodingChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_connectivityChannel, null);
-    AdminStore.debugResetAdminCredentials();
+    AdminStore.pendingPros.value = const <PendingProModel>[];
     UserStore.reset();
     RequestStore.reset();
     ChatStore.reset();

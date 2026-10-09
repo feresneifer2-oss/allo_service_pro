@@ -1,9 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+
+import 'support/fake_admin_auth.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,8 @@ void main() {
   setUp(() {
     UserStore.user.value = null;
   });
+
+  tearDown(AdminAuth.resetToDefault);
 
   test('B5 · no session → null (guest routes to welcome)', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -33,30 +36,55 @@ void main() {
     expect(await UserStore.checkInitialSession(), 'professionnel');
   });
 
-  test('B5 · signed admin session → admin (exists outside the UserRole enum)',
+  test('B5 · server-confirmed admin session → admin (exists outside UserRole)',
       () async {
-    // SIGNED SESSION (CodeRabbit): the persisted routing flag must carry the
-    // signature of the configured admin identity — an unsigned raw
-    // preference can never restore the admin route.
-    AdminStore.debugSetAdminCredentials(
-      email: 'root@startup.test',
-      password: 'pw-startup',
+    // SERVER-SIDE GATE (Phase 1): the persisted marker carries the uid the
+    // BACKEND confirmed as an administrator, and the cold start re-runs the
+    // same check against the live session before routing.
+    AdminAuth.configure(
+      FakeAdminAuthRepository(enrolled: true, uid: 'uid-startup-admin'),
     );
-    addTearDown(AdminStore.debugResetAdminCredentials);
-    final signature = AdminAuth.sessionSignature;
-    expect(signature, isNotNull);
     SharedPreferences.setMockInitialValues(<String, Object>{
       'is_logged_in': true,
       'user_role': 'admin',
-      'admin_session_sig': signature!,
+      'admin_uid': 'uid-startup-admin',
     });
     expect(await UserStore.checkInitialSession(), 'admin');
   });
 
-  test('B5 · unsigned admin flag is refused (signature gate)', () async {
+  test('B5 · admin flag WITHOUT a verified marker is refused (fail-closed)',
+      () async {
+    AdminAuth.configure(
+      FakeAdminAuthRepository(enrolled: true, uid: 'uid-startup-admin'),
+    );
     SharedPreferences.setMockInitialValues(<String, Object>{
       'is_logged_in': true,
       'user_role': 'admin',
+    });
+    expect(await UserStore.checkInitialSession(), isNull);
+  });
+
+  test('B5 · a marker belonging to ANOTHER identity is refused', () async {
+    AdminAuth.configure(
+      FakeAdminAuthRepository(enrolled: true, uid: 'uid-startup-admin'),
+    );
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'is_logged_in': true,
+      'user_role': 'admin',
+      'admin_uid': 'uid-someone-else',
+    });
+    expect(await UserStore.checkInitialSession(), isNull);
+  });
+
+  test('B5 · a server refusal closes the admin route (revoked enrolment)',
+      () async {
+    AdminAuth.configure(
+      FakeAdminAuthRepository(enrolled: false, uid: 'uid-startup-admin'),
+    );
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'is_logged_in': true,
+      'user_role': 'admin',
+      'admin_uid': 'uid-startup-admin',
     });
     expect(await UserStore.checkInitialSession(), isNull);
   });

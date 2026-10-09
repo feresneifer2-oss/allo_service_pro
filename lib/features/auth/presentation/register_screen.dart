@@ -91,7 +91,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => OtpScreen(email: email)),
+          MaterialPageRoute(
+            builder: (_) => OtpScreen(
+              email: email,
+              pendingPassword: _passwordController.text.trim(),
+            ),
+          ),
         );
         return;
       }
@@ -104,7 +109,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => OtpScreen(email: email),
+        builder: (_) => OtpScreen(
+          email: email,
+          pendingPassword: _passwordController.text.trim(),
+        ),
       ),
     );
   }

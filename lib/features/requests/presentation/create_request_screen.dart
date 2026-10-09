@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/location/location_service.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
+import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/requests/presentation/confirm_request_screen.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -166,11 +168,22 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       _selectedTime!.minute,
     );
 
+    // Phase 3K: capture the auth identity of the professional this request
+    // is addressed to — resolved from the SAME id stored on the draft, so
+    // the uid can never belong to a different pro than `professionalId`.
+    // Mock catalog entries resolve to null (their `authUid` has been null
+    // since Phase 3J); an unknown id also yields null, never a foreign uid.
+    final resolvedAuthUid =
+        ProfessionalsRepository.byId(widget.professionalId)?.authUid;
+
     final draft = ServiceRequest(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      // Phase 3L: `orders.id` is a uuid — mint an RFC-4122 v4 id (the same
+      // helper the RE-KEY seam uses), never a millisecond stamp.
+      id: RequestStore.newClientId(),
       serviceTitleFr: widget.serviceTitleFr,
       serviceTitleAr: widget.serviceTitleAr,
       professionalId: widget.professionalId,
+      professionalAuthUid: resolvedAuthUid,
       professionalName: widget.professionalName,
       customerName: UserStore.displayName,
       customerId: UserStore.user.value?.id ?? '',

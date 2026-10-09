@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:allo_service_pro/core/navigation/client_shell.dart';
+import 'package:allo_service_pro/core/navigation/pro_shell.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
@@ -22,10 +25,24 @@ class OtpScreen extends StatefulWidget {
   const OtpScreen({
     super.key,
     required this.email,
+    this.createUserOnSend = true,
+    this.pendingPassword,
   });
 
   /// Destination e-mail address the OTP was sent to.
   final String email;
+
+  /// Whether an UNKNOWN address may be provisioned server-side by the send
+  /// (`shouldCreateUser`). Registration flows keep the default (`true`); the
+  /// LOGIN flow (Phase 3T) passes `false` — signing in must never silently
+  /// create a brand-new account, and every later dispatch from this screen
+  /// (resend) mirrors the intent of the original.
+  final bool createUserOnSend;
+
+  /// Password chosen at registration, persisted to Supabase AFTER the OTP
+  /// handshake succeeds (while the verifyOTP session is still valid).
+  /// Null for login-OTP flows where no new password is being set.
+  final String? pendingPassword;
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -82,6 +99,12 @@ class _OtpScreenState extends State<OtpScreen> {
   /// the user to check connectivity and retry instead of declaring the
   /// verification channel unavailable (CodeRabbit).
   bool _deliveryNetworkError = false;
+
+  /// True when the LAST dispatch was refused by the provider's RATE LIMITER
+  /// (HTTP 429 — Phase 3T). A throttle is not a configuration problem: the
+  /// banner and the resend snackbar ask the user to try again later, never
+  /// "no e-mail service configured".
+  bool _deliveryRateLimited = false;
 
   /// SINGLE-FLIGHT ISSUANCE LOCK.
   ///
@@ -180,26 +203,35 @@ class _OtpScreenState extends State<OtpScreen> {
     try {
       if (SupabaseAuthService.isConfigured) {
         // ── LIVE CHANNEL ──
-        // FAILURE TAXONOMY (CodeRabbit): a `false` return means the delivery
-        // CHANNEL refused (provider not wired / rejected) — a thrown
+        // FAILURE TAXONOMY (CodeRabbit): a provider-side OUTCOME means the
+        // delivery channel answered (throttled / refused) — a thrown
         // transport error means the NETWORK failed (offline, DNS, timeout)
         // and a retry once connectivity returns can succeed. Never conflated.
-        bool ok;
+        // Phase 3T: the dispatch mirrors THIS screen's intent — a LOGIN OTP
+        // (`createUserOnSend: false`) must never create an account, on the
+        // first send as much as on a resend — and a 429 maps to its own
+        // rate-limited state instead of "channel unavailable".
+        OtpSendOutcome outcome = OtpSendOutcome.refused;
         var networkFailure = false;
         try {
-          ok = await SupabaseAuthService.sendOtp(widget.email);
+          outcome = await SupabaseAuthService.sendOtp(
+            widget.email,
+            shouldCreateUser: widget.createUserOnSend,
+          );
         } catch (e) {
           debugPrint('OtpScreen: live OTP dispatch failed on the transport '
               'layer: $e');
-          ok = false;
           networkFailure = true;
         }
+        final ok = outcome == OtpSendOutcome.sent;
+        final rateLimited = outcome == OtpSendOutcome.rateLimited;
         if (!mounted) {
           return ok ? _OtpIssue.issued : _OtpIssue.unavailable;
         }
         void applyLive() {
           _deliveryUnavailable = !ok;
           _deliveryNetworkError = networkFailure && !ok;
+          _deliveryRateLimited = rateLimited;
           _demoCode = null; // a remote code must NEVER be surfaced in-app
         }
 
@@ -324,9 +356,13 @@ class _OtpScreenState extends State<OtpScreen> {
               ? tr(context,
                   fr: 'Un nouveau code a été envoyé à votre e-mail.',
                   ar: 'تم إرسال رمز جديد إلى بريدك الإلكتروني.')
-              : tr(context,
-                  fr: "Envoi indisponible : aucun service d'e-mail n'est configuré.",
-                  ar: 'الإرسال غير متاح: لم يتم إعداد خدمة البريد الإلكتروني.'),
+              : _deliveryRateLimited
+                  ? tr(context,
+                      fr: 'Trop de demandes : réessayez dans quelques minutes.',
+                      ar: 'طلبات كثيرة: أعد المحاولة بعد بضع دقائق.')
+                  : tr(context,
+                      fr: "Envoi indisponible : aucun service d'e-mail n'est configuré.",
+                      ar: 'الإرسال غير متاح: لم يتم إعداد خدمة البريد الإلكتروني.'),
         ),
       ),
     );
@@ -426,12 +462,47 @@ class _OtpScreenState extends State<OtpScreen> {
         return;
       }
     }
+    // ── "OTP COMPLETED" MARKER (Phase 3U) ──
+    // The code was just validated AND consumed: this identity has now
+    // completed the handshake on this device, so the next sign-in must enter
+    // directly (LoginScreen reads this marker on top of the persisted
+    // Supabase session). Written on BOTH channels — remote and local/demo —
+    // and idempotent, so a resumed flow can never duplicate it. Best-effort:
+    // a storage failure must never block the navigation below.
+    await EmailOtpService.markVerifiedForNextLogin(widget.email);
+    if (!mounted) return;
+    // FACEBOOK-STYLE PASSWORD: the OTP handshake just created/authenticated
+    // the remote identity, so the session is valid RIGHT NOW — persist the
+    // password chosen at registration onto it. Best-effort: a failure must
+    // never block the navigation below (the user still proceeds; a later
+    // login simply falls back to OTP).
+    if (widget.pendingPassword != null && widget.pendingPassword!.isNotEmpty) {
+      await SupabaseAuthService.setPassword(widget.pendingPassword!);
+      if (!mounted) return;
+    }
+    // PHASE 3T (parity with LoginScreen): mirror the persisted registry
+    // (subscription · tokens · approval) into the live session stores BEFORE
+    // routing, so a returning pro lands with the right state and a client
+    // never inherits another identity's stores.
+    await AdminStore.syncSessionStoresForCurrentUser();
     if (!mounted) return;
     FocusScope.of(context).unfocus();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const LanguageScreen()),
+      MaterialPageRoute(builder: (_) => _postVerificationDestination()),
     );
+  }
+
+  /// Post-verification destination (Phase 3T): a RETURNING identity (role
+  /// already stored) goes straight to its shell — [ProShell] renders the
+  /// pending-approval / suspended / dashboard gates internally and
+  /// [ClientShell] skips onboarding; only a brand-new identity (no role yet)
+  /// replays onboarding through [LanguageScreen].
+  Widget _postVerificationDestination() {
+    final u = UserStore.user.value;
+    if (u != null && u.isProfessional) return const ProShell();
+    if (u?.role != null) return const ClientShell();
+    return const LanguageScreen();
   }
 
   void _showError(String message) {
@@ -520,9 +591,15 @@ class _OtpScreenState extends State<OtpScreen> {
                                 "Échec d'envoi — vérifiez votre connexion Internet puis réessayez.",
                             ar:
                                 'فشل الإرسال — تحقّق من اتصالك بالإنترنت ثم أعد المحاولة.')
-                        : tr(context,
-                            fr: "Aucun service d'envoi d'e-mail n'est configuré : la vérification est indisponible pour le moment.",
-                            ar: 'لا توجد خدمة إرسال بريد إلكتروني مُهيّأة: التحقق غير متاح حالياً.'),
+                        : _deliveryRateLimited
+                            ? tr(context,
+                                fr:
+                                    'Trop de demandes de code. Réessayez dans quelques minutes.',
+                                ar:
+                                    'طلبات كثيرة للرمز. أعد المحاولة بعد بضع دقائق.')
+                            : tr(context,
+                                fr: "Aucun service d'envoi d'e-mail n'est configuré : la vérification est indisponible pour le moment.",
+                                ar: 'لا توجد خدمة إرسال بريد إلكتروني مُهيّأة: التحقق غير متاح حالياً.'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.error,

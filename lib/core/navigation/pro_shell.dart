@@ -73,7 +73,16 @@ class _ProShellState extends State<ProShell> {
             // Unverified professionals are blocked until the admin approves
             // them. When the admin approves (UserStore.user updates), this
             // builder re-runs and the dashboard appears immediately.
-            if (sessionUser?.needsVerificationGate ?? false) {
+            // A NULL session or a NULL/unknown role inside the PRO shell can
+            // never be read as "approved": it falls to the SAME gate, so a
+            // stale or missing role (e.g. an auth-binding downgrade) can no
+            // longer bypass the pending-approval screen. Client sessions
+            // never route here (they land on ClientShell), so their routing
+            // is untouched.
+            final sessionNeedsGate = sessionUser == null ||
+                sessionUser.role == null ||
+                sessionUser.needsVerificationGate;
+            if (sessionNeedsGate) {
               return const VerificationGateScreen();
             }
 

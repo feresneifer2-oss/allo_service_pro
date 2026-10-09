@@ -271,6 +271,10 @@ void main() {
         serviceTitleFr: 'Test',
         serviceTitleAr: 'اختبار',
         professionalId: 'pro-1',
+        // Phase 3L: the live schema needs a uuid `pro_id` — a creation
+        // without a professional auth uid is refused BEFORE the wire, so the
+        // offline replay below must carry one to stay mirrorable.
+        professionalAuthUid: 'uid-offline-1',
         professionalName: 'Test Pro',
         customerName: 'Client',
         customerId: 'client-1',

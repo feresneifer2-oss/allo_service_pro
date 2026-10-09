@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
+import 'package:allo_service_pro/core/error/app_error_handler.dart';
 import 'package:allo_service_pro/core/services/document_media_service.dart';
 import 'package:allo_service_pro/core/services/supabase_storage_service.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
+import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/verification_gate_screen.dart';
 
 import 'package:allo_service_pro/core/catalog/services_catalog.dart';
@@ -241,6 +243,13 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           name: name,
           phone: contactPhone.isEmpty ? '-' : contactPhone,
           email: committedEmail.isEmpty ? null : committedEmail,
+          // Phase 3J: bind the authenticated Supabase UUID to the registry
+          // entry at creation time. `SupabaseAuthService.currentUserId` is the
+          // primary source (same seam the storage upload prefix uses);
+          // the local session id is only the offline fallback. Never invent
+          // an identity when both are absent — `authUid` stays null and the
+          // entry remains a client-local draft.
+          authUid: SupabaseAuthService.currentUserId ?? session?.id,
           professionFr: _selectedCategory?.fr ?? 'Peintre',
           professionAr: _selectedCategory?.ar ?? 'دهّان',
           city: _city ?? _governorate,
@@ -275,6 +284,88 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           pricingType: _pricingType,
           priceFrom: _pricingType == 'quote' ? null : _priceFrom,
         );
+
+        // ── PHASE 2 STEP 5 — SERVER-SIDE PENDING ROW FIRST (fail-closed) ────
+        // The authoritative registration lives in `public.professionals`: an
+        // own-row write (Phase 3P policy `professionals_insert_own_row`,
+        // `with check (auth.uid() = id)`) stamps `status: 'pending'` and
+        // `is_verified: false` BEFORE any local mutation below. If the insert
+        // fails (offline / RLS denial / no session identity), the submit is
+        // ABORTED through this file's own error pattern — error SnackBar +
+        // `return`, with the `finally` re-arming `_submitting` — so the local
+        // registry, prefs and session can never claim a success the server
+        // never saw.
+        if (SupabaseAuthService.isConfigured) {
+          // specialty ← the step-2 chips (one text column), falling back to
+          // the chosen category so the column is never blank; bio ← the
+          // step-5 description the pro typed.
+          final chips = newPro.specialtiesAr.isNotEmpty
+              ? newPro.specialtiesAr
+              : newPro.specialtiesFr;
+          final specialtyText =
+              chips.isNotEmpty ? chips.join(', ') : newPro.professionAr;
+          final ok = await ProfileRepository.upsertOwnProfessionalPending(
+            specialty: specialtyText,
+            bio: newPro.description ?? '',
+          );
+          if (!ok) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(tr(
+                  context,
+                  fr: "Échec de l'enregistrement sur le serveur — vérifiez votre connexion puis réessayez.",
+                  ar: 'تعذّر حفظ التسجيل على الخادم — تحقّق من الاتصال ثم أعد المحاولة.',
+                )),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            return;
+          }
+          // DISPLAY NAME (Phase A Fix 7): the wizard's "Nom complet" must
+          // reach `profiles.full_name` — a fresh device rebuilds its session
+          // from the e-mail alone, so without this server-side value the
+          // profile would show "Sans nom" (the `UserStore.set` below only
+          // writes SharedPreferences).
+          // BEST-EFFORT / FAIL-CLOSED: the `professionals` row above is the
+          // critical write — a refusal here NEVER aborts the submit; the
+          // auth binding retries the name on the next event.
+          final uid = SupabaseAuthService.currentUserId;
+          final profileEmail = committedEmail.isNotEmpty
+              ? committedEmail
+              : (session?.email?.trim() ?? '');
+          if (uid != null && profileEmail.isNotEmpty) {
+            try {
+              final nameOk = await ProfileRepository.upsertProfile(
+                id: uid,
+                email: profileEmail,
+                name: name,
+                phone: contactPhone,
+                // This submit IS the pro onboarding: the same role the local
+                // session takes below, announced server-side so a fresh
+                // device routes to the pro shell instead of replaying it.
+                role: 'professional',
+                // No auth event is in flight here — there is no event session
+                // to carry. `upsertProfile` resolves the LIVE session itself
+                // (getSession + same-identity gate) and fails closed.
+                session: null,
+              );
+              if (!nameOk) {
+                debugPrint('ProRegistration: profiles.full_name write '
+                    'refused — display name retries on the next auth event.');
+              }
+            } catch (e, st) {
+              AppErrorHandler.report(
+                e,
+                st,
+                context: 'ProRegistrationScreen.upsertProfile',
+              );
+            }
+          } else {
+            debugPrint('ProRegistration: no authenticated uid / e-mail — '
+                'profiles.full_name write skipped.');
+          }
+        }
 
         // Assigns the unique PRO-XXXXX code and queues for admin review.
         final registered = AdminStore.registerPro(newPro);

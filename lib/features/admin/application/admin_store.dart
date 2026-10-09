@@ -3,6 +3,8 @@ import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
+import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/notifications/domain/notification_model.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
@@ -38,22 +40,16 @@ class ReportModel {
 class AdminStore {
   AdminStore._();
 
-  /// Delegates to the auth boundary — AdminStore never sees credentials.
-  /// (Async by design: the production Supabase implementation is an RPC.)
-  static Future<bool> matchesAdmin(String email, String password) =>
-      AdminAuth.instance.verify(email: email, password: password);
-
-  /// Whether the active auth boundary has a configured admin identity.
-  /// An unconfigured build keeps the gate CLOSED by design.
-  static bool get isAdminGateArmed => AdminAuth.instance.isConfigured;
-
-  /// Test hooks delegating to the local seam (debug/test builds only).
-  @visibleForTesting
-  static void debugSetAdminCredentials({String? email, String? password}) =>
-      AdminAuth.debugSetCredentials(email: email, password: password);
-
-  @visibleForTesting
-  static void debugResetAdminCredentials() => AdminAuth.debugResetCredentials();
+  // ─── Admin identity (Phase 1 — SERVER-SIDE ONLY) ─────────────────────────
+  // AdminStore holds NO credential and performs NO comparison: membership is
+  // decided by the backend (`public.is_admin()`, keyed on `auth.uid()`)
+  // through the AdminAuth boundary — see
+  // features/admin/data/admin_auth_repository.dart and
+  // supabase/migrations/20260927173046_phase1_admin_authorization.sql.
+  /// Server-side check for the CURRENT authenticated identity: `true` iff the
+  /// backend confirms it is enrolled as an administrator. FAIL-CLOSED on
+  /// every error (offline, RPC failure, no Supabase session).
+  static Future<bool> isAdminSignedIn() => AdminAuth.instance.isAdmin();
 
   // Global stats — LIVE DERIVED METRICS ONLY (audit remediation):
   // the previous build seeded hardcoded demo KPIs (1240 users / 347 pros /
@@ -326,16 +322,37 @@ class AdminStore {
   /// notification, KPIs). Any repeat call on an ALREADY-approved entry
   /// performs none of them and returns success — no duplicate tokens,
   /// badges, notifications or inflated KPI counters.
-  static Future<void> approvePro(String id, {String? badge}) =>
+  ///
+  /// PHASE 3P — SERVER-FIRST: the local approval runs ONLY after the backend
+  /// RPC `public.admin_provision_professional` confirmed the professional row
+  /// (`public.professionals.id = authUid`, created/verified server-side for an
+  /// authenticated admin). Without that confirmation NOTHING local changes:
+  /// the entry stays `pending` with no tokens, no badge and no success state,
+  /// so the UI can never show an approved professional the server ignores.
+  ///
+  /// Returns `true` when the professional IS approved (fresh approval or an
+  /// idempotent replay of one); `false` when the entry is unknown, carries no
+  /// usable `authUid`, or the server provisioning failed.
+  static Future<bool> approvePro(String id, {String? badge}) =>
       _sequential(() => _approveProOnce(id, badge));
 
-  static Future<void> _approveProOnce(String id, String? badge) async {
+  static Future<bool> _approveProOnce(String id, String? badge) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
     // IDEMPOTENT (CodeRabbit): an ALREADY-approved entry replays none of the
     // side effects below (no duplicate tokens/badges/notifications, no
-    // inflated KPI counter) and reports success.
-    if (pendingPros.value[idx].status == 'approved') return;
+    // inflated KPI counter, no redundant server round-trip) and reports
+    // success.
+    if (pendingPros.value[idx].status == 'approved') return true;
+
+    // ── PHASE 3P — SERVER PROVISIONING FIRST ──────────────────────────────
+    // The backend owns the `public.professionals` row: the admin-only RPC
+    // creates/verifies it for `authUid` and is idempotent, so a retry after
+    // ANY later failure is always safe. Until it confirms, the local state
+    // must not move (fail-closed).
+    if (!await _provisionProfessionalServer(pendingPros.value[idx])) {
+      return false;
+    }
 
     final list = List<PendingProModel>.from(pendingPros.value);
     // Official badge #1 is granted automatically on first approval.
@@ -387,6 +404,74 @@ class AdminStore {
       ProProfileStore.tokens.value = list[idx].tokens;
       await ProProfileStore.persistToPrefs();
     }
+    return true;
+  }
+
+  /// PHASE 3P — server-side provisioning gate for [entry].
+  ///
+  /// FAIL-CLOSED CONTRACT:
+  ///  * `authUid` missing / blank / not a UUID → `false` and the RPC is
+  ///    NEVER called (legacy seeds, admin drafts and offline records carry no
+  ///    server identity to provision — the local approval must not run).
+  ///  * RPC failure (offline, revoked admin, unknown profile, any error) →
+  ///    `false`; the boundary reports the error (it is never swallowed) and
+  ///    the professional stays PENDING locally.
+  ///  * RPC success (the server returned the VERIFIED professional row) →
+  ///    `true`, and only then does the local approval run.
+  static Future<bool> _provisionProfessionalServer(
+      PendingProModel entry) async {
+    final uid = _uuidOrNull(entry.authUid);
+    if (uid == null) return false;
+    final provisionedId = await AdminAuth.instance.provisionProfessional(
+      userId: uid,
+      specialty: _provisionSpecialty(entry),
+      bio: _provisionBio(entry),
+    );
+    return provisionedId != null;
+  }
+
+  /// UUID-shape gate for the RPC's `uuid` parameter: a local non-UUID
+  /// identity (the offline registration fallback) would be rejected by the
+  /// server anyway — it is refused here FIRST so the RPC is never called
+  /// with it.
+  static final RegExp _uuidShape = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+    r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
+  static String? _uuidOrNull(String? raw) {
+    final trimmed = raw?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return _uuidShape.hasMatch(trimmed) ? trimmed : null;
+  }
+
+  /// `dd/MM/yyyy` display label for [PendingProModel.submittedAt] — the SAME
+  /// shape the seeded registry records and the wizard drafts already use, so
+  /// a hydrated entry sorts/reads identically to a locally registered one.
+  static String _todayLabel() {
+    final now = DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(now.day)}/${two(now.month)}/${now.year}';
+  }
+
+  /// `p_specialty`: the registration's specialty chips joined with ", " when
+  /// present, else the profession label; `null` when both are empty (the RPC
+  /// then stores null / preserves an already-stored value).
+  static String? _provisionSpecialty(PendingProModel entry) {
+    final chips = <String>[
+      for (final s in entry.specialtiesFr)
+        if (s.trim().isNotEmpty) s.trim(),
+    ];
+    if (chips.isNotEmpty) return chips.join(', ');
+    final fallback = entry.professionFr.trim();
+    return fallback.isEmpty ? null : fallback;
+  }
+
+  /// `p_bio`: the registration wizard's free-text description; `null` when
+  /// blank — never an empty string.
+  static String? _provisionBio(PendingProModel entry) {
+    final bio = entry.description?.trim();
+    return (bio == null || bio.isEmpty) ? null : bio;
   }
 
   /// NON-EMPTY IDENTIFIER GUARD (CodeRabbit): a live-session match is only
@@ -414,9 +499,46 @@ class AdminStore {
   }
 
   /// Rejects with a visible reason; the Pro can re-upload proof later.
-  static Future<void> rejectPro(String id, {String? reason}) async {
+  ///
+  /// PHASE 3P — SERVER WRITE FIRST (fail-closed), mirroring [approvePro]:
+  /// when the backend is reachable, the admin-only RPC
+  /// `admin_reject_professional` must CONFIRM the rejection before any local
+  /// state moves. A refused/failed call — or an entry without a usable
+  /// server-side `authUid` — returns `false` and the local entry keeps its
+  /// status and reason untouched.
+  ///
+  /// When Supabase is NOT configured, the server call is skipped entirely and
+  /// the legacy local-only path below runs unchanged (offline / admin-seed
+  /// fallback stays fully functional).
+  ///
+  /// Returns `true` when the rejection WAS applied (server-confirmed or
+  /// local-only fallback); `false` when the entry is unknown or the server
+  /// refused it.
+  static Future<bool> rejectPro(String id, {String? reason}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
+
+    // ── PHASE 3P — SERVER REJECTION FIRST ──────────────────────────────────
+    // The backend owns `public.professionals.status` + `rejection_reason`:
+    // the admin-only RPC writes them first, and until it confirms, the local
+    // state must not move (fail-closed). An UNCONFIGURED boundary skips the
+    // round-trip and falls through to the local-only behaviour below.
+    if (SupabaseAuthService.isConfigured) {
+      final targetUserId = _uuidOrNull(pendingPros.value[idx].authUid);
+      // No server identity to reject (legacy seed / draft / offline record):
+      // exactly like _provisionProfessionalServer, the RPC is NEVER called
+      // without a real uuid — and the local rejection is refused too.
+      if (targetUserId == null) return false;
+      final ok = await AdminAuth.instance.rejectProfessional(
+        userId: targetUserId,
+        // The parameter is non-null by contract; a reason-less rejection
+        // travels as an empty string (the session sync below keeps its own
+        // nullable `reason`).
+        reason: reason ?? '',
+      );
+      if (!ok) return false; // fail-closed: server refused → no local change
+    }
+
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(status: 'rejected', rejectionReason: reason);
     pendingPros.value = list;
@@ -447,17 +569,33 @@ class AdminStore {
         reason: reason,
       );
     }
+    return true;
   }
 
   /// Pro re-submits proof after a rejection — back to the review queue.
   ///
-  /// Returns `true` when the pending entry was found and re-queued, `false`
-  /// when no entry matches [id]. Callers MUST check the result and skip
-  /// their local account/profile updates on `false` (CodeRabbit): mutating
-  /// the session when the repository accepted nothing would desync the two.
+  /// Returns `true` when the pending entry was found AND the server accepted
+  /// the reset (Phase 3Q), `false` when no entry matches [id] or the server
+  /// refused — fail-closed. Callers MUST check the result and skip their
+  /// local account/profile updates on `false` (CodeRabbit): mutating the
+  /// session when the repository accepted nothing would desync the two.
   static Future<bool> resubmitProof(String id, {String? proofPath}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
     if (idx == -1) return false;
+
+    // ── PHASE 3Q — SERVER RESET FIRST (fail-closed) ─────────────────────────
+    // The authoritative status lives in Supabase: the pro's OWN row can only
+    // be moved back to 'pending' by `public.professional_resubmit_own_proof()`
+    // (keyed on auth.uid() — 'rejected' → 'pending', idempotent on 'pending',
+    // 'approved' refused server-side). Only a server-confirmed reset lets the
+    // local mutations below run; `false` (offline / refused / approved)
+    // aborts BEFORE any local write, mirroring rejectPro — the registry,
+    // prefs and local session must never run ahead of the server.
+    if (SupabaseAuthService.isConfigured) {
+      final ok = await ProfileRepository.resubmitOwnProfessionalProof();
+      if (!ok) return false;
+    }
+
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(
       status: 'pending',
@@ -671,7 +809,12 @@ class AdminStore {
   static Future<void> syncSessionStoresForCurrentUser() async {
     final u = UserStore.user.value;
     final entry = entryForUser(u);
-    if (u == null || entry == null) return;
+    if (u == null || entry == null) {
+      // No registry mirror to apply — the SERVER still decides whether a
+      // professional session may be opened (fail-closed when unresolved).
+      await _applyServerVerificationAuthority();
+      return;
+    }
 
     // Subscription: scoped STRICTLY to THIS pro's registry record.
     //
@@ -744,6 +887,168 @@ class AdminStore {
             ? ProVerification.rejected
             : ProVerification.pending,
       );
+    }
+
+    // SERVER AUTHORITY — LAST WORD (pro pending-approval routing). The local
+    // mirrors above may only REFLECT the registry; whether this professional
+    // may open the dashboard is decided by the SERVER's
+    // `public.professionals.is_verified`, read AFTER every local mirror so a
+    // stale local or registry "approved" can never win over the server — and
+    // so an unresolved answer fails closed (no dashboard from local state
+    // alone).
+    await _applyServerVerificationAuthority();
+  }
+
+  /// Server-authoritative approval state for the CURRENT professional session.
+  ///
+  /// Contract (see [ProfileRepository.fetchOwnProfessionalStatus]):
+  ///  * Supabase not initialized (local demo builds / tests): there IS no
+  ///    server — the existing local behavior stands, unchanged;
+  ///  * `status == 'approved'` → the session is (re)opened as approved — the
+  ///    server can lift a stale local pending/rejected state;
+  ///  * `status == 'rejected'` → the session follows the server into
+  ///    [ProVerification.rejected], persisting `rejection_reason` (a server
+  ///    rejection with NO reason STRIPS any stale local text instead of
+  ///    inheriting it through the copyWith merge);
+  ///  * `status == 'pending'` → the session is gated as pending, demoting a
+  ///    stale local approved;
+  ///  * unresolved (`null` — Supabase unconfigured, query error, timeout,
+  ///    missing row/column) or an unknown/missing `status` value → FAIL
+  ///    CLOSED to pending, EXCEPT that a failed read NEVER silently
+  ///    downgrades an existing rejection: only an explicit server answer can
+  ///    lift or change it (stale approved → pending on failure, mirroring the
+  ///    old two-state contract).
+  ///
+  /// Never throws: an unreachable backend degrades to FAIL CLOSED.
+  ///
+  /// REGISTRY HYDRATION (Phase 2 · Step 6b): on top of syncing the SESSION,
+  /// an existing server row whose dossier is missing from the LOCAL registry
+  /// (cleared app data / brand-new device) seeds a local `PendingProModel`
+  /// mirror for ALL THREE statuses — without it, `entryForUser` resolves
+  /// null on such a device and the verification gate refuses the proof
+  /// re-submission BEFORE `resubmitProof` (and its server-side RPC) is ever
+  /// reached, leaving the server stuck on 'rejected'. Fail-closed on an
+  /// unresolved read; idempotent on repeat logins.
+  static Future<void> _applyServerVerificationAuthority() async {
+    if (!SupabaseAuthService.isConfigured) return;
+    final u = UserStore.user.value;
+    if (u == null || !u.isProfessional) return;
+    final statusMap = await ProfileRepository.fetchOwnProfessionalStatus(
+      id: SupabaseAuthService.currentUserId ?? '',
+    );
+    // The await may have interleaved with other session writes — re-read.
+    final session = UserStore.user.value;
+    if (session == null || !session.isProfessional) return;
+
+    // Three-state parse of the server row. Anything that is not an explicit
+    // 'approved' / 'rejected' / 'pending' answer (null map, missing or
+    // unknown status) fails CLOSED to pending — never approved — with the
+    // one carve-out documented above: an unresolved read must not silently
+    // downgrade a rejection the server previously issued.
+    final rawStatus = statusMap?['status'];
+    final ProVerification newStatus;
+    if (rawStatus == 'approved') {
+      newStatus = ProVerification.approved;
+    } else if (rawStatus == 'rejected') {
+      newStatus = ProVerification.rejected;
+    } else if (rawStatus == 'pending') {
+      newStatus = ProVerification.pending;
+    } else {
+      // Failure / missing / unknown → keep a rejection, otherwise pending.
+      newStatus = session.verificationStatus.isRejected
+          ? ProVerification.rejected
+          : ProVerification.pending;
+    }
+
+    // Refresh the persisted reason only on an EXPLICIT server rejection:
+    // the fail-closed branch above can map to `rejected` solely when the
+    // session already holds it (no status change), and that path has no
+    // server row — it must never strip the local reason on a failed read.
+    final reasonRaw = statusMap?['rejection_reason'];
+    final serverReason = reasonRaw is String ? reasonRaw : null;
+    final reasonChanged = statusMap != null &&
+        rawStatus == 'rejected' &&
+        serverReason != session.rejectionReason;
+
+    if (newStatus != session.verificationStatus || reasonChanged) {
+      if (newStatus == ProVerification.rejected) {
+        // Mirrored into BOTH the session and the credential record by
+        // updateProVerification, so the reason survives sign-out → sign-in
+        // and restarts. clearReason strips a stale local text when the
+        // server carries none.
+        await UserStore.updateProVerification(
+          status: newStatus,
+          reason: serverReason,
+          clearReason: serverReason == null,
+        );
+      } else {
+        await UserStore.updateProVerification(status: newStatus);
+      }
+    }
+
+    // ── REGISTRY HYDRATION (Phase 2 · Step 6b) ─────────────────────────────
+    // A returning professional can land on a device whose local registry
+    // never held their dossier (cleared app data, brand-new phone). Without a
+    // local entry, `entryForUser` resolves null and the verification gate
+    // refuses the proof re-submission BEFORE `resubmitProof` — and therefore
+    // BEFORE the server-side `professional_resubmit_own_proof()` RPC — is
+    // ever reached: the server then stays 'rejected' forever. The SAME
+    // server row read above therefore seeds a local mirror for ALL THREE
+    // statuses (the gate needs the entry to exist even while rejected).
+    //
+    // FAIL-CLOSED: an unresolved server read (`statusMap == null`) creates
+    // NOTHING — a local guess must never fabricate a dossier.
+    // IDEMPOTENT: `entryForUser` is checked after the awaits resolved and
+    // re-checked with NO await before the insert, so repeated logins can
+    // never duplicate the entry, overwrite an existing one, or touch the
+    // demo seed (its ids/proCodes never match this session).
+    final hydratedSession = UserStore.user.value;
+    final hydratedId = hydratedSession?.id.trim() ?? '';
+    final hydratedCode = (hydratedSession?.proCode ?? '').trim();
+    if (statusMap != null &&
+        hydratedSession != null &&
+        hydratedSession.isProfessional &&
+        // Identifier guard (mirrors `entryForUser`): at least one non-empty
+        // side is required — an identifier-less session owns no dossier.
+        (hydratedId.isNotEmpty || hydratedCode.isNotEmpty) &&
+        entryForUser(hydratedSession) == null) {
+      final specialtyRaw = statusMap['specialty'];
+      final specialty = specialtyRaw is String ? specialtyRaw.trim() : '';
+      final bioRaw = statusMap['bio'];
+      final hydrated = PendingProModel(
+        // The SAME identity `entryForUser` matches on: the trimmed session
+        // id (legacy fallback path) plus the session PRO code — BOTH lookup
+        // paths therefore find this entry on the very next sync.
+        id: hydratedId,
+        name: hydratedSession.name,
+        phone: hydratedSession.phone,
+        email: hydratedSession.email,
+        // The server stores ONE specialty label — mirrored into both
+        // required language slots (empty → '').
+        professionFr: specialty,
+        professionAr: specialty,
+        description:
+            bioRaw is String && bioRaw.trim().isNotEmpty ? bioRaw.trim() : null,
+        city: hydratedSession.governorateAr ?? hydratedSession.governorateFr,
+        submittedAt: _todayLabel(),
+        // Server truth, already parsed fail-closed into [newStatus] above.
+        status: newStatus.name,
+        rejectionReason:
+            newStatus == ProVerification.rejected ? serverReason : null,
+        proCode: hydratedSession.proCode,
+        authUid: _uuidOrNull(hydratedSession.id),
+        // The device-local proof path is NOT stored server-side.
+        docImage: null,
+      );
+      // Re-read after the awaits above: insert ONLY if the session is still a
+      // professional with no dossier (no await between check and mutation).
+      final stillSession = UserStore.user.value;
+      if (stillSession != null &&
+          stillSession.isProfessional &&
+          entryForUser(stillSession) == null) {
+        pendingPros.value = [hydrated, ...pendingPros.value];
+        await persistToPrefs();
+      }
     }
   }
 

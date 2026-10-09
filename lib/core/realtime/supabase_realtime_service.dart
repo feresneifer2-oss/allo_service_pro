@@ -3,19 +3,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/chat/application/chat_store.dart';
 import '../../features/chat/data/messages_repository.dart';
+import '../../features/pro_dashboard/application/pro_availability_store.dart';
 import '../../features/requests/application/request_store.dart';
 import '../../features/requests/data/orders_repository.dart';
 
-/// Supabase Realtime gateway — pushes live `orders` and `messages` changes
-/// straight into the local stores so client & pro screens update WITHOUT a
-/// manual refresh.
+/// Supabase Realtime gateway — pushes live `orders`, `messages` and
+/// `pro_availability` changes straight into the local stores so client & pro
+/// screens update WITHOUT a manual refresh.
 ///
-/// CHANNELS (both respect the server-side RLS: each identity receives only
-/// the rows it may read):
-///   • `realtime:public:orders`   → INSERT / UPDATE →
+/// CHANNELS (all of them respect the server-side RLS: each identity receives
+/// only the rows it may read):
+///   • `realtime:public:orders`            → INSERT / UPDATE →
 ///     [RequestStore.applyRemoteOrder] (pure data merge + chat-gate mirror);
-///   • `realtime:public:messages` → INSERT →
-///     [ChatStore.applyRemoteMessage] (id-deduped, self-echo suppressed).
+///   • `realtime:public:messages`          → INSERT →
+///     [ChatStore.applyRemoteMessage] (id-deduped, self-echo suppressed);
+///   • `realtime:public:pro_availability`  → INSERT / UPDATE →
+///     [ProAvailabilityStore.applyRemoteRow] (the craftsman's durable
+///     "accepts new requests" flag: it repaints the client-facing badges and,
+///     when the row belongs to the signed-in pro, mirrors their OWN dashboard
+///     indicator).
 ///
 /// LIFECYCLE: [start] is idempotent (safe to call again) and a no-op when
 /// Supabase is not initialized (tests / offline demo builds). [stop] removes
@@ -25,6 +31,7 @@ class SupabaseRealtimeService {
 
   static RealtimeChannel? _ordersChannel;
   static RealtimeChannel? _messagesChannel;
+  static RealtimeChannel? _availabilityChannel;
 
   /// Monotonic BINDING GENERATION.
   ///
@@ -97,7 +104,30 @@ class SupabaseRealtimeService {
         )
         .subscribe();
 
-    debugPrint('RealtimeService: channels bound (orders + messages).');
+    // ── PRO AVAILABILITY: persisted online/offline of every craftsman ──
+    //
+    // DURABLE STATE, NOT PRESENCE: the row is written when the professional
+    // toggles the dashboard switch, so a client that connects LATER still
+    // receives the same truth from the boot hydration
+    // (`ProAvailabilityStore.hydrateFromSupabase`). Only the public code and a
+    // boolean travel — the RLS policy exposes no PII.
+    _availabilityChannel = client
+        .channel('realtime:public:pro_availability')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'pro_availability',
+          callback: (payload) {
+            if (generation != _generation) return; // stale delivery
+            final row = payload.newRecord;
+            if (row.isEmpty) return; // DELETE events: out of scope
+            ProAvailabilityStore.applyRemoteRow(row.cast<String, dynamic>());
+          },
+        )
+        .subscribe();
+
+    debugPrint('RealtimeService: channels bound '
+        '(orders + messages + pro_availability).');
   }
 
   /// Removes both channels (sign-out) so a signed-out device stops ingesting
@@ -116,8 +146,10 @@ class SupabaseRealtimeService {
     final client = isConfigured ? Supabase.instance.client : null;
     final orders = _ordersChannel;
     final messages = _messagesChannel;
+    final availability = _availabilityChannel;
     _ordersChannel = null;
     _messagesChannel = null;
+    _availabilityChannel = null;
 
     if (client == null) {
       debugPrint('RealtimeService.stop: Supabase not initialized — '
@@ -127,6 +159,7 @@ class SupabaseRealtimeService {
 
     await _removeChannel(client, orders, 'orders');
     await _removeChannel(client, messages, 'messages');
+    await _removeChannel(client, availability, 'pro_availability');
   }
 
   /// Removes ONE channel inside its own guard, so a failure never aborts the
@@ -153,5 +186,6 @@ class SupabaseRealtimeService {
     _generation++;
     _ordersChannel = null;
     _messagesChannel = null;
+    _availabilityChannel = null;
   }
 }

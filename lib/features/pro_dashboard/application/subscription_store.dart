@@ -9,7 +9,7 @@ import '../../../core/constants/app_constants.dart';
 // top-level initialisation-order hazard.
 import '../../auth/application/user_store.dart';
 
-enum SubscriptionStatus { active, expired }
+enum SubscriptionStatus { active, expired, inactive }
 
 /// Monthly unlimited-plan subscription state for a craftsperson.
 ///
@@ -65,8 +65,11 @@ class SubscriptionStore {
   @visibleForTesting
   static String? get debugCycleOwnerId => _cycleOwnerId;
 
+  /// No paid cycle was ever opened on this device for the current session:
+  /// the truthful default BEFORE any admin activation. Previously `active`,
+  /// which displayed "Abonnement: Actif" for users who never subscribed.
   static final status =
-      ValueNotifier<SubscriptionStatus>(SubscriptionStatus.active);
+      ValueNotifier<SubscriptionStatus>(SubscriptionStatus.inactive);
 
   /// True once a paid unlimited plan is activated by the admin.
   ///
@@ -208,10 +211,10 @@ class SubscriptionStore {
     await persistToPrefs();
   }
 
-  /// Wipes the persisted subscription state and restores the trial
-  /// defaults (used on logout).
+  /// Wipes the persisted subscription state and restores the truthful
+  /// defaults (used on logout): no paid cycle, hence `inactive`.
   static Future<void> reset() async {
-    status.value = SubscriptionStatus.active;
+    status.value = SubscriptionStatus.inactive;
     isPaidSubscriber.value = false;
     activatedAt.value = null;
     _cycleOwnerId = null;
@@ -282,7 +285,7 @@ class SubscriptionStore {
         : DateTime.fromMillisecondsSinceEpoch(activatedMs);
 
     final statusIndex =
-        prefs.getInt(_kStatusIndex) ?? SubscriptionStatus.active.index;
+        prefs.getInt(_kStatusIndex) ?? SubscriptionStatus.inactive.index;
     status.value = SubscriptionStatus
         .values[statusIndex.clamp(0, SubscriptionStatus.values.length - 1)];
   }
