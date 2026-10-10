@@ -7,6 +7,8 @@ import 'package:allo_service_pro/features/auth/application/supabase_auth_service
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/core/realtime/supabase_realtime_service.dart';
 
 /// Maps Supabase Auth lifecycle events onto the local [UserStore] session.
@@ -165,6 +167,11 @@ Future<void> _bindRemoteUser(AuthState state) async {
   Future<Map<String, dynamic>?>? profileRowFuture;
   Future<Map<String, dynamic>?> readProfileRow() =>
       profileRowFuture ??= _readProfileRow(supabaseUser.id);
+  // PHASE B — SHARED PRO-STATUS READ (tokens + paid_until): at most ONE
+  // professionals SELECT per auth event, exactly like the profile row above.
+  Future<Map<String, dynamic>?>? proStatusFuture;
+  Future<Map<String, dynamic>?> readProStatusRow() => proStatusFuture ??=
+      ProfileRepository.fetchOwnProfessionalStatus(id: supabaseUser.id);
   // SERVER-STORED NAME (Fix 7): the registration-time `profiles.full_name`
   // answers whenever no metadata name exists — skipped entirely when
   // [resolvedMetaName] already won (no wasted SELECT), and `''` never
@@ -228,6 +235,14 @@ Future<void> _bindRemoteUser(AuthState state) async {
   // onboarding choice (setRole), never by the remote identity provider — and
   // ONLY for the matching identity (see above). AWAITED: the persisted
   // session cycle settles before the next queued auth event runs.
+  // RACE GUARD (Phase B): if another path (login_screen._reuseExistingEntry)
+  // already resolved a non-null role from the server, do NOT overwrite it
+  // with null when our own server read fails/races.
+  final resolvedRole = localRole ??
+      UserStore.credentialRoleFor(identity.email) ??
+      await _readServerRole(readProfileRow());
+  final existingRole = UserStore.user.value?.role;
+  final finalRole = resolvedRole ?? existingRole;
   await UserStore.set(
     name: name,
     // Same resolution as the profile upsert above: the remote phone wins when
@@ -247,10 +262,31 @@ Future<void> _bindRemoteUser(AuthState state) async {
     // side — answers instead; an identity unknown even there still resolves
     // to null and replays onboarding. An explicit same-identity session role
     // keeps priority over everything else.
-    role: localRole ??
-        UserStore.credentialRoleFor(identity.email) ??
-        await _readServerRole(readProfileRow()),
+    role: finalRole,
   );
+
+  // PHASE B: sync tokens + subscription from the server for pros.
+  // The server values (professionals.tokens / professionals.paid_until) are
+  // the source of truth; a failed read (null row) leaves local state as-is.
+  final u = UserStore.user.value;
+  if (u != null && u.isProfessional) {
+    final statusRow = await readProStatusRow();
+    if (statusRow != null) {
+      final tokensRaw = statusRow['tokens'];
+      final tokensInt = tokensRaw is int
+          ? tokensRaw
+          : (tokensRaw is num ? tokensRaw.toInt() : null);
+      if (tokensInt != null) {
+        ProProfileStore.tokens.value = tokensInt;
+        await ProProfileStore.persistToPrefs();
+      }
+      final paidUntilRaw = statusRow['paid_until'];
+      final paidUntil = paidUntilRaw is String
+          ? DateTime.tryParse(paidUntilRaw)?.toLocal()
+          : null;
+      await SubscriptionStore.applyServerPaidUntil(paidUntil);
+    }
+  }
 }
 
 /// SERVER ROLE FALLBACK for [_bindRemoteUser]: `public.profiles.role` parsed

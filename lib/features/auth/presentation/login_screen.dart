@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
@@ -11,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../application/supabase_auth_service.dart';
 import '../application/user_store.dart';
 import '../data/profile_repository.dart';
+import '../../requests/application/request_store.dart';
 import 'language_screen.dart';
 import 'otp_screen.dart';
 import 'register_screen.dart';
@@ -252,10 +255,15 @@ class _LoginScreenState extends State<LoginScreen> {
     // and `professionals.is_verified` is never read from Supabase.
     await AdminStore.syncSessionStoresForCurrentUser();
     if (!mounted) return false;
+    // Phase B: re-hydrate orders now that the session is authenticated.
+    // Startup hydration (main.dart) ran BEFORE login → RLS returned 0 rows.
+    unawaited(RequestStore.hydrateFromSupabase());
     FocusScope.of(context).unfocus();
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => _postLoginDestination()),
+      MaterialPageRoute(
+        builder: (_) => _postLoginDestination(explicitRole: serverRole),
+      ),
       (route) => false,
     );
     return true;
@@ -284,6 +292,19 @@ class _LoginScreenState extends State<LoginScreen> {
   /// behavior — a role-less identity replays onboarding. Never throws into
   /// the UI, never blocks a legitimate sign-in.
   Future<UserRole?> _readServerRole() async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final role = await _tryReadServerRoleOnce();
+      if (role != null) return role;
+      if (attempt < 2) {
+        // AUTH TOKEN PROPAGATION DELAY: signInWithPassword returns before
+        // the token is fully propagated to PostgREST. Retry with backoff.
+        await Future.delayed(Duration(milliseconds: 300 * (attempt + 1)));
+      }
+    }
+    return null;
+  }
+
+  Future<UserRole?> _tryReadServerRoleOnce() async {
     try {
       if (!SupabaseAuthService.isConfigured) return null;
       final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -305,8 +326,15 @@ class _LoginScreenState extends State<LoginScreen> {
   /// pending-approval / suspended / dashboard state), a returning client on
   /// [ClientShell] (onboarding skipped), and only a role-less identity replays
   /// onboarding through [LanguageScreen].
-  Widget _postLoginDestination() {
+  /// Navigates based on the EXPLICIT role when provided, otherwise falls
+  /// back to UserStore.user.value. The explicit role wins to survive races
+  /// with the auth event listener (_bindRemoteUser).
+  Widget _postLoginDestination({UserRole? explicitRole}) {
     final u = UserStore.user.value;
+    final role = explicitRole ?? u?.role;
+    if (role == UserRole.professional) return const ProShell();
+    if (role == UserRole.client) return const ClientShell();
+    // Legacy fallback: check the model's isProfessional getter too
     if (u != null && u.isProfessional) return const ProShell();
     if (u?.role != null) return const ClientShell();
     return const LanguageScreen();

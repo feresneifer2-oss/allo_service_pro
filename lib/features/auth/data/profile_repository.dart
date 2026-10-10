@@ -263,6 +263,10 @@ class ProfileRepository {
   ///     // seeded from these when the device has no entry for this pro.
   ///     'specialty': String?,
   ///     'bio': String?,
+  ///     // Phase 3S — server-side token balance + subscription window
+  ///     // (read-only here; writes go through the admin/pro RPCs).
+  ///     'tokens': int?,
+  ///     'paid_until': String?,    // ISO8601, null when no subscription
   ///   }
   ///
   /// Mirrors [fetchOwnProfessionalIsVerified] exactly: unconfigured Supabase
@@ -291,6 +295,10 @@ class ProfileRepository {
         // for callers that read the hydration fields (Step 6b).
         'specialty': null,
         'bio': null,
+        // Phase 3S keys — same SHAPE as the live select below so callers can
+        // read them regardless of which path produced the row.
+        'tokens': null,
+        'paid_until': null,
       };
     }
     if (!isConfigured) return null;
@@ -299,7 +307,7 @@ class ProfileRepository {
       final row = await Supabase.instance.client
           .from('professionals')
           .select(
-              'status, is_verified, rejection_reason, approved_at, specialty, bio')
+              'status, is_verified, rejection_reason, approved_at, specialty, bio, tokens, paid_until')
           .eq('id', id.trim())
           .maybeSingle()
           .timeout(const Duration(seconds: 8));

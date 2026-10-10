@@ -16,6 +16,7 @@ import 'package:allo_service_pro/features/anti_abuse/application/anti_abuse_bind
 import 'package:allo_service_pro/features/anti_abuse/application/anti_abuse_store.dart';
 import 'package:allo_service_pro/features/anti_abuse/presentation/ban_gate_screen.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -175,6 +176,10 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await OfflineQueue.debugReset();
       OfflineQueueBindings.registerAll();
+      // Phase B (Batch 7): the default balance is 0 — seed 150 so the
+      // accept transitions below (10-token confirmation fee) succeed.
+      ProProfileStore.tokens.value = 150;
+      ProProfileStore.tokensConsumed.value = false;
     });
 
     test('enqueue adds an action', () async {

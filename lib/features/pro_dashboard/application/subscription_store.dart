@@ -134,6 +134,31 @@ class SubscriptionStore {
     await persistToPrefs();
   }
 
+  /// Applies a server-supplied subscription deadline.
+  /// - paidUntil == null OR paidUntil <= now() → NOT PAID (inactive).
+  /// - paidUntil > now() → PAID (active), with expiresAt = paidUntil.
+  /// This is the source of truth from Supabase; call on every auth event.
+  ///
+  /// NOTE: [expiresAt] is a DERIVED getter (`activatedAt + durationDays`),
+  /// so the cycle start is back-dated to `paidUntil − durationDays` — the
+  /// getter then answers EXACTLY the server deadline (never shifted).
+  static Future<void> applyServerPaidUntil(DateTime? paidUntil) async {
+    final now = DateTime.now();
+    final isActive = paidUntil != null && paidUntil.isAfter(now);
+    if (isActive) {
+      status.value = SubscriptionStatus.active;
+      isPaidSubscriber.value = true;
+      // Derived getter: activatedAt + durationDays == paidUntil exactly.
+      activatedAt.value =
+          paidUntil.subtract(const Duration(days: durationDays));
+    } else {
+      status.value = SubscriptionStatus.inactive;
+      isPaidSubscriber.value = false;
+      activatedAt.value = null;
+    }
+    await persistToPrefs();
+  }
+
   /// Mirrors a paid state WITHOUT restarting the 30-day cycle.
   ///
   /// Used by the session-sync path: the existing activatedAt/expiration

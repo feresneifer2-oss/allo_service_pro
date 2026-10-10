@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
-import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
 import 'package:allo_service_pro/features/rating/presentation/rating_screen.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
@@ -103,7 +102,6 @@ class RequestDetailScreen extends StatelessWidget {
                           tr(context, fr: 'Ouvrir le chat', ar: 'فتح المحادثة'),
                       icon: Icons.chat_rounded,
                       onPressed: () {
-                        ChatStore.seedDemo(request.id);
                         Navigator.push(
                           context,
                           MaterialPageRoute(

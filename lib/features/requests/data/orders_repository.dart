@@ -531,6 +531,32 @@ class OrdersRepository {
     }
   }
 
+  /// Atomic server-side accept: the pro_accept_order RPC performs BOTH the
+  /// token deduction (if not paid) AND the pending→accepted transition.
+  /// Returns the NEW token balance (int) on success, null on any refusal
+  /// (insufficient tokens / not owner / wrong status / offline / unconfigured).
+  static Future<int?> acceptOrderWithFee(String orderId) async {
+    if (!isConfigured) return null;
+    if (orderId.trim().isEmpty) return null;
+    if (currentAuthUserId() == null) return null;
+    try {
+      final answer = await Supabase.instance.client.rpc(
+        'pro_accept_order',
+        params: <String, dynamic>{'p_order_id': orderId.trim()},
+      );
+      if (answer is int) return answer;
+      if (answer is num) return answer.toInt();
+      return null;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'OrdersRepository.acceptOrderWithFee',
+      );
+      return null;
+    }
+  }
+
   /// SELECT of every order visible to the current identity (RLS scopes the
   /// result). Ordered newest-first to match the local list convention.
   static Future<List<ServiceRequest>> fetchOrders() async {

@@ -88,6 +88,21 @@ abstract class AdminAuthRepository {
     required String reason,
   });
 
+  /// Admin-only: sets professionals.paid_until for the given user.
+  /// null p_until → clears the subscription (unpaid).
+  /// Returns true on success (server confirmed), false otherwise.
+  Future<bool> setSubscription({
+    required String userId,
+    DateTime? until,
+  });
+
+  /// Admin-only: adjusts the token balance by delta (may be negative).
+  /// Returns the NEW balance on success, null otherwise.
+  Future<int?> adjustTokens({
+    required String userId,
+    required int delta,
+  });
+
   /// Whether this environment can reach the authorization backend at all.
   /// A closed (unconfigured) boundary must always deny.
   bool get isConfigured;
@@ -214,6 +229,63 @@ class SupabaseAdminAuthRepository implements AdminAuthRepository {
       );
       // …and handed back as `false` — the caller's hard fail-closed signal.
       return false;
+    }
+  }
+
+  @override
+  Future<bool> setSubscription({
+    required String userId,
+    DateTime? until,
+  }) async {
+    if (!SupabaseAuthService.isConfigured) return false;
+    if (userId.trim().isEmpty) return false;
+    if (SupabaseAuthService.currentUserId == null) return false;
+    try {
+      await Supabase.instance.client.rpc(
+        'admin_set_subscription',
+        params: <String, dynamic>{
+          'p_pro_id': userId,
+          'p_until': until?.toUtc().toIso8601String(),
+        },
+      );
+      return true;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'AdminAuth.setSubscription',
+      );
+      return false;
+    }
+  }
+
+  @override
+  Future<int?> adjustTokens({
+    required String userId,
+    required int delta,
+  }) async {
+    if (!SupabaseAuthService.isConfigured) return null;
+    if (userId.trim().isEmpty) return null;
+    if (SupabaseAuthService.currentUserId == null) return null;
+    try {
+      final answer = await Supabase.instance.client.rpc(
+        'admin_adjust_tokens',
+        params: <String, dynamic>{
+          'p_pro_id': userId,
+          'p_delta': delta,
+        },
+      );
+      // The RPC returns integer (new balance).
+      if (answer is int) return answer;
+      if (answer is num) return answer.toInt();
+      return null;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'AdminAuth.adjustTokens',
+      );
+      return null;
     }
   }
 

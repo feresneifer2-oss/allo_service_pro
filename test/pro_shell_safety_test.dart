@@ -37,7 +37,7 @@ void main() {
     await ProProfileStore.reset();
 
     // Every mutable field is back to its factory default.
-    expect(ProProfileStore.tokens.value, 150);
+    expect(ProProfileStore.tokens.value, 0);
     expect(ProProfileStore.isAvailable.value, isTrue);
     expect(ProProfileStore.completedServices.value, 0);
     expect(ProProfileStore.rating.value, 0.0);

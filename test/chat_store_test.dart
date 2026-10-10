@@ -11,6 +11,7 @@ import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/models/chat_message.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 
@@ -54,6 +55,10 @@ ServiceRequest _request({String id = 'req-1'}) => ServiceRequest(
 /// [RequestStore.isChatAllowed] opens the room (and [ChatStore.activate] runs
 /// through the real store path).
 Future<void> _openChat(String requestId) async {
+  // Phase B (Batch 7): the default balance is 0 — seed 150 so the accept
+  // below (10-token confirmation fee) succeeds for every caller.
+  ProProfileStore.tokens.value = 150;
+  ProProfileStore.tokensConsumed.value = false;
   RequestStore.requests.value = [_request(id: requestId)];
   expect(
     await RequestStore.updateStatus(requestId, RequestStatus.accepted),
@@ -441,8 +446,7 @@ void main() {
       expect(ChatStore.isDeliveryFailed(bubbles.first.id), isFalse);
     });
 
-    test(
-        'a failed media upload is NOT stranded: retry re-uploads and lands',
+    test('a failed media upload is NOT stranded: retry re-uploads and lands',
         () async {
       final persister = _MockInsertGateway();
       ChatStore.insertMessageGateway = persister.call;

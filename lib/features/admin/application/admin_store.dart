@@ -656,26 +656,66 @@ class AdminStore {
   }
 
   /// Manual token adjustment from the admin detail modal (+/-).
-  static void adjustTokens(String id, int delta) {
+  ///
+  /// PHASE 3S — SERVER-FIRST: with a configured backend the RPC
+  /// `admin_adjust_tokens` is the source of truth; the local registry only
+  /// mirrors the balance the server returned. Fail-closed: a refused RPC
+  /// returns null and leaves the local state untouched. An UNCONFIGURED
+  /// (local-only) build keeps the legacy clamp behavior.
+  static Future<int?> adjustTokens(String id, int delta) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return null;
+    if (SupabaseAuthService.isConfigured) {
+      final target = pendingPros.value[idx];
+      final uid = _uuidOrNull(target.authUid ?? '') ?? target.id;
+      final newBalance = await AdminAuth.instance.adjustTokens(
+        userId: uid,
+        delta: delta,
+      );
+      if (newBalance == null) return null; // fail-closed: no local change
+      // The SERVER value is the source of truth for the local mirror.
+      final list = List<PendingProModel>.from(pendingPros.value);
+      list[idx] = list[idx].copyWith(tokens: newBalance);
+      pendingPros.value = list;
+      await persistToPrefs();
+      return newBalance;
+    }
     final list = List<PendingProModel>.from(pendingPros.value);
     final next = (list[idx].tokens + delta).clamp(0, 9999);
     list[idx] = list[idx].copyWith(tokens: next);
     pendingPros.value = list;
     persistToPrefs();
+    return next;
   }
 
   /// Toggles the 30-day unlimited paid plan for a specific Pro.
   /// Low-level registry toggle kept for tests/legacy callers that do not
   /// carry an expiry timestamp (the preserved-cycle path is used on sync).
-  static void setPaid(String id, {required bool isPaid}) {
+  ///
+  /// PHASE 3S — SERVER-FIRST: with a configured backend the toggle is pushed
+  /// to `admin_set_subscription` BEFORE any local change (grant → now+30d,
+  /// revoke → null); a refused RPC leaves the registry untouched
+  /// (fail-closed). An UNCONFIGURED (local-only) build keeps the legacy
+  /// local-only behavior.
+  static Future<bool> setPaid(String id, {required bool isPaid}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
+    if (SupabaseAuthService.isConfigured) {
+      final target = pendingPros.value[idx];
+      final uid = _uuidOrNull(target.authUid ?? '') ?? target.id;
+      final until =
+          isPaid ? DateTime.now().add(const Duration(days: 30)) : null;
+      final ok = await AdminAuth.instance.setSubscription(
+        userId: uid,
+        until: until,
+      );
+      if (!ok) return false; // fail-closed: no local change
+    }
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(isPaid: isPaid);
     pendingPros.value = list;
     persistToPrefs();
+    return true;
   }
 
   /// Grants a full [days]-day paid cycle for ONE pro (default 30d). The
@@ -683,10 +723,24 @@ class AdminStore {
   /// admin never mutates the logged-in session's global subscription store —
   /// and [syncSessionStoresForCurrentUser] preserves this exact expiry on
   /// every later login (no stacking of +30 days per sync).
-  static Future<void> grantSubscription(String id, {int days = 30}) async {
+  ///
+  /// PHASE 3S — SERVER-FIRST: with a configured backend the cycle is granted
+  /// through `admin_set_subscription` BEFORE any local change; a refused RPC
+  /// leaves the registry untouched (fail-closed). An UNCONFIGURED
+  /// (local-only) build keeps the legacy local-only behavior.
+  static Future<bool> grantSubscription(String id, {int days = 30}) async {
     final idx = pendingPros.value.indexWhere((p) => p.id == id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
     final until = DateTime.now().add(Duration(days: days));
+    if (SupabaseAuthService.isConfigured) {
+      final target = pendingPros.value[idx];
+      final uid = _uuidOrNull(target.authUid ?? '') ?? target.id;
+      final ok = await AdminAuth.instance.setSubscription(
+        userId: uid,
+        until: until,
+      );
+      if (!ok) return false; // fail-closed: no local change
+    }
     final list = List<PendingProModel>.from(pendingPros.value);
     list[idx] = list[idx].copyWith(
       isPaid: true,
@@ -695,6 +749,7 @@ class AdminStore {
     pendingPros.value = list;
     await _syncSubscriptionForSession(list[idx]);
     await persistToPrefs();
+    return true;
   }
 
   /// Reverts/expires the paid cycle of ONE pro — removes the paid flag and

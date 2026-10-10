@@ -10,6 +10,7 @@ import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/auth/application/email_otp_service.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/primary_action_button.dart';
 
@@ -486,6 +487,9 @@ class _OtpScreenState extends State<OtpScreen> {
     // never inherits another identity's stores.
     await AdminStore.syncSessionStoresForCurrentUser();
     if (!mounted) return;
+    // Phase B: re-hydrate orders now that the session is authenticated.
+    // Startup hydration (main.dart) ran BEFORE login → RLS returned 0 rows.
+    unawaited(RequestStore.hydrateFromSupabase());
     FocusScope.of(context).unfocus();
     Navigator.pushReplacement(
       context,

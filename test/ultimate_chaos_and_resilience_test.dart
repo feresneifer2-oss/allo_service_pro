@@ -406,7 +406,7 @@ void main() {
       await UserStore.signOutAndReset();
 
       expect(UserStore.user.value, isNull);
-      expect(ProProfileStore.tokens.value, 150);
+      expect(ProProfileStore.tokens.value, 0);
       expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
       expect(NotificationStore.notifications.value, isEmpty);
       expect(RequestStore.requests.value, isEmpty);

@@ -134,4 +134,18 @@ class FakeAdminAuthRepository implements AdminAuthRepository {
     if (!configured || !enrolled || !rejectSucceeds) return false;
     return userId.trim().isNotEmpty;
   }
+
+  @override
+  Future<bool> setSubscription({
+    required String userId,
+    DateTime? until,
+  }) async =>
+      false;
+
+  @override
+  Future<int?> adjustTokens({
+    required String userId,
+    required int delta,
+  }) async =>
+      null;
 }

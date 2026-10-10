@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
-import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/chat/presentation/chat_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
@@ -533,7 +532,6 @@ class _ProRequestsScreenState extends State<ProRequestsScreen> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              ChatStore.seedDemo(r.id);
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(

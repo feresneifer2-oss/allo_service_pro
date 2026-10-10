@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/search/application/search_service.dart';
@@ -35,6 +36,10 @@ void main() {
     );
 
     await RequestStore.add(request);
+    // Phase B (Batch 7): the default balance is 0 — seed 150 so the accept
+    // below (10-token confirmation fee) succeeds.
+    ProProfileStore.tokens.value = 150;
+    ProProfileStore.tokensConsumed.value = false;
     // AWAITED + REACHABLE PATH (CodeRabbit): `updateStatus` validates the
     // state machine — `pending → completed` is refused, so the test walks
     // the real lifecycle: accept the order first.

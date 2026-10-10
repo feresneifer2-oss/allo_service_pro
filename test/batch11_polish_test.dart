@@ -14,6 +14,10 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await ProProfileStore.reset();
+    // Phase B (Batch 7): the default balance is 0 — seed 150 so each test
+    // below starts with a funded trial balance.
+    ProProfileStore.tokens.value = 150;
+    ProProfileStore.tokensConsumed.value = false;
   });
 
   group('ProProfileStore tokensConsumed persistence', () {
@@ -54,7 +58,8 @@ void main() {
       await ProProfileStore.reset();
       await ProProfileStore.loadFromPrefs();
       expect(ProProfileStore.tokensConsumed.value, isFalse);
-      expect(ProProfileStore.tokens.value, 150);
+      // Phase B: default is now 0 (server grants 150).
+      expect(ProProfileStore.tokens.value, 0);
     });
   });
 

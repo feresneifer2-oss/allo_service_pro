@@ -15,6 +15,7 @@ import '../../chat/application/chat_store.dart';
 import '../../notifications/application/notification_store.dart';
 import '../../pro_dashboard/application/pro_profile_store.dart';
 import '../../pro_dashboard/application/subscription_store.dart';
+import '../../auth/application/supabase_auth_service.dart';
 import '../data/orders_repository.dart';
 
 class RequestStore {
@@ -380,34 +381,66 @@ class RequestStore {
     final prevStatus = request.status;
     if (!_isValidTransition(prevStatus, status)) return false;
 
-    // TOKEN RESERVATION STRICTLY BEFORE BACKEND ACCEPTANCE (CodeRabbit):
-    // the 10-token confirmation fee is RESERVED (deducted) BEFORE the
-    // backend write and REFUNDED when the write is refused. A mere balance
-    // CHECK here (the previous order) left a race window — a concurrent
-    // confirmation could drain the balance between the check and the
-    // post-write deduction. Reserving first makes the sequence strictly
-    // serialized, and a refused write never leaves a phantom charge.
-    if (status == RequestStatus.accepted &&
-        request.status == RequestStatus.pending &&
-        !SubscriptionStore.isPaidSubscriber.value) {
-      final deducted = await ProProfileStore.deductTokens(10);
-      if (!deducted) {
-        debugPrint('RequestStore.updateStatus: trial out of tokens — '
-            'acceptance of "$id" refused BEFORE any backend write.');
-        return false;
+    // PHASE 3S — ATOMIC SERVER-SIDE ACCEPT (online + configured): the
+    // pro_accept_order RPC performs BOTH the 10-token confirmation fee
+    // (waived while the subscription is active) AND the pending→accepted
+    // flip in ONE server transaction — there is no reservation/rollback
+    // race at all, and the balance the RPC returns is mirrored locally
+    // (the server is the source of truth for tokens).
+    final isAcceptTransition = status == RequestStatus.accepted &&
+        request.status == RequestStatus.pending;
+    bool serverAccepted = false;
+
+    if (isAcceptTransition &&
+        SupabaseAuthService.isConfigured &&
+        ConnectivityStore.isOnline.value) {
+      // ONLINE + configured: atomic RPC (deduction + status server-side).
+      final newBalance = await OrdersRepository.acceptOrderWithFee(id);
+      if (newBalance == null) {
+        debugPrint('RequestStore.updateStatus: pro_accept_order refused "$id" '
+            '— accept failed (insufficient tokens / not owner / wrong status).');
+        return false; // fail-closed: no local change
+      }
+      // Mirror server balance locally (server is source of truth).
+      ProProfileStore.tokens.value = newBalance;
+      ProProfileStore.tokensConsumed.value = true;
+      await ProProfileStore.persistToPrefs();
+      serverAccepted = true;
+    }
+
+    // ── TODO(Batch 5b): OFFLINE ACCEPT GAP ──────────────────────────────
+    // When offline, this path still deducts 10 tokens locally and queues
+    // the status transition. The queue replay calls OrdersRepository.updateOrder
+    // (status only), NOT the pro_accept_order RPC — so server-side tokens are
+    // NOT debited. This will be addressed in a follow-up batch by teaching the
+    // offline queue executor to call the RPC for accepted transitions, or by
+    // rejecting offline accept entirely.
+    // ────────────────────────────────────────────────────────────────────
+    if (isAcceptTransition && !serverAccepted) {
+      // LEGACY PATH (offline or unconfigured build): token reservation
+      // strictly BEFORE the backend acceptance, refunded on refusal below.
+      if (!SubscriptionStore.isPaidSubscriber.value) {
+        final deducted = await ProProfileStore.deductTokens(10);
+        if (!deducted) {
+          debugPrint('RequestStore.updateStatus: trial out of tokens — '
+              'acceptance of "$id" refused BEFORE any backend write.');
+          return false;
+        }
       }
     }
 
-    // MIRROR-FIRST GATE: when the write lands on the backend, the local
-    // commit below runs on a confirmed row; when the backend refuses, local
-    // state is never touched — and the token reservation is REFUNDED, so a
-    // refused acceptance never leaves a phantom charge on the balance.
-    if (ConnectivityStore.isOnline.value && OrdersRepository.isConfigured) {
+    // MIRROR-FIRST GATE (skipped when the atomic RPC already landed):
+    // when the write lands on the backend, the local commit below runs on a
+    // confirmed row; when the backend refuses, local state is never touched —
+    // and the legacy token reservation is REFUNDED, so a refused acceptance
+    // never leaves a phantom charge on the balance.
+    if (!serverAccepted &&
+        ConnectivityStore.isOnline.value &&
+        OrdersRepository.isConfigured) {
       final confirmed = await _mirrorStatusTransition(id, status);
       if (!confirmed) {
-        if (status == RequestStatus.accepted &&
-            request.status == RequestStatus.pending &&
-            !SubscriptionStore.isPaidSubscriber.value) {
+        // ROLLBACK (legacy path only — the RPC path never reaches here).
+        if (isAcceptTransition && !SubscriptionStore.isPaidSubscriber.value) {
           await ProProfileStore.addTokens(10);
         }
         debugPrint('RequestStore.updateStatus: backend refused "$id" → '
@@ -766,6 +799,20 @@ class RequestStore {
     if (remote.isEmpty) return false;
 
     requests.value = mergeHydrated(requests.value, remote);
+    // Phase B FIX: activate chat sessions for orders that are in an active
+    // status. On a fresh install, ChatStore.sessions is empty and
+    // isChatAllowed → false, hiding the chat button. Mirror the exact pattern
+    // used in applyRemoteOrder (~748-755).
+    for (final r in requests.value) {
+      final wasLive = ChatStore.isActive(r.id);
+      final session = ChatStore.sessionOf(r.id);
+      final expired = session != null && session.isExpired;
+      if (r.status.isActive && !wasLive && !expired) {
+        ChatStore.activate(r.id);
+      } else if (r.status.isDone && wasLive) {
+        ChatStore.deactivate(r.id);
+      }
+    }
     // Phase A: real stats — the dashboard/profile badges mirror the loaded
     // orders (0/0.0 for a new pro), never a seed.
     ProProfileStore.computeFromOrders(requests.value);

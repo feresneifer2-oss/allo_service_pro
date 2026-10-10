@@ -92,7 +92,6 @@ class MessagesListScreen extends StatelessWidget {
                       );
                       return;
                     }
-                    ChatStore.seedDemo(r.id);
                     Navigator.push(
                       context,
                       MaterialPageRoute(

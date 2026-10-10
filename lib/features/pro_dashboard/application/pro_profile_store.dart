@@ -25,7 +25,7 @@ class ProProfileStore {
   /// the UI contract (every existing listener — the dashboard's green/red dot,
   /// `ProfessionalProfileScreen` — keeps reacting in the very next frame).
   static final isAvailable = ValueNotifier<bool>(true);
-  static final tokens = ValueNotifier<int>(150);
+  static final tokens = ValueNotifier<int>(0);
   // Phase A: honest defaults — REAL stats come from the loaded orders via
   // [computeFromOrders] (a new pro has 0 completed services and no rating).
   static final completedServices = ValueNotifier<int>(0);
@@ -94,7 +94,8 @@ class ProProfileStore {
   /// Restores the persisted token balance, consumption flag and availability
   /// state at app startup.
   ///
-  /// Falls back to the default trial balance (150) when nothing is saved.
+  /// Falls back to the default balance 0 — the server (professionals.tokens)
+  /// grants 150 on admin approval (Phase B).
   /// The consumption flag is restored BEFORE the balance so any listener
   /// fired by the balance update already observes the final state.
   ///
@@ -115,7 +116,7 @@ class ProProfileStore {
     if (prefs.containsKey(_kTokensConsumed)) {
       tokensConsumed.value = prefs.getBool(_kTokensConsumed) ?? false;
     }
-    tokens.value = prefs.getInt(_kTokens) ?? 150;
+    tokens.value = prefs.getInt(_kTokens) ?? 0;
   }
 
   // ─── Persistent availability (Supabase `pro_availability`) ──────────────
@@ -296,7 +297,8 @@ class ProProfileStore {
   /// never leak data (tokens, pricing, photos, ratings, zones, badges…)
   /// into the next account on this device.
   static Future<void> reset() async {
-    tokens.value = 150;
+    // Phase B: default 0 — server grants 150 on admin approval.
+    tokens.value = 0;
     isAvailable.value = true;
     // Phase A: honest logout defaults — never the demo seeds.
     completedServices.value = 0;

@@ -161,7 +161,7 @@ void main() {
     // holds NO cycle, so the status is `inactive` (never activated), not
     // `active`.
     expect(SubscriptionStore.status.value, SubscriptionStatus.inactive);
-    expect(ProProfileStore.tokens.value, 150);
+    expect(ProProfileStore.tokens.value, 0);
   });
 
   test('app restart after logout NEVER auto-logs back in', () async {
@@ -176,7 +176,7 @@ void main() {
     // No session → the splash must route to the welcome / auth flow.
     expect(UserStore.user.value, isNull);
     expect(SubscriptionStore.isPaidSubscriber.value, isFalse);
-    expect(ProProfileStore.tokens.value, 150);
+    expect(ProProfileStore.tokens.value, 0);
   });
 
   test(

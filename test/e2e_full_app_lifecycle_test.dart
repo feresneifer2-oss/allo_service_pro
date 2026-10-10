@@ -381,6 +381,10 @@ void main() {
       message: 'Need urgent fixing',
       createdAt: DateTime.now(),
     ));
+    // Phase B (Batch 7): the default balance is 0 — seed 150 so the accept
+    // below (10-token confirmation fee) succeeds.
+    ProProfileStore.tokens.value = 150;
+    ProProfileStore.tokensConsumed.value = false;
     expect(
         await RequestStore.updateStatus(
             'e2e-request-1', RequestStatus.accepted),
