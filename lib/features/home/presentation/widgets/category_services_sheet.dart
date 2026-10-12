@@ -115,8 +115,7 @@ void showCategoryServicesSheet(
                           onPressed: () {
                             final navigator = Navigator.of(sheetContext);
                             navigator.pop();
-                            showProfessionalsSheet(
-                                navigator.context, t.fr, t.ar);
+                            showProfessionalsSheet(navigator.context, t.id);
                           },
                           child: Text(tr(context, fr: "Voir", ar: "عرض")),
                         ),

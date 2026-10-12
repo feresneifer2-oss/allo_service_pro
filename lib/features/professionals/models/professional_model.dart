@@ -4,6 +4,7 @@ class ProfessionalModel {
   final String professionFr;
   final String professionAr;
   final List<String> serviceIds;
+  final String? categoryId; // 'home' | 'auto' | ... (ServicesCatalog id)
   final double rating;
   final String city; // Arabic city name
   final String cityFr; // French city name
@@ -46,6 +47,7 @@ class ProfessionalModel {
     required this.professionFr,
     required this.professionAr,
     required this.serviceIds,
+    this.categoryId,
     required this.rating,
     required this.city,
     this.cityFr = '',
@@ -56,16 +58,17 @@ class ProfessionalModel {
     this.priceFrom,
     this.pricingType = 'fixed',
     this.workImages = const [],
-    this.punctualityRate = 0.95,
-    this.acceptanceRate = 0.90,
-    this.responseTimeMin = 30,
+    // Phase 4: honest defaults — no fake stats (client sees 0/hidden).
+    this.punctualityRate = 0.0,
+    this.acceptanceRate = 0.0,
+    this.responseTimeMin = 0,
     this.hasBrandedUniform = false,
     required this.experienceYears,
     required this.aboutFr,
     required this.aboutAr,
     required this.servicesFr,
     required this.servicesAr,
-    this.reviewCount = 24,
+    this.reviewCount = 0,
     this.badges = const [],
     this.authUid,
   });
@@ -89,6 +92,7 @@ class ProfessionalModel {
       professionFr: professionFr,
       professionAr: professionAr,
       serviceIds: serviceIds,
+      categoryId: categoryId,
       rating: rating,
       city: city,
       cityFr: cityFr,

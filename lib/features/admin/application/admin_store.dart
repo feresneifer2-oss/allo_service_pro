@@ -5,6 +5,8 @@ import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
+import 'package:allo_service_pro/core/error/app_error_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/notifications/domain/notification_model.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
@@ -592,7 +594,9 @@ class AdminStore {
     // aborts BEFORE any local write, mirroring rejectPro — the registry,
     // prefs and local session must never run ahead of the server.
     if (SupabaseAuthService.isConfigured) {
-      final ok = await ProfileRepository.resubmitOwnProfessionalProof();
+      final ok = await ProfileRepository.resubmitOwnProfessionalProof(
+        proofPath: proofPath,
+      );
       if (!ok) return false;
     }
 
@@ -1212,6 +1216,105 @@ class AdminStore {
       _proSeq = (prefs.getInt(_kSeq) ?? decoded.length + 1).clamp(1, 999999);
     } catch (_) {
       // Corrupted registry: keep seeded demo data.
+    }
+  }
+
+  /// Phase 4C: hydrate the client-facing registry from Supabase.
+  /// Merges approved pros into pendingPros. Idempotent (updates in place).
+  /// Returns count synced.
+  static Future<int> hydrateApprovedProsFromSupabase() async {
+    if (!SupabaseAuthService.isConfigured) return 0;
+    if (SupabaseAuthService.currentUserId == null) return 0;
+    try {
+      final answer =
+          await Supabase.instance.client.rpc('list_approved_professionals');
+      if (answer is! List) return 0;
+
+      final existing = List<PendingProModel>.from(pendingPros.value);
+      final byId = <String, int>{
+        for (var i = 0; i < existing.length; i++) existing[i].id: i,
+      };
+
+      var synced = 0;
+      for (final raw in answer) {
+        if (raw is! Map) continue;
+        final row = Map<String, dynamic>.from(raw);
+        final id = (row['id'] as String?)?.trim() ?? '';
+        if (id.isEmpty) continue;
+
+        final specialty = (row['specialty'] as String?)?.trim() ?? '';
+        final bio = (row['bio'] as String?)?.trim() ?? '';
+        final name = (row['name'] as String?)?.trim() ?? '';
+        final phone = (row['phone'] as String?)?.trim() ?? '';
+        final email = (row['email'] as String?)?.trim();
+        final categoryId = (row['category_id'] as String?)?.trim();
+
+        final serviceIdsRaw = row['service_ids'];
+        final serviceIds = serviceIdsRaw is List
+            ? serviceIdsRaw.whereType<String>().toList(growable: false)
+            : const <String>[];
+
+        final workImagesRaw = row['work_images'];
+        final galleryPhotos = workImagesRaw is List
+            ? workImagesRaw.whereType<String>().toList(growable: false)
+            : const <String>[];
+
+        final badgesRaw = row['badges'];
+        final badges = badgesRaw is List
+            ? badgesRaw.whereType<String>().toList(growable: false)
+            : const <String>[];
+
+        final pricingType = (row['pricing_type'] as String?)?.trim();
+        final priceFromRaw = row['price_from'];
+        final priceFrom = priceFromRaw is num ? priceFromRaw.toInt() : null;
+
+        // Phase 4D: server-computed aggregates (tolerant — missing → 0.0/0).
+        final ratingRaw = row['rating'];
+        final rating = ratingRaw is num ? ratingRaw.toDouble() : 0.0;
+        final reviewCountRaw = row['review_count'];
+        final reviewCount = reviewCountRaw is num ? reviewCountRaw.toInt() : 0;
+
+        final model = PendingProModel(
+          id: id,
+          name: name,
+          phone: phone,
+          email: (email != null && email.isNotEmpty) ? email : null,
+          professionFr: specialty,
+          professionAr: specialty,
+          submittedAt: _todayLabel(),
+          status: 'approved',
+          authUid: _uuidOrNull(id),
+          categoryId: categoryId,
+          serviceIds: serviceIds,
+          galleryPhotos: galleryPhotos,
+          badges: badges,
+          description: bio,
+          pricingType: pricingType,
+          priceFrom: priceFrom,
+          rating: rating,
+          reviewCount: reviewCount,
+        );
+
+        final idx = byId[id];
+        if (idx == null) {
+          existing.add(model);
+          byId[id] = existing.length - 1;
+        } else {
+          existing[idx] = model;
+        }
+        synced++;
+      }
+
+      pendingPros.value = existing;
+      await persistToPrefs();
+      return synced;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'AdminStore.hydrateApprovedProsFromSupabase',
+      );
+      return 0;
     }
   }
 }

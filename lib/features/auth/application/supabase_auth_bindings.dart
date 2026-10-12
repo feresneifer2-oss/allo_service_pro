@@ -280,6 +280,26 @@ Future<void> _bindRemoteUser(AuthState state) async {
         ProProfileStore.tokens.value = tokensInt;
         await ProProfileStore.persistToPrefs();
       }
+      // PHASE 3U: sync work_images, zones, pricing_type, price_from.
+      final wiRaw = statusRow['work_images'];
+      if (wiRaw is List) {
+        ProProfileStore.workImages.value =
+            wiRaw.whereType<String>().toList(growable: false);
+      }
+      final zoRaw = statusRow['zones'];
+      if (zoRaw is List) {
+        final zonesList = zoRaw.whereType<String>().toList(growable: false);
+        ProProfileStore.zones = List<String>.from(zonesList);
+        ProProfileStore.serviceZones.value = zonesList;
+      }
+      final ptRaw = statusRow['pricing_type']?.toString();
+      if (ptRaw != null && ptRaw.trim().isNotEmpty) {
+        ProProfileStore.pricingType.value = ptRaw.trim();
+      }
+      final pfRaw = statusRow['price_from'];
+      if (pfRaw is num) {
+        ProProfileStore.priceFrom.value = pfRaw.toInt();
+      }
       final paidUntilRaw = statusRow['paid_until'];
       final paidUntil = paidUntilRaw is String
           ? DateTime.tryParse(paidUntilRaw)?.toLocal()

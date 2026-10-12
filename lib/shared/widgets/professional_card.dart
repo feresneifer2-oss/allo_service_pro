@@ -7,7 +7,7 @@ class ProfessionalCard extends StatelessWidget {
     super.key,
     this.name = "Ahmed Ben Ali",
     this.profession = "Electricien",
-    this.rating = 4.9,
+    this.rating = 0.0,
     this.location = "Ariana",
     this.verified = true,
     this.buttonText = "Voir",

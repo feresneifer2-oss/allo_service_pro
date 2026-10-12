@@ -170,48 +170,65 @@ class ProfessionalProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Statistiques d'engagement
-                  _Section(
-                    title: tr(context,
-                        fr: 'Statistiques d\'engagement',
-                        ar: 'مؤشرات الالتزام والنشاط'),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _StatMetric(
-                            icon: Icons.alarm_rounded,
-                            color: AppColors.primary,
-                            title: tr(context,
-                                fr: 'Ponctualité', ar: 'الالتزام بالوقت'),
-                            value:
-                                '${(finalPro.punctualityRate * 100).toInt()}%',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatMetric(
-                            icon: Icons.task_alt_rounded,
-                            color: AppColors.secondary,
-                            title: tr(context,
-                                fr: 'Acceptation', ar: 'قبول الطلبات'),
-                            value:
-                                '${(finalPro.acceptanceRate * 100).toInt()}%',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatMetric(
-                            icon: Icons.bolt_rounded,
-                            color: AppColors.success,
-                            title: tr(context,
-                                fr: 'Rép. moyenne', ar: 'سرعة الرد'),
-                            value: '${finalPro.responseTimeMin} min',
-                          ),
-                        ),
-                      ],
+                  // Statistiques d'engagement — Phase 4: honest display.
+                  // Metrics with no data yet (0) are hidden rather than
+                  // shown as fake "0%". The whole section is skipped when
+                  // nothing is available.
+                  if (finalPro.punctualityRate > 0 ||
+                      finalPro.acceptanceRate > 0 ||
+                      finalPro.responseTimeMin > 0)
+                    _Section(
+                      title: tr(context,
+                          fr: 'Statistiques d\'engagement',
+                          ar: 'مؤشرات الالتزام والنشاط'),
+                      child: Row(
+                        children: [
+                          if (finalPro.punctualityRate > 0)
+                            Expanded(
+                              child: _StatMetric(
+                                icon: Icons.alarm_rounded,
+                                color: AppColors.primary,
+                                title: tr(context,
+                                    fr: 'Ponctualité', ar: 'الالتزام بالوقت'),
+                                value:
+                                    '${(finalPro.punctualityRate * 100).toInt()}%',
+                              ),
+                            ),
+                          if (finalPro.punctualityRate > 0 &&
+                              (finalPro.acceptanceRate > 0 ||
+                                  finalPro.responseTimeMin > 0))
+                            const SizedBox(width: 8),
+                          if (finalPro.acceptanceRate > 0)
+                            Expanded(
+                              child: _StatMetric(
+                                icon: Icons.task_alt_rounded,
+                                color: AppColors.secondary,
+                                title: tr(context,
+                                    fr: 'Acceptation', ar: 'قبول الطلبات'),
+                                value:
+                                    '${(finalPro.acceptanceRate * 100).toInt()}%',
+                              ),
+                            ),
+                          if (finalPro.acceptanceRate > 0 &&
+                              finalPro.responseTimeMin > 0)
+                            const SizedBox(width: 8),
+                          if (finalPro.responseTimeMin > 0)
+                            Expanded(
+                              child: _StatMetric(
+                                icon: Icons.bolt_rounded,
+                                color: AppColors.success,
+                                title: tr(context,
+                                    fr: 'Rép. moyenne', ar: 'سرعة الرد'),
+                                value: '${finalPro.responseTimeMin} min',
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                  if (finalPro.punctualityRate > 0 ||
+                      finalPro.acceptanceRate > 0 ||
+                      finalPro.responseTimeMin > 0)
+                    const SizedBox(height: 16),
 
                   _Section(
                     title: tr(context,
@@ -361,16 +378,19 @@ class ProfessionalProfileScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          tr(
-                            context,
-                            fr: 'Excellent travail, très professionnel !',
-                            ar: 'شغل ممتاز، محترف جداً!',
+                        // Phase 4: honest display — hide the placeholder
+                        // quote when there are no reviews yet.
+                        if (finalPro.reviewCount > 0)
+                          Text(
+                            tr(
+                              context,
+                              fr: 'Excellent travail, très professionnel !',
+                              ar: 'شغل ممتاز، محترف جداً!',
+                            ),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontStyle: FontStyle.italic),
                           ),
-                          style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontStyle: FontStyle.italic),
-                        ),
                       ],
                     ),
                   ),

@@ -4,6 +4,7 @@ import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
 import 'package:allo_service_pro/features/professionals/data/mock_professionals.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
+import 'package:flutter/foundation.dart';
 
 /// Single source of truth for the client-facing professionals feed.
 ///
@@ -46,8 +47,11 @@ class ProfessionalsRepository {
         name: p.name,
         professionFr: p.professionFr,
         professionAr: p.professionAr,
-        serviceIds: const [],
-        rating: 5.0,
+        categoryId: p.categoryId,
+        serviceIds: p.serviceIds,
+        // Phase 4D: real server-computed aggregates hydrated from
+        // public.orders (0.0/0 = no ratings yet — never a fake 5.0).
+        rating: p.rating,
         city: loc?.governorateAr ?? cityFr,
         cityFr: cityFr,
         servicesCount: 0,
@@ -84,7 +88,8 @@ class ProfessionalsRepository {
         // travel into the client-facing model, so the feed / profile tiles
         // render the REAL work instead of an empty placeholder list.
         workImages: List<String>.from(p.galleryPhotos),
-        reviewCount: 0,
+        // Phase 4D: real count hydrated alongside [rating] above.
+        reviewCount: p.reviewCount,
         badges: p.badges,
         // Phase 3J: propagate the registered auth identity into the
         // client-facing model. The public `id` above stays the PRO-XXXXX
@@ -111,10 +116,17 @@ class ProfessionalsRepository {
   /// Every curated entry passes through the availability overlay
   /// ([_withRemoteAvailability]) exactly like the live registrations, so one
   /// realtime toggle repaints the whole feed with a single rule.
-  static List<ProfessionalModel> get all => [
-        ...live,
-        ...allProfessionals.map(_withRemoteAvailability),
-      ];
+  ///
+  /// Phase 4: RELEASE builds show ONLY real registered pros — the curated
+  /// mock catalog (Ahmed Ben Ali, Fatma B. …) stays for debug/test/demo.
+  static List<ProfessionalModel> get all {
+    final livePros = live;
+    if (kReleaseMode) return livePros; // production: real pros only
+    return [
+      ...livePros,
+      ...allProfessionals.map(_withRemoteAvailability),
+    ];
+  }
 
   /// Applies the PERSISTED availability of [p] when the backend knows one.
   ///
@@ -146,8 +158,14 @@ class ProfessionalsRepository {
       if (p.serviceIds.contains(serviceId)) merged[p.id] = p;
     }
 
-    // 2) Live-approved pros matched by profession label (their serviceIds
-    //    list is intentionally empty — the label is their specialty).
+    // 2) LIVE pros by exact service id (Phase 4B — real serviceIds from
+    //    registration).
+    for (final p in live) {
+      if (p.serviceIds.contains(serviceId)) merged[p.id] = p;
+    }
+
+    // 3) FALLBACK: live-approved pros matched by profession label when
+    //    their ids are still empty (legacy rows).
     final item = AppServicesCatalog.byId(serviceId);
     if (item != null) {
       final fr = item.nameFr.toLowerCase();
@@ -162,7 +180,9 @@ class ProfessionalsRepository {
     }
 
     final list = merged.values.toList();
-    if (list.isEmpty && item == null) return all.take(6).toList();
+    // Phase 4H: no fallback — if no pro serves this service, return empty.
+    // Showing random pros misleads the client (e.g. Feres appears in
+    // Mécanicien).
     return list;
   }
 }

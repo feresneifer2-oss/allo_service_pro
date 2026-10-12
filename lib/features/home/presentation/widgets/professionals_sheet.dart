@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/features/booking/presentation/booking_screen.dart';
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
@@ -12,17 +13,22 @@ import 'package:allo_service_pro/shared/widgets/professional_card.dart';
 /// request the pro can accept or decline from their dashboard.
 void showProfessionalsSheet(
   BuildContext context,
-  String professionFr,
-  String professionAr,
+  String serviceId,
 ) {
-  final title = tr(context, fr: professionFr, ar: professionAr);
+  // Resolve the sheet title: new catalog first (ServiceItem ids like
+  // 'peintre'), then the legacy nav catalog (CatalogType ids like 'painter').
+  final catalogItem = AppServicesCatalog.byId(serviceId);
+  final title = catalogItem != null
+      ? tr(context, fr: catalogItem.nameFr, ar: catalogItem.nameAr)
+      : tr(context, fr: serviceId, ar: serviceId);
 
-  final matches = ProfessionalsRepository.all
-      .where((p) => p.professionFr.toLowerCase() == professionFr.toLowerCase())
-      .toList();
-  final pros =
-      matches.isNotEmpty ? matches : ProfessionalsRepository.all.toList()
-        ..sort((a, b) => b.rating.compareTo(a.rating));
+  // ID-first: pros whose registered serviceIds include this service.
+  // forService already merges curated + live pros and falls back to
+  // label matching for legacy rows — NO fallback to ALL here: an empty
+  // list means nobody serves this service.
+  final pros = ProfessionalsRepository.forService(serviceId);
+  final sorted = List<ProfessionalModel>.from(pros)
+    ..sort((a, b) => b.rating.compareTo(a.rating));
 
   showModalBottomSheet(
     context: context,
@@ -61,7 +67,7 @@ void showProfessionalsSheet(
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ...pros.map((ProfessionalModel pro) {
+              ...sorted.map((ProfessionalModel pro) {
                 return ProfessionalCard(
                   name: pro.name,
                   profession:

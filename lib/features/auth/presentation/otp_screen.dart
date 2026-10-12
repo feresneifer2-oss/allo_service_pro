@@ -490,6 +490,8 @@ class _OtpScreenState extends State<OtpScreen> {
     // Phase B: re-hydrate orders now that the session is authenticated.
     // Startup hydration (main.dart) ran BEFORE login → RLS returned 0 rows.
     unawaited(RequestStore.hydrateFromSupabase());
+    // Phase 4C: hydrate approved pros (client feed).
+    unawaited(AdminStore.hydrateApprovedProsFromSupabase());
     FocusScope.of(context).unfocus();
     Navigator.pushReplacement(
       context,

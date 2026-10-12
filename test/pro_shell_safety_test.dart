@@ -45,10 +45,11 @@ void main() {
     expect(ProProfileStore.pricingType.value, 'fixed');
     expect(ProProfileStore.priceFrom.value, 50);
     expect(ProProfileStore.workImages.value, isEmpty);
-    expect(ProProfileStore.punctualityRate.value, 0.98);
-    expect(ProProfileStore.acceptanceRate.value, 0.96);
-    expect(ProProfileStore.responseTimeMin.value, 15);
-    expect(ProProfileStore.hasBrandedUniform.value, isTrue);
+    // Phase 4: honest defaults — no fake stats for a new pro.
+    expect(ProProfileStore.punctualityRate.value, 0.0);
+    expect(ProProfileStore.acceptanceRate.value, 0.0);
+    expect(ProProfileStore.responseTimeMin.value, 0);
+    expect(ProProfileStore.hasBrandedUniform.value, isFalse);
     expect(ProProfileStore.serviceZones.value, isEmpty);
     expect(ProProfileStore.zones, isEmpty);
     expect(ProProfileStore.professionFr, isNull);

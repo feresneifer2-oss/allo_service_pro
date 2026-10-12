@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
+import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
@@ -196,8 +198,31 @@ class _ServiceZonesScreenState extends State<ServiceZonesScreen> {
     );
   }
 
-  void _saveZones() {
-    ProProfileStore.updateServiceZones(_selectedGovernorates.toList());
+  Future<void> _saveZones() async {
+    final zones = _selectedGovernorates.toList();
+    // Server-first (Phase 4 Batch 5): persist zones BEFORE local update.
+    if (SupabaseAuthService.isConfigured) {
+      final ok = await ProfileRepository.updateOwnProfessionalProfile(
+        zones: zones,
+      );
+      if (!ok) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(
+              context,
+              fr: 'Échec de l\'enregistrement — vérifiez votre connexion.',
+              ar: 'تعذّر الحفظ — تحقّق من الاتصال.',
+            )),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return; // fail-closed: no local change, no pop
+      }
+    }
+    // Success (or local-only build): update the local mirror.
+    ProProfileStore.updateServiceZones(zones);
+    if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

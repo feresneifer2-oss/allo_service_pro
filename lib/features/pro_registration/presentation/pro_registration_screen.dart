@@ -252,6 +252,9 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           authUid: SupabaseAuthService.currentUserId ?? session?.id,
           professionFr: _selectedCategory?.fr ?? 'Peintre',
           professionAr: _selectedCategory?.ar ?? 'دهّان',
+          categoryId: _selectedCategory?.id,
+          serviceIds:
+              _selectedSpecialties.map((s) => s.id).toList(growable: false),
           city: _city ?? _governorate,
           submittedAt:
               '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
@@ -304,9 +307,24 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
               : newPro.specialtiesFr;
           final specialtyText =
               chips.isNotEmpty ? chips.join(', ') : newPro.professionAr;
+          final remoteGallery = _galleryRemotePaths
+              .whereType<String>()
+              .where((p) => p.trim().isNotEmpty)
+              .toList();
           final ok = await ProfileRepository.upsertOwnProfessionalPending(
             specialty: specialtyText,
+            categoryId: _selectedCategory?.id,
+            serviceIds:
+                _selectedSpecialties.map((s) => s.id).toList(growable: false),
             bio: newPro.description ?? '',
+            proofPath: _docRemotePath ?? proof,
+            selfiePath: _selfieRemotePath ?? _selfiePhotoPath,
+            workImages: remoteGallery.isNotEmpty
+                ? remoteGallery
+                : List.from(_galleryPhotos),
+            zones: [_governorate],
+            pricingType: _pricingType,
+            priceFrom: _pricingType == 'quote' ? null : _priceFrom,
           );
           if (!ok) {
             if (!mounted) return;

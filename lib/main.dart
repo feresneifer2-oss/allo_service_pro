@@ -174,6 +174,9 @@ Future<void> main() async {
     // no-op when Supabase is not initialized (tests / offline demo builds).
     unawaited(RequestStore.hydrateFromSupabase());
 
+    // Phase 4C: hydrate approved pros (client feed).
+    unawaited(AdminStore.hydrateApprovedProsFromSupabase());
+
     // PERSISTED AVAILABILITY BOARD (Supabase `pro_availability`): the client
     // feed's badges and the pro's own switch must reflect the state that was
     // durably stored — not a connection heuristic and not a restart default.

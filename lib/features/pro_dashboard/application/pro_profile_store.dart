@@ -43,10 +43,11 @@ class ProProfileStore {
   static final priceFrom = ValueNotifier<int>(50);
   static final workImages = ValueNotifier<List<String>>([]);
 
-  static final punctualityRate = ValueNotifier<double>(0.98);
-  static final acceptanceRate = ValueNotifier<double>(0.96);
-  static final responseTimeMin = ValueNotifier<int>(15);
-  static final hasBrandedUniform = ValueNotifier<bool>(true);
+  // Phase 4: honest defaults — no fake stats for a new pro.
+  static final punctualityRate = ValueNotifier<double>(0.0);
+  static final acceptanceRate = ValueNotifier<double>(0.0);
+  static final responseTimeMin = ValueNotifier<int>(0);
+  static final hasBrandedUniform = ValueNotifier<bool>(false);
 
   // Service zones (governorates) — empty until the pro configures them
   // (Phase A: no pre-selected seed).
@@ -307,10 +308,10 @@ class ProProfileStore {
     pricingType.value = 'fixed';
     priceFrom.value = 50;
     workImages.value = [];
-    punctualityRate.value = 0.98;
-    acceptanceRate.value = 0.96;
-    responseTimeMin.value = 15;
-    hasBrandedUniform.value = true;
+    punctualityRate.value = 0.0;
+    acceptanceRate.value = 0.0;
+    responseTimeMin.value = 0;
+    hasBrandedUniform.value = false;
     // Phase A: zones reset to EMPTY — the previous Ariana/Tunis seed made
     // every new account look pre-configured.
     serviceZones.value = [];

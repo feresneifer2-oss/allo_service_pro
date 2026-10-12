@@ -267,6 +267,15 @@ class ProfileRepository {
   ///     // (read-only here; writes go through the admin/pro RPCs).
   ///     'tokens': int?,
   ///     'paid_until': String?,    // ISO8601, null when no subscription
+  ///     'category_id': String?,
+  ///     'service_ids': `List<String>?`,
+  ///     'proof_path': String?,
+  ///     'selfie_path': String?,
+  ///     'work_images': List?,
+  ///     'badges': List?,
+  ///     'zones': List?,
+  ///     'pricing_type': String?,
+  ///     'price_from': num?,
   ///   }
   ///
   /// Mirrors [fetchOwnProfessionalIsVerified] exactly: unconfigured Supabase
@@ -290,6 +299,8 @@ class ProfileRepository {
         'status': verified ? 'approved' : 'pending',
         'is_verified': verified,
         'rejection_reason': null,
+        'category_id': null,
+        'service_ids': null,
         'approved_at': null,
         // Same keys as the live select — the seam must not change the SHAPE
         // for callers that read the hydration fields (Step 6b).
@@ -299,6 +310,13 @@ class ProfileRepository {
         // read them regardless of which path produced the row.
         'tokens': null,
         'paid_until': null,
+        'proof_path': null,
+        'selfie_path': null,
+        'work_images': null,
+        'badges': null,
+        'zones': null,
+        'pricing_type': null,
+        'price_from': null,
       };
     }
     if (!isConfigured) return null;
@@ -307,7 +325,7 @@ class ProfileRepository {
       final row = await Supabase.instance.client
           .from('professionals')
           .select(
-              'status, is_verified, rejection_reason, approved_at, specialty, bio, tokens, paid_until')
+              'status, is_verified, rejection_reason, approved_at, specialty, bio, tokens, paid_until, proof_path, selfie_path, work_images, badges, zones, pricing_type, price_from, category_id, service_ids')
           .eq('id', id.trim())
           .maybeSingle()
           .timeout(const Duration(seconds: 8));
@@ -338,18 +356,78 @@ class ProfileRepository {
   /// `false` (reported through the app error boundary) — the caller MUST
   /// then abort its local re-submission. `true` means only that the SERVER
   /// confirmed the reset (a non-empty `professional_id` came back).
-  static Future<bool> resubmitOwnProfessionalProof() async {
+  static Future<bool> resubmitOwnProfessionalProof({String? proofPath}) async {
     if (!isConfigured) return false;
     if (SupabaseAuthService.currentUserId == null) return false;
     try {
-      final answer =
-          await Supabase.instance.client.rpc('professional_resubmit_own_proof');
+      final params = <String, dynamic>{};
+      if (proofPath != null && proofPath.trim().isNotEmpty) {
+        params['p_proof_path'] = proofPath.trim();
+      }
+      final answer = await Supabase.instance.client.rpc(
+        'professional_resubmit_own_proof',
+        params: params.isEmpty ? null : params,
+      );
       return _confirmedProfessionalId(answer) != null;
     } catch (e, st) {
       AppErrorHandler.report(
         e,
         st,
         context: 'ProfileRepository.resubmitOwnProfessionalProof',
+      );
+      return false;
+    }
+  }
+
+  /// Self-service profile update via the pro_update_profile RPC.
+  /// All params are optional; null means "keep existing value".
+  /// Returns true on success, false on any failure (fail-closed).
+  static Future<bool> updateOwnProfessionalProfile({
+    String? specialty,
+    String? bio,
+    String? pricingType,
+    num? priceFrom,
+    List<String>? workImages,
+    List<String>? zones,
+  }) async {
+    if (!isConfigured) return false;
+    if (SupabaseAuthService.currentUserId == null) return false;
+    try {
+      final params = <String, dynamic>{};
+      if (specialty != null && specialty.trim().isNotEmpty) {
+        params['p_specialty'] = specialty.trim();
+      }
+      if (bio != null && bio.trim().isNotEmpty) {
+        params['p_bio'] = bio.trim();
+      }
+      if (pricingType != null && pricingType.trim().isNotEmpty) {
+        params['p_pricing_type'] = pricingType.trim();
+      }
+      if (priceFrom != null) {
+        params['p_price_from'] = priceFrom;
+      }
+      if (workImages != null) {
+        params['p_work_images'] = workImages;
+      }
+      if (zones != null) {
+        params['p_zones'] = zones;
+      }
+      if (params.isEmpty) return true; // nothing to update
+      final answer = await Supabase.instance.client.rpc(
+        'pro_update_profile',
+        params: params,
+      );
+      if (answer is List && answer.isNotEmpty) {
+        final row = answer.first;
+        if (row is Map && row['updated_id'] != null) return true;
+      }
+      if (answer is Map && answer['updated_id'] != null) return true;
+      return false;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'ProfileRepository.updateOwnProfessionalProfile',
       );
       return false;
     }
@@ -399,6 +477,14 @@ class ProfileRepository {
   static Future<bool> upsertOwnProfessionalPending({
     required String specialty,
     required String bio,
+    String? proofPath,
+    String? selfiePath,
+    List<String>? workImages,
+    List<String>? zones,
+    String? pricingType,
+    num? priceFrom,
+    String? categoryId,
+    List<String>? serviceIds,
   }) async {
     if (!isConfigured) return false;
     final uid = SupabaseAuthService.currentUserId;
@@ -411,6 +497,19 @@ class ProfileRepository {
           'bio': bio,
           'status': 'pending',
           'is_verified': false,
+          if (pricingType != null && pricingType.trim().isNotEmpty)
+            'pricing_type': pricingType.trim(),
+          if (priceFrom != null) 'price_from': priceFrom,
+          if (proofPath != null && proofPath.trim().isNotEmpty)
+            'proof_path': proofPath.trim(),
+          if (selfiePath != null && selfiePath.trim().isNotEmpty)
+            'selfie_path': selfiePath.trim(),
+          if (workImages != null) 'work_images': workImages,
+          if (zones != null) 'zones': zones,
+          if (categoryId != null && categoryId.trim().isNotEmpty)
+            'category_id': categoryId.trim(),
+          if (serviceIds != null && serviceIds.isNotEmpty)
+            'service_ids': serviceIds,
         },
         onConflict: 'id',
       ).timeout(const Duration(seconds: 10));

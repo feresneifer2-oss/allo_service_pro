@@ -41,11 +41,18 @@ class PendingProModel {
     this.galleryImagePaths = const [],
     this.specialtiesFr = const [],
     this.specialtiesAr = const [],
+    this.categoryId,
+    this.serviceIds = const [],
     // Pricing entry (wizard step 3): mirrors the pro's pricing mode + floor
     // price so the payload — and the client feed — never fall back to a
     // hardcoded default.
     this.pricingType,
     this.priceFrom,
+    // Server-computed review aggregates (Phase 4D): mean rating + count of
+    // rated completed orders from public.orders. 0.0/0 = no ratings yet —
+    // never a fake 5.0.
+    this.rating = 0.0,
+    this.reviewCount = 0,
   });
 
   final String id;
@@ -152,12 +159,20 @@ class PendingProModel {
   /// show exactly the services the pro declared.
   final List<String> specialtiesFr;
   final List<String> specialtiesAr;
+  final String? categoryId;
+  final List<String> serviceIds;
 
   /// Pricing mode selected on the wizard (fixed | hourly | quote).
   final String? pricingType;
 
   /// Indicative floor price (DT) selected on the wizard (step 3).
   final int? priceFrom;
+
+  /// Mean rating computed server-side from rated completed orders (Phase 4D).
+  final double rating;
+
+  /// Count of rated completed orders behind [rating] (Phase 4D).
+  final int reviewCount;
 
   /// Admin-controlled deactivation: a deactivated pro loses dashboard
   /// access (no orders / chat) and disappears from client listings.
@@ -199,8 +214,12 @@ class PendingProModel {
     List<String>? galleryImagePaths,
     List<String>? specialtiesFr,
     List<String>? specialtiesAr,
+    String? categoryId,
+    List<String>? serviceIds,
     String? pricingType,
     int? priceFrom,
+    double? rating,
+    int? reviewCount,
   }) {
     return PendingProModel(
       id: id ?? this.id,
@@ -242,8 +261,12 @@ class PendingProModel {
       galleryImagePaths: galleryImagePaths ?? this.galleryImagePaths,
       specialtiesFr: specialtiesFr ?? this.specialtiesFr,
       specialtiesAr: specialtiesAr ?? this.specialtiesAr,
+      categoryId: categoryId ?? this.categoryId,
+      serviceIds: serviceIds ?? this.serviceIds,
       pricingType: pricingType ?? this.pricingType,
       priceFrom: priceFrom ?? this.priceFrom,
+      rating: rating ?? this.rating,
+      reviewCount: reviewCount ?? this.reviewCount,
     );
   }
 
@@ -278,8 +301,12 @@ class PendingProModel {
         'galleryImagePaths': galleryImagePaths,
         'specialtiesFr': specialtiesFr,
         'specialtiesAr': specialtiesAr,
+        'categoryId': categoryId,
+        'serviceIds': serviceIds,
         'pricingType': pricingType,
         'priceFrom': priceFrom,
+        'rating': rating,
+        'reviewCount': reviewCount,
       };
 
   factory PendingProModel.fromJson(Map<String, dynamic> json) =>
@@ -331,7 +358,14 @@ class PendingProModel {
         specialtiesAr: [
           for (final s in (json['specialtiesAr'] as List? ?? [])) s as String,
         ],
+        categoryId: json['categoryId'] as String?,
+        serviceIds: [
+          for (final s in (json['serviceIds'] as List? ?? [])) s as String,
+        ],
         pricingType: json['pricingType'] as String?,
         priceFrom: (json['priceFrom'] as num?)?.toInt(),
+        // Missing key (records persisted before Phase 4D) -> 0.0/0, no crash.
+        rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+        reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
       );
 }
