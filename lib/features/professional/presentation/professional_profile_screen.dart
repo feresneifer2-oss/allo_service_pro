@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/theme/app_colors.dart';
+import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
+import 'package:allo_service_pro/features/professionals/models/pro_review.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/app_image.dart';
 
-class ProfessionalProfileScreen extends StatelessWidget {
+class ProfessionalProfileScreen extends StatefulWidget {
   const ProfessionalProfileScreen({
     super.key,
     required this.professionalId,
@@ -19,8 +22,41 @@ class ProfessionalProfileScreen extends StatelessWidget {
   final String professionalId;
 
   @override
+  State<ProfessionalProfileScreen> createState() =>
+      _ProfessionalProfileScreenState();
+}
+
+class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
+  List<ProReview> _reviews = const [];
+  bool _loadingReviews = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReviews();
+  }
+
+  Future<void> _loadReviews() async {
+    final reviews = await ProfileRepository.fetchProReviews(
+      proId: widget.professionalId,
+      limit: 20,
+    );
+    // Phase 4E: refresh the aggregate (rating / reviewCount) from the server
+    // before rebuilding, so the "Avis" header reflects the latest state.
+    // Awaited (not unawaited) because this screen reads the pro via
+    // ProfessionalsRepository.byId() directly — not through a listener — so a
+    // fire-and-forget hydrate would NOT repaint the aggregate text.
+    await AdminStore.hydrateApprovedProsFromSupabase();
+    if (!mounted) return;
+    setState(() {
+      _reviews = reviews;
+      _loadingReviews = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pro = ProfessionalsRepository.byId(professionalId);
+    final pro = ProfessionalsRepository.byId(widget.professionalId);
     if (pro == null) {
       return Scaffold(
         appBar: AppBar(),
@@ -33,7 +69,7 @@ class ProfessionalProfileScreen extends StatelessWidget {
 
     // Override values if it's the current user profile (pro_1)
     var finalPro = pro;
-    if (professionalId == 'pro_1') {
+    if (widget.professionalId == 'pro_1') {
       final currentUser = UserStore.user.value;
       finalPro = ProfessionalModel(
         id: pro.id,
@@ -365,10 +401,18 @@ class ProfessionalProfileScreen extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            ...List.generate(
-                                5,
-                                (_) => const Icon(Icons.star_rounded,
-                                    color: AppColors.secondary, size: 22)),
+                            ...List.generate(5, (i) {
+                              final filled = i < finalPro.rating.round();
+                              return Icon(
+                                filled
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                size: 20,
+                                color: filled
+                                    ? Colors.amber
+                                    : Colors.grey.shade400,
+                              );
+                            }),
                             const SizedBox(width: 8),
                             Text(
                               '${finalPro.rating} (${finalPro.reviewCount})',
@@ -378,18 +422,40 @@ class ProfessionalProfileScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // Phase 4: honest display — hide the placeholder
-                        // quote when there are no reviews yet.
-                        if (finalPro.reviewCount > 0)
-                          Text(
-                            tr(
-                              context,
-                              fr: 'Excellent travail, très professionnel !',
-                              ar: 'شغل ممتاز، محترف جداً!',
+                        // Phase 4E: individual reviews (list_pro_reviews RPC).
+                        if (_loadingReviews)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(
+                                child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )),
+                          )
+                        else if (_reviews.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              tr(
+                                context,
+                                fr: 'Aucun avis pour le moment.',
+                                ar: 'لا توجد تقييمات بعد.',
+                              ),
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 13),
                             ),
-                            style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontStyle: FontStyle.italic),
+                          )
+                        else
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final r in _reviews) ...[
+                                _ReviewTile(review: r),
+                                if (r != _reviews.last)
+                                  const Divider(height: 16),
+                              ],
+                            ],
                           ),
                       ],
                     ),
@@ -666,6 +732,54 @@ class _StatMetric extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.review});
+
+  final ProReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ...List.generate(
+                5,
+                (i) => Icon(
+                  i < review.rating.round()
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  size: 16,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  review.clientName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          if (review.reviewComment != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              review.reviewComment!,
+              style: TextStyle(color: Colors.grey[700], fontSize: 13),
+            ),
+          ],
         ],
       ),
     );

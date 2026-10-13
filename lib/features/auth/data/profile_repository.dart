@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/error/app_error_handler.dart';
 import '../application/supabase_auth_service.dart';
+import '../../professionals/models/pro_review.dart';
 
 /// Supabase gateway for the live `profiles` table.
 ///
@@ -521,6 +522,41 @@ class ProfileRepository {
         context: 'ProfileRepository.upsertOwnProfessionalPending',
       );
       return false;
+    }
+  }
+
+  /// Phase 4E: fetch individual reviews for a given pro id via the
+  /// list_pro_reviews RPC. Returns empty list on any failure (fail-closed).
+  static Future<List<ProReview>> fetchProReviews({
+    required String proId,
+    int limit = 20,
+  }) async {
+    if (!isConfigured) return const [];
+    final id = proId.trim();
+    if (id.isEmpty) return const [];
+    try {
+      final answer = await Supabase.instance.client.rpc(
+        'list_pro_reviews',
+        params: <String, dynamic>{
+          'p_pro_id': id,
+          'p_limit': limit,
+        },
+      );
+      if (answer is! List) return const [];
+      final reviews = <ProReview>[];
+      for (final raw in answer) {
+        if (raw is! Map) continue;
+        final r = ProReview.fromRow(Map<String, dynamic>.from(raw));
+        if (r != null) reviews.add(r);
+      }
+      return reviews;
+    } catch (e, st) {
+      AppErrorHandler.report(
+        e,
+        st,
+        context: 'ProfileRepository.fetchProReviews',
+      );
+      return const [];
     }
   }
 }
