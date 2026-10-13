@@ -11,6 +11,7 @@ import 'package:allo_service_pro/features/professionals/models/pro_review.dart';
 import 'package:allo_service_pro/features/requests/presentation/create_request_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/localization/app_localizations.dart';
 import 'package:allo_service_pro/shared/widgets/app_image.dart';
 
 class ProfessionalProfileScreen extends StatefulWidget {
@@ -141,7 +142,9 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                     name: finalPro.name,
                     profession: profession,
                     rating: finalPro.rating,
-                    location: finalPro.city,
+                    location: AppLocalizations.isArabic(context)
+                        ? finalPro.city
+                        : finalPro.cityFr,
                     servicesCount: finalPro.servicesCount,
                     verified: finalPro.verified,
                     pricingType: finalPro.pricingType,

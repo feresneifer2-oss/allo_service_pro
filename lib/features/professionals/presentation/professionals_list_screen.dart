@@ -8,6 +8,7 @@ import 'package:allo_service_pro/features/professionals/data/mock_professionals.
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/localization/app_localizations.dart';
 import 'package:allo_service_pro/shared/widgets/professional_card.dart';
 
 class ProfessionalsListScreen extends StatefulWidget {
@@ -229,7 +230,9 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
                   name: pro.name,
                   profession: profession,
                   rating: pro.rating,
-                  location: pro.city,
+                  location: AppLocalizations.isArabic(context)
+                      ? pro.city
+                      : pro.cityFr,
                   verified: pro.verified,
                   priceFrom: pro.priceFrom,
                   pricingType: pro.pricingType,

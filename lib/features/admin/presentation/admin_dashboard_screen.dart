@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:allo_service_pro/core/models/request_status.dart';
+import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
@@ -16,6 +17,7 @@ import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/support/presentation/support_screen.dart'
     show SupportStore, SupportTicket, ChatMsg;
 import 'package:allo_service_pro/shared/app_locale.dart';
+import 'package:allo_service_pro/shared/localization/app_localizations.dart';
 import 'package:allo_service_pro/shared/widgets/app_image.dart';
 import 'package:allo_service_pro/shared/widgets/logout_tile.dart';
 
@@ -498,7 +500,8 @@ class _ProManageCard extends StatelessWidget {
                           color: AppColors.textSecondary, fontSize: 12),
                     ),
                     Text(
-                      '${pro.professionFr} • ${pro.city ?? '-'}',
+                      '${AppLocalizations.isArabic(context) ? pro.professionAr : pro.professionFr} • '
+                      '${AppLocalizations.isArabic(context) ? TunisianLocations.getLocationByFr(pro.city ?? '')?.governorateAr ?? (pro.city ?? '-') : (pro.city ?? '-')}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

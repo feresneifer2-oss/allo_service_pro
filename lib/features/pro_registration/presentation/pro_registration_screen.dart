@@ -128,6 +128,16 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
     super.dispose();
   }
 
+  /// Converts any governorate name (AR or FR) to its canonical French
+  /// (Latin) form for storage. Works for ALL 24 Tunisian governorates.
+  String _toLatinGovernorate(String input) {
+    final loc = TunisianLocations.getLocationByAr(input) ??
+        TunisianLocations.getLocationByFr(input) ??
+        TunisianLocations.getLocationByKeyOrAr(input) ??
+        TunisianLocations.getLocationByKeyOrFr(input);
+    return loc?.governorateFr ?? input; // fallback: leave as-is
+  }
+
   Future<void> _next() async {
     if (_step < 4) {
       _pageController.nextPage(
@@ -322,7 +332,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
             workImages: remoteGallery.isNotEmpty
                 ? remoteGallery
                 : List.from(_galleryPhotos),
-            zones: [_governorate],
+            zones: [_toLatinGovernorate(_governorate)],
             pricingType: _pricingType,
             priceFrom: _pricingType == 'quote' ? null : _priceFrom,
           );
