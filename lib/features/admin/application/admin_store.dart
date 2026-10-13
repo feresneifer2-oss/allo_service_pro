@@ -1274,6 +1274,12 @@ class AdminStore {
         final reviewCountRaw = row['review_count'];
         final reviewCount = reviewCountRaw is num ? reviewCountRaw.toInt() : 0;
 
+        // Phase 4G: parse zones from the server (badges already parsed above).
+        final zonesRaw = row['zones'];
+        final zones = zonesRaw is List
+            ? zonesRaw.whereType<String>().toList(growable: false)
+            : const <String>[];
+
         final model = PendingProModel(
           id: id,
           name: name,
@@ -1288,6 +1294,10 @@ class AdminStore {
           serviceIds: serviceIds,
           galleryPhotos: galleryPhotos,
           badges: badges,
+          zones: zones,
+          // Phase 4G: derive city from the first zone (backward-compat with
+          // the city-based live getter).
+          city: zones.isNotEmpty ? zones.first : null,
           description: bio,
           pricingType: pricingType,
           priceFrom: priceFrom,

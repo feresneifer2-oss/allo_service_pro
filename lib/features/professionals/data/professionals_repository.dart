@@ -1,4 +1,4 @@
-import 'package:allo_service_pro/core/data/services_catalog.dart';
+git add -A ; git commit -m "Phase 4G: zones + badges + servicesCount + real price from server" ; git pushimport 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
@@ -31,7 +31,8 @@ class ProfessionalsRepository {
 
     return approved.map((p) {
       final code = p.proCode ?? p.id;
-      final cityFr = p.city ?? 'Tunis';
+      // Phase 4G: use the first zone as city, no fake 'Tunis' fallback.
+      final cityFr = (p.zones.isNotEmpty) ? p.zones.first : (p.city ?? '');
       final loc = TunisianLocations.getLocationByFr(cityFr);
       // Live listing mirrors the registration payload: the pro's submitted
       // experience, description (in BOTH languages) and pricing entry point
@@ -54,7 +55,8 @@ class ProfessionalsRepository {
         rating: p.rating,
         city: loc?.governorateAr ?? cityFr,
         cityFr: cityFr,
-        servicesCount: 0,
+        // Phase 4G: real count from service_ids.
+        servicesCount: p.serviceIds.length,
         verified: true,
         // PERSISTED availability (Supabase `pro_availability`): an approved pro
         // is listed according to their own flag, not unconditionally. `true` is
@@ -70,7 +72,8 @@ class ProfessionalsRepository {
         // Quote mode (CodeRabbit): priceFrom stays NULL/unset — no numeric
         // fallback (like 50) may ever be exposed for quote-based services.
         // The client UI branches on pricingType FIRST ('Sur devis' badge).
-        priceFrom: p.pricingType == 'quote' ? null : (p.priceFrom ?? 50),
+        // Phase 4G: no fake 50 DT — null when the pro hasn't set a price.
+        priceFrom: p.pricingType == 'quote' ? null : p.priceFrom,
         experienceYears: p.experienceYears ?? 1,
         aboutFr: rawDescription.isNotEmpty ? rawDescription : aboutFallback,
         aboutAr: rawDescription.isNotEmpty ? rawDescription : aboutArFallback,

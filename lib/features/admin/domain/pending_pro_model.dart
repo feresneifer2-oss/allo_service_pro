@@ -22,6 +22,7 @@ class PendingProModel {
     this.paidUntilMs,
     this.rejectionReason,
     this.badges = const [],
+    this.zones = const [],
     this.deactivated = false,
     this.adminMessages = const [],
     // Registration payload (bound from the pro registration wizard so the
@@ -94,6 +95,7 @@ class PendingProModel {
   final int? paidUntilMs;
   final String? rejectionReason;
   final List<String> badges;
+  final List<String> zones;
 
   /// Years of experience entered on the registration wizard (step 3).
   final int? experienceYears;
@@ -203,6 +205,7 @@ class PendingProModel {
     Object? paidUntilMs = _unset,
     Object? rejectionReason = _unset,
     List<String>? badges,
+    List<String>? zones,
     bool? deactivated,
     List<String>? adminMessages,
     int? experienceYears,
@@ -250,6 +253,7 @@ class PendingProModel {
           ? this.rejectionReason
           : rejectionReason as String?,
       badges: badges ?? this.badges,
+      zones: zones ?? this.zones,
       deactivated: deactivated ?? this.deactivated,
       adminMessages: adminMessages ?? this.adminMessages,
       experienceYears: experienceYears ?? this.experienceYears,
@@ -290,6 +294,7 @@ class PendingProModel {
         'paidUntilMs': paidUntilMs,
         'rejectionReason': rejectionReason,
         'badges': badges,
+        'zones': zones,
         'deactivated': deactivated,
         'adminMessages': adminMessages,
         'experienceYears': experienceYears,
@@ -334,6 +339,7 @@ class PendingProModel {
         badges: [
           for (final b in (json['badges'] as List? ?? [])) b as String,
         ],
+        zones: [for (final z in (json['zones'] as List? ?? [])) z as String],
         deactivated: (json['deactivated'] as bool?) ?? false,
         // NEWEST-FIRST cap (CodeRabbit): messages arrive chronologically —
         // the cap must keep the newest ones, never the oldest.
