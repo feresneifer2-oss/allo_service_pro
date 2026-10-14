@@ -1,69 +1,55 @@
 import 'package:flutter/material.dart';
-import '../../../core/catalog/services_catalog.dart';
+import '../../../core/data/services_catalog.dart';
 
+/// Admin CRUD over the service catalog. In-memory only (no persistence).
+/// Phase 6-2c-1D: migrated to ServiceCategoryData + ServiceItem (flat).
 class CategoryManagementStore {
   CategoryManagementStore._();
 
-  static final categories = ValueNotifier<List<CatalogCategory>>([
-    ...ServicesCatalog.categories,
-  ]);
+  /// Mutable list seeded from the unified catalog.
+  static final categories = ValueNotifier<List<ServiceCategoryData>>(
+    List<ServiceCategoryData>.from(AppServicesCatalog.categories),
+  );
 
-  static void addCategory(CatalogCategory category) {
-    final list = List<CatalogCategory>.from(categories.value);
-    list.add(category);
-    categories.value = list;
+  /// Flat list of all services, seeded from the unified catalog.
+  static final services = ValueNotifier<List<ServiceItem>>(
+    List<ServiceItem>.from(AppServicesCatalog.services),
+  );
+
+  // ── Categories ────────────────────────────────────────────────────
+
+  static void addCategory(ServiceCategoryData category) {
+    categories.value = [...categories.value, category];
   }
 
-  static void updateCategory(String id, CatalogCategory updatedCategory) {
-    categories.value =
-        categories.value.map((c) => c.id == id ? updatedCategory : c).toList();
+  static void updateCategory(String id, ServiceCategoryData category) {
+    categories.value = categories.value
+        .map((c) => c.id == id ? category : c)
+        .toList(growable: false);
   }
 
   static void deleteCategory(String id) {
-    categories.value = categories.value.where((c) => c.id != id).toList();
+    categories.value =
+        categories.value.where((c) => c.id != id).toList(growable: false);
+    services.value =
+        services.value.where((s) => s.categoryId != id).toList(growable: false);
   }
 
-  static void addTypeToCategory(String categoryId, CatalogType type) {
-    final category = categories.value.firstWhere((c) => c.id == categoryId);
-    final updatedTypes = [...category.types, type];
-    final updatedCategory = CatalogCategory(
-      id: category.id,
-      icon: category.icon,
-      fr: category.fr,
-      ar: category.ar,
-      types: updatedTypes,
-    );
-    updateCategory(categoryId, updatedCategory);
+  // ── Services (flat) ───────────────────────────────────────────────
+
+  static void addServiceToCategory(ServiceItem item) {
+    services.value = [...services.value, item];
   }
 
-  static void removeTypeFromCategory(String categoryId, String typeId) {
-    final category = categories.value.firstWhere((c) => c.id == categoryId);
-    final updatedTypes = category.types.where((t) => t.id != typeId).toList();
-    final updatedCategory = CatalogCategory(
-      id: category.id,
-      icon: category.icon,
-      fr: category.fr,
-      ar: category.ar,
-      types: updatedTypes,
-    );
-    updateCategory(categoryId, updatedCategory);
+  static void removeServiceFromCategory(String serviceId) {
+    services.value =
+        services.value.where((s) => s.id != serviceId).toList(growable: false);
   }
 
-  static void updateTypeInCategory(
-    String categoryId,
-    String typeId,
-    CatalogType updatedType,
-  ) {
-    final category = categories.value.firstWhere((c) => c.id == categoryId);
-    final updatedTypes =
-        category.types.map((t) => t.id == typeId ? updatedType : t).toList();
-    final updatedCategory = CatalogCategory(
-      id: category.id,
-      icon: category.icon,
-      fr: category.fr,
-      ar: category.ar,
-      types: updatedTypes,
-    );
-    updateCategory(categoryId, updatedCategory);
+  /// Convenience: return services for a category (replaces `category.types`).
+  static List<ServiceItem> servicesInCategory(String categoryId) {
+    return services.value
+        .where((s) => s.categoryId == categoryId)
+        .toList(growable: false);
   }
 }

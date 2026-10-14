@@ -72,6 +72,6 @@ void main() {
   test('SearchService finds services from the full 99-service catalog', () {
     final results = SearchService.search('maçon');
     expect(results, isNotEmpty);
-    expect(results.any((r) => r.serviceId == 'macon'), isTrue);
+    expect(results.any((r) => r.serviceId == 'mason'), isTrue);
   });
 }

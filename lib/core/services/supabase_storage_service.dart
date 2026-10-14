@@ -155,8 +155,20 @@ class SupabaseStorageService {
   /// scripts, archives…) is refused client-side; the buckets additionally
   /// enforce their own server-side MIME policies.
   static const Set<String> allowedImageExt = {'jpg', 'jpeg', 'png', 'webp'};
-  static const Set<String> allowedAudioExt = {'m4a', 'aac', 'mp3', 'wav', 'ogg'};
-  static const Set<String> allowedDocExt = {'jpg', 'jpeg', 'png', 'webp', 'pdf'};
+  static const Set<String> allowedAudioExt = {
+    'm4a',
+    'aac',
+    'mp3',
+    'wav',
+    'ogg'
+  };
+  static const Set<String> allowedDocExt = {
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'pdf'
+  };
 
   static bool _extensionAllowed(String bucket, String ext) {
     if (bucket == documentsBucket) return allowedDocExt.contains(ext);

@@ -15,7 +15,7 @@ import 'package:allo_service_pro/features/auth/application/supabase_auth_service
 import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/verification_gate_screen.dart';
 
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/app_image.dart';
@@ -73,7 +73,7 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
     final isArabic = appLocale.value.languageCode == 'ar';
     _governorate = isArabic ? 'تونس' : 'Tunis';
     _city = isArabic ? 'تونس المدينة' : 'Tunis Ville';
-    _selectedCategory = ServicesCatalog.categories.first;
+    _selectedCategory = AppServicesCatalog.categories.first;
   }
 
   /// Snapshots the session e-mail and normalizes it (trim + lowercase) so the
@@ -109,8 +109,8 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
   }
 
   // Category & Specialties Selection
-  CatalogCategory? _selectedCategory;
-  final List<CatalogType> _selectedSpecialties = [];
+  ServiceCategoryData? _selectedCategory;
+  final List<ServiceItem> _selectedSpecialties = [];
 
   // Pricing
   String _pricingType = 'fixed'; // 'hourly', 'fixed', 'quote'
@@ -260,8 +260,8 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           // an identity when both are absent — `authUid` stays null and the
           // entry remains a client-local draft.
           authUid: SupabaseAuthService.currentUserId ?? session?.id,
-          professionFr: _selectedCategory?.fr ?? 'Peintre',
-          professionAr: _selectedCategory?.ar ?? 'دهّان',
+          professionFr: _selectedCategory?.nameFr ?? 'Peintre',
+          professionAr: _selectedCategory?.nameAr ?? 'دهّان',
           categoryId: _selectedCategory?.id,
           serviceIds:
               _selectedSpecialties.map((s) => s.id).toList(growable: false),
@@ -292,8 +292,8 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
           // mirrored into the session store): the admin reviews exactly the
           // services the pro declared, and the future Supabase row receives
           // the full bilingual list.
-          specialtiesFr: [for (final s in _selectedSpecialties) s.fr],
-          specialtiesAr: [for (final s in _selectedSpecialties) s.ar],
+          specialtiesFr: [for (final s in _selectedSpecialties) s.nameFr],
+          specialtiesAr: [for (final s in _selectedSpecialties) s.nameAr],
           pricingType: _pricingType,
           priceFrom: _pricingType == 'quote' ? null : _priceFrom,
         );
@@ -772,16 +772,17 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                             color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<CatalogCategory>(
+                      DropdownButtonFormField<ServiceCategoryData>(
                         initialValue: _selectedCategory,
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.category_outlined,
                               color: AppColors.primary),
                         ),
-                        items: ServicesCatalog.categories.map((c) {
+                        items: AppServicesCatalog.categories.map((c) {
                           return DropdownMenuItem(
                             value: c,
-                            child: Text(tr(context, fr: c.fr, ar: c.ar)),
+                            child:
+                                Text(tr(context, fr: c.nameFr, ar: c.nameAr)),
                           );
                         }).toList(),
                         onChanged: (cat) {
@@ -805,12 +806,14 @@ class _ProRegistrationScreenState extends State<ProRegistrationScreen> {
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: _selectedCategory!.types.map((type) {
+                          children: AppServicesCatalog.byCategory(
+                                  _selectedCategory!.id)
+                              .map((type) {
                             final isSelected =
                                 _selectedSpecialties.contains(type);
                             return FilterChip(
-                              label:
-                                  Text(tr(context, fr: type.fr, ar: type.ar)),
+                              label: Text(tr(context,
+                                  fr: type.nameFr, ar: type.nameAr)),
                               selected: isSelected,
                               selectedColor: AppColors.primarySurface,
                               checkmarkColor: AppColors.primary,

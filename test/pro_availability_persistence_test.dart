@@ -46,7 +46,7 @@ import 'package:allo_service_pro/features/pro_dashboard/data/pro_availability_re
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_dashboard_screen.dart';
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
-import 'package:allo_service_pro/features/search/presentation/professional_search_screen.dart';
+import 'package:allo_service_pro/features/search/presentation/search_screen.dart';
 
 /// One `pro_availability` row exactly as Postgres Realtime delivers it
 /// (`payload.newRecord`: snake_case columns, no wrapping envelope).
@@ -498,14 +498,14 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: const ProfessionalSearchScreen(),
+          home: const SearchScreen(),
         ),
       );
 
       // Results only render once a governorate is picked; 'Tunis' hosts
       // pro_2 (Tunis Ville, curated OFFLINE), pro_5 (Tunis Ville, curated
       // online) plus pro_3 / pro_7 (La Marsa, curated online).
-      await tester.tap(find.byType(DropdownButton<String>).first);
+      await tester.tap(find.byType(DropdownButton<String?>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Tunis').last);
       await tester.pumpAndSettle();

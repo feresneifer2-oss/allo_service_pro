@@ -40,7 +40,7 @@ void main() {
         isTrue,
       );
 
-      final matched = ProfessionalsRepository.forService('plombier');
+      final matched = ProfessionalsRepository.forService('plumber');
       expect(matched, isNotEmpty);
       // THE regression: the live pro (empty serviceIds) must appear alongside
       // the suggested catalog pros, never omitted from the search results.
@@ -78,7 +78,7 @@ void main() {
           deactivated: true,
         ),
       ];
-      final matched = ProfessionalsRepository.forService('plombier');
+      final matched = ProfessionalsRepository.forService('plumber');
       expect(matched.any((p) => p.id == 'PRO-00425'), isFalse);
       expect(matched.any((p) => p.id == 'PRO-00426'), isFalse);
     });

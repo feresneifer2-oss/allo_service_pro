@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 
@@ -19,7 +19,7 @@ void main() {
     ProProfileStore.completedServices.value = 99;
     ProProfileStore.rating.value = 3.1;
     ProProfileStore.selectedSpecialties.value = [
-      const CatalogType(id: 'plumber', fr: 'Plombier', ar: 'سباك'),
+      AppServicesCatalog.byId('plumber')!,
     ];
     ProProfileStore.pricingType.value = 'hourly';
     ProProfileStore.priceFrom.value = 999;

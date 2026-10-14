@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/features/professionals/data/professionals_repository.dart';
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
@@ -52,12 +51,12 @@ class SearchService {
     final seenServiceKeys = <String>{};
 
     // ── Categories (legacy ids — they drive the home sheets navigation) ──
-    for (final cat in ServicesCatalog.categories) {
-      if (cat.fr.toLowerCase().contains(q) || cat.ar.contains(q)) {
+    for (final cat in AppServicesCatalog.categories) {
+      if (cat.nameFr.toLowerCase().contains(q) || cat.nameAr.contains(q)) {
         results.add(SearchResult(
           type: SearchResultType.category,
-          titleFr: cat.fr,
-          titleAr: cat.ar,
+          titleFr: cat.nameFr,
+          titleAr: cat.nameAr,
           icon: cat.icon,
           categoryId: cat.id,
         ));

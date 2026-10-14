@@ -36,19 +36,19 @@ void main() {
 
   group('B4 · specialty-restricted auto-assignment', () {
     test('forService(plombier) never returns a cross-specialty pro', () {
-      final item = AppServicesCatalog.byId('plombier');
+      final item = AppServicesCatalog.byId('plumber');
       expect(item, isNotNull);
       final fr = item!.nameFr.toLowerCase();
       final ar = item.nameAr;
 
-      final matched = ProfessionalsRepository.forService('plombier');
+      final matched = ProfessionalsRepository.forService('plumber');
       expect(matched, isNotEmpty);
 
       // Every returned pro must actually serve the requested specialty
       // (by catalog service id OR by profession label) - no electrician
       // sneaks into a plumber job.
       final crossSpecialty = matched.where((p) {
-        final hasId = p.serviceIds.contains('plombier');
+        final hasId = p.serviceIds.contains('plumber');
         final labelMatch = p.professionFr.toLowerCase().contains(fr) ||
             p.professionAr.contains(ar);
         return !hasId && !labelMatch;

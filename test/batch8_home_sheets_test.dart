@@ -70,7 +70,7 @@ void main() {
 
     // Open the sheet AFTER the build phase completes — opening it inside a
     // builder triggers "setState during build" on the overlay.
-    showProfessionalsSheet(captured, 'peintre');
+    showProfessionalsSheet(captured, 'painter');
     await tester.pumpAndSettle();
 
     final painter = ProfessionalsRepository.all.firstWhere(
@@ -94,7 +94,7 @@ void main() {
       ),
     ));
 
-    showProfessionalsSheet(captured, 'peintre');
+    showProfessionalsSheet(captured, 'painter');
     await tester.pumpAndSettle();
 
     final painter = ProfessionalsRepository.all.firstWhere(

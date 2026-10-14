@@ -47,7 +47,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_dashboard_screen.dart';
-import 'package:allo_service_pro/features/search/presentation/professional_search_screen.dart';
+import 'package:allo_service_pro/features/search/presentation/search_screen.dart';
 
 /// One realtime presence frame as pushed by the backend channel.
 class _PresenceEvent {
@@ -369,14 +369,14 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(1080, 2400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      const MaterialApp(home: ProfessionalSearchScreen()),
+      const MaterialApp(home: SearchScreen()),
     );
 
     // Governorate 'Tunis' hosts exactly four catalog craftsmen:
     //   pro_2 (Tunis Ville, OFFLINE) + pro_5 (Tunis Ville, online)
     //   + pro_3 / pro_7 (La Marsa, online).
     // Results only render once a governorate is picked.
-    await tester.tap(find.byType(DropdownButton<String>).first);
+    await tester.tap(find.byType(DropdownButton<String?>).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tunis').last);
     await tester.pumpAndSettle();

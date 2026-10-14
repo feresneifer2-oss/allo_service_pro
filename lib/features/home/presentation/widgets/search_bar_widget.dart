@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:allo_service_pro/features/search/presentation/professional_search_screen.dart';
+import 'package:allo_service_pro/features/search/presentation/search_screen.dart';
 import '../../../../shared/app_locale.dart';
 
 class SearchBarWidget extends StatelessWidget {
@@ -12,7 +12,7 @@ class SearchBarWidget extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ProfessionalSearchScreen()),
+          MaterialPageRoute(builder: (_) => const SearchScreen()),
         );
       },
       child: Container(

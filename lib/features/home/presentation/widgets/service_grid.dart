@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
@@ -16,13 +15,13 @@ class ServiceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    final top = <CatalogCategory>[
-      ServicesCatalog.byId('home'),
-      ServicesCatalog.byId('auto'),
-      ServicesCatalog.byId('health'),
-      ServicesCatalog.byId('beauty'),
-      ServicesCatalog.byId('education'),
-      ServicesCatalog.byId('tech'),
+    final top = <ServiceCategoryData>[
+      AppServicesCatalog.categoryById('home')!,
+      AppServicesCatalog.categoryById('auto')!,
+      AppServicesCatalog.categoryById('health')!,
+      AppServicesCatalog.categoryById('beauty')!,
+      AppServicesCatalog.categoryById('education')!,
+      AppServicesCatalog.categoryById('tech')!,
     ];
 
     return Column(
@@ -65,11 +64,11 @@ class ServiceGrid extends StatelessWidget {
           ),
           itemBuilder: (_, i) {
             final c = top[i];
-            final title = tr(context, fr: c.fr, ar: c.ar);
+            final title = tr(context, fr: c.nameFr, ar: c.nameAr);
 
             return ServiceCard(
               icon: c.icon,
-              imagePath: AppServicesCatalog.imageForLegacyCategory(c.id),
+              imagePath: AppServicesCatalog.categoryImage(c.id),
               title: title,
               onTap: () => showCategoryServicesSheet(context, c),
             );

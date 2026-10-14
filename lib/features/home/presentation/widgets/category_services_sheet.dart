@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
 import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
@@ -9,9 +8,9 @@ import 'professionals_sheet.dart';
 
 void showCategoryServicesSheet(
   BuildContext context,
-  CatalogCategory category,
+  ServiceCategoryData category,
 ) {
-  final title = tr(context, fr: category.fr, ar: category.ar);
+  final title = tr(context, fr: category.nameFr, ar: category.nameAr);
 
   showModalBottomSheet(
     context: context,
@@ -56,8 +55,8 @@ void showCategoryServicesSheet(
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
-              ...category.types.map((t) {
-                final label = tr(context, fr: t.fr, ar: t.ar);
+              ...AppServicesCatalog.byCategory(category.id).map((s) {
+                final label = tr(context, fr: s.nameFr, ar: s.nameAr);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   padding:
@@ -80,14 +79,11 @@ void showCategoryServicesSheet(
                         clipBehavior: Clip.antiAlias,
                         child: Builder(
                           builder: (context) {
-                            final asset = AppServicesCatalog.imageForLegacyType(
-                                category.id, t.id);
-                            if (asset == null) {
-                              return Icon(category.icon,
-                                  color: AppColors.blue600, size: 18);
-                            }
+                            // Unified catalog: every ServiceItem carries its
+                            // own French-slug asset path; the category icon
+                            // remains the PNG error fallback.
                             return Image.asset(
-                              asset,
+                              s.imagePath,
                               width: 36,
                               height: 36,
                               fit: BoxFit.cover,
@@ -115,7 +111,7 @@ void showCategoryServicesSheet(
                           onPressed: () {
                             final navigator = Navigator.of(sheetContext);
                             navigator.pop();
-                            showProfessionalsSheet(navigator.context, t.id);
+                            showProfessionalsSheet(navigator.context, s.id);
                           },
                           child: Text(tr(context, fr: "Voir", ar: "عرض")),
                         ),

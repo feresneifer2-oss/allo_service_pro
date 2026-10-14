@@ -104,12 +104,12 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
         aboutAr: pro.aboutAr,
         servicesFr: ProProfileStore.selectedSpecialties.value.isNotEmpty
             ? ProProfileStore.selectedSpecialties.value
-                .map((s) => s.fr)
+                .map((s) => s.nameFr)
                 .toList()
             : pro.servicesFr,
         servicesAr: ProProfileStore.selectedSpecialties.value.isNotEmpty
             ? ProProfileStore.selectedSpecialties.value
-                .map((s) => s.ar)
+                .map((s) => s.nameAr)
                 .toList()
             : pro.servicesAr,
         reviewCount: pro.reviewCount,

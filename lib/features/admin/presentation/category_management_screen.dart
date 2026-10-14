@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/features/admin/application/category_management_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 
@@ -25,7 +25,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: ValueListenableBuilder<List<CatalogCategory>>(
+      body: ValueListenableBuilder<List<ServiceCategoryData>>(
         valueListenable: CategoryManagementStore.categories,
         builder: (context, categories, _) {
           return ListView.builder(
@@ -125,12 +125,11 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                   arController.text.isNotEmpty &&
                   selectedIcon != null) {
                 CategoryManagementStore.addCategory(
-                  CatalogCategory(
+                  ServiceCategoryData(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
                     icon: selectedIcon!,
-                    fr: frController.text,
-                    ar: arController.text,
-                    types: [],
+                    nameFr: frController.text,
+                    nameAr: arController.text,
                   ),
                 );
                 Navigator.pop(context);
@@ -148,9 +147,9 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
     });
   }
 
-  void _showEditCategoryDialog(CatalogCategory category) {
-    final frController = TextEditingController(text: category.fr);
-    final arController = TextEditingController(text: category.ar);
+  void _showEditCategoryDialog(ServiceCategoryData category) {
+    final frController = TextEditingController(text: category.nameFr);
+    final arController = TextEditingController(text: category.nameAr);
 
     showDialog(
       context: context,
@@ -191,12 +190,11 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
                   arController.text.isNotEmpty) {
                 CategoryManagementStore.updateCategory(
                   category.id,
-                  CatalogCategory(
+                  ServiceCategoryData(
                     id: category.id,
                     icon: category.icon,
-                    fr: frController.text,
-                    ar: arController.text,
-                    types: category.types,
+                    nameFr: frController.text,
+                    nameAr: arController.text,
                   ),
                 );
                 Navigator.pop(context);
@@ -285,12 +283,14 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
             onPressed: () {
               if (frController.text.isNotEmpty &&
                   arController.text.isNotEmpty) {
-                CategoryManagementStore.addTypeToCategory(
-                  categoryId,
-                  CatalogType(
+                CategoryManagementStore.addServiceToCategory(
+                  ServiceItem(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    fr: frController.text,
-                    ar: arController.text,
+                    categoryId: categoryId,
+                    nameFr: frController.text,
+                    nameAr: arController.text,
+                    imagePath: '',
+                    icon: Icons.build,
                   ),
                 );
                 Navigator.pop(context);
@@ -310,7 +310,7 @@ class _CategoryManagementScreenState extends State<CategoryManagementScreen> {
 }
 
 class _CategoryCard extends StatelessWidget {
-  final CatalogCategory category;
+  final ServiceCategoryData category;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onAddType;
@@ -336,14 +336,14 @@ class _CategoryCard extends StatelessWidget {
         collapsedIconColor: AppColors.secondary,
         leading: Icon(category.icon, color: AppColors.secondary),
         title: Text(
-          category.fr,
+          category.nameFr,
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
         subtitle: Text(
-          category.ar,
+          category.nameAr,
           style: const TextStyle(color: AppColors.slate400),
         ),
         trailing: Row(
@@ -394,39 +394,41 @@ class _CategoryCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                if (category.types.isEmpty)
+                if (CategoryManagementStore.servicesInCategory(category.id)
+                    .isEmpty)
                   const Text(
                     'Aucun type de service',
                     style: TextStyle(color: AppColors.textSecondary),
                   )
                 else
-                  ...category.types.map((type) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.circle,
-                                size: 8, color: AppColors.secondary),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${type.fr} / ${type.ar}',
-                                style:
-                                    const TextStyle(color: AppColors.slate400),
-                              ),
+                  ...CategoryManagementStore.servicesInCategory(category.id)
+                      .map((type) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.circle,
+                                    size: 8, color: AppColors.secondary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${type.nameFr} / ${type.nameAr}',
+                                    style: const TextStyle(
+                                        color: AppColors.slate400),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, size: 16),
+                                  color: AppColors.error,
+                                  onPressed: () {
+                                    CategoryManagementStore
+                                        .removeServiceFromCategory(
+                                      type.id,
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 16),
-                              color: AppColors.error,
-                              onPressed: () {
-                                CategoryManagementStore.removeTypeFromCategory(
-                                  category.id,
-                                  type.id,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      )),
+                          )),
               ],
             ),
           ),

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:allo_service_pro/core/catalog/services_catalog.dart';
+import 'package:allo_service_pro/core/data/services_catalog.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/core/network/connectivity_store.dart';
@@ -37,7 +37,7 @@ class ProProfileStore {
   // starts unselected instead of pre-ticking Ariana/Tunis.
   static List<String> zones = [];
 
-  static final selectedSpecialties = ValueNotifier<List<CatalogType>>([]);
+  static final selectedSpecialties = ValueNotifier<List<ServiceItem>>([]);
   static final pricingType =
       ValueNotifier<String>('fixed'); // 'hourly', 'fixed', 'quote'
   static final priceFrom = ValueNotifier<int>(50);

@@ -15,8 +15,8 @@ void showProfessionalsSheet(
   BuildContext context,
   String serviceId,
 ) {
-  // Resolve the sheet title: new catalog first (ServiceItem ids like
-  // 'peintre'), then the legacy nav catalog (CatalogType ids like 'painter').
+  // Resolve the sheet title from the unified catalog (ServiceItem ids like
+  // 'painter'); fall back to the raw id when the service is unknown.
   final catalogItem = AppServicesCatalog.byId(serviceId);
   final title = catalogItem != null
       ? tr(context, fr: catalogItem.nameFr, ar: catalogItem.nameAr)
