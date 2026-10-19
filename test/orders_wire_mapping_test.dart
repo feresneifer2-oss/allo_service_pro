@@ -294,10 +294,8 @@ void main() {
         ..['professional_id'] = proUid;
       expect(OrdersRepository.isValidRow(legacyOnly), isFalse);
 
-      expect(OrdersRepository.isValidRow({...live, 'status': 'nope'}),
-          isFalse);
-      expect(
-          OrdersRepository.isValidRow({...live, 'scheduled_at': 'garbage'}),
+      expect(OrdersRepository.isValidRow({...live, 'status': 'nope'}), isFalse);
+      expect(OrdersRepository.isValidRow({...live, 'scheduled_at': 'garbage'}),
           isFalse);
     });
 
@@ -316,8 +314,7 @@ void main() {
         ..remove('pro_id')
         ..['customer_id'] = clientUid
         ..['professional_id'] = proUid;
-      expect(
-          OrdersRepository.ownershipStampsMatch(legacy, clientUid), isFalse);
+      expect(OrdersRepository.ownershipStampsMatch(legacy, clientUid), isFalse);
       expect(OrdersRepository.ownershipStampsMatch(legacy, proUid), isFalse);
     });
   });

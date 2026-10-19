@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/core/security/hashing.dart';
+import 'package:allo_service_pro/core/queue/offline_queue.dart';
 import 'package:allo_service_pro/features/admin/data/admin_auth_repository.dart';
 import 'package:allo_service_pro/features/anti_abuse/application/anti_abuse_store.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
@@ -31,6 +32,20 @@ enum ProVerification {
   bool get isRejected => this == rejected;
 }
 
+/// Phase 7-5: source of the current verification status.
+/// Distinguishes a freshly-confirmed server read from a cached one
+/// (used to decide whether a background re-sync is needed).
+enum VerificationSource {
+  /// The last read came from the server (authoritative).
+  server,
+
+  /// The last known value comes from local cache / prefs.
+  cache,
+
+  /// No verification info has ever been loaded.
+  none,
+}
+
 class UserModel {
   final String id;
   final String name;
@@ -54,6 +69,19 @@ class UserModel {
   /// Verification lifecycle (professional accounts only).
   final ProVerification verificationStatus;
 
+  /// Phase 7-5: true when the last server read of verificationStatus
+  /// FAILED (network / timeout / RLS) while the status is 'approved'.
+  /// The Gate uses this to show a VerifyingScreen (non-blocking) instead
+  /// of downgrading to 'pending' (which was the old bug).
+  final bool verificationUnconfirmed;
+
+  /// Phase 7-5: when the verification status was last confirmed by the
+  /// server (epoch ms). null = never confirmed (fresh install / no login).
+  final int? verificationLastCheckedAtMs;
+
+  /// Phase 7-5: where the current verificationStatus came from.
+  final VerificationSource verificationSource;
+
   /// Admin-written reason when the proof was rejected.
   final String? rejectionReason;
 
@@ -69,6 +97,9 @@ class UserModel {
     this.proofPath,
     this.selfiePath,
     this.verificationStatus = ProVerification.none,
+    this.verificationUnconfirmed = false,
+    this.verificationLastCheckedAtMs,
+    this.verificationSource = VerificationSource.none,
     this.rejectionReason,
   });
 
@@ -87,6 +118,14 @@ class UserModel {
     String? selfiePath,
     ProVerification? verificationStatus,
     String? rejectionReason,
+    bool? verificationUnconfirmed,
+    int? verificationLastCheckedAtMs,
+    VerificationSource? verificationSource,
+    // Phase 7-5: same explicit-clear treatment as above — passing
+    // `verificationLastCheckedAtMs: null` alone can NOT clear the stored
+    // timestamp (null is ambiguous between "not passed" and "clear it").
+    // Setting this flag forces the field to null regardless of the arg.
+    bool clearVerificationLastCheckedAt = false,
     // Explicit-clear flags: passing `proofPath: null` alone can NOT clear
     // the field because of the `?? this.proofPath` merge below (null is
     // ambiguous between "not passed" and "clear it"). Setting these flags
@@ -112,10 +151,31 @@ class UserModel {
         proofPath: clearProofPath ? null : (proofPath ?? this.proofPath),
         selfiePath: clearSelfiePath ? null : (selfiePath ?? this.selfiePath),
         verificationStatus: verificationStatus ?? this.verificationStatus,
+        verificationUnconfirmed:
+            verificationUnconfirmed ?? this.verificationUnconfirmed,
+        verificationLastCheckedAtMs: clearVerificationLastCheckedAt
+            ? null
+            : (verificationLastCheckedAtMs ?? this.verificationLastCheckedAtMs),
+        verificationSource: verificationSource ?? this.verificationSource,
         rejectionReason: clearRejectionReason
             ? null
             : (rejectionReason ?? this.rejectionReason),
       );
+
+  /// Phase 7-5: atomic update of the verification audit fields.
+  /// Prevents a desynced state (e.g. source=server without a timestamp).
+  UserModel withVerificationAudit({
+    required bool unconfirmed,
+    required VerificationSource source,
+    int? lastCheckedAtMs,
+  }) {
+    return copyWith(
+      verificationUnconfirmed: unconfirmed,
+      verificationSource: source,
+      verificationLastCheckedAtMs: lastCheckedAtMs,
+      clearVerificationLastCheckedAt: lastCheckedAtMs == null,
+    );
+  }
 }
 
 class UserStore {
@@ -147,6 +207,11 @@ class UserStore {
   static const String _kSelfiePath = 'user_selfie_path';
   static const String _kVerIdx = 'user_ver_status_index';
   static const String _kVerReason = 'user_ver_reason';
+
+  /// Phase 7-5: verification audit — unconfirmed flag + last check + source.
+  static const String _kVerUnconfirmed = 'ver_unconfirmed';
+  static const String _kVerLastCheckedAtMs = 'ver_last_checked_at_ms';
+  static const String _kVerSourceIdx = 'ver_source_idx';
   static const String _kGovernorateAr = 'user_governorate_ar';
   static const String _kGovernorateFr = 'user_governorate_fr';
   // Explicit auto-login keys (written at login/register, wiped at signOut).
@@ -320,6 +385,13 @@ class UserStore {
       rejectionReason: clearRejectionReason
           ? null
           : (rejectionReason ?? user.value?.rejectionReason),
+      // Phase 7-5: verification audit fields are owned by the sync service
+      // (P2), never by set() — preserve the CURRENT session's audit across
+      // role / profile updates (no downgrade, no timestamp loss).
+      verificationUnconfirmed: user.value?.verificationUnconfirmed ?? false,
+      verificationLastCheckedAtMs: user.value?.verificationLastCheckedAtMs,
+      verificationSource:
+          user.value?.verificationSource ?? VerificationSource.none,
     );
     await persistToPrefs();
     _syncAntiAbuseBinding();
@@ -520,6 +592,27 @@ class UserStore {
       } else {
         await _removeKey(prefs, _kVerReason);
       }
+      // Phase 7-5: verification audit fields — actively STRIP the keys when
+      // at their defaults (same contract as `_kVerReason` above): a stale
+      // timestamp / unconfirmed flag can never survive a state that cleared
+      // it. `_writeOrRemove` is String?-only, so ints/bools use the existing
+      // set* + `_removeKey` pair (mirror of `_kVerIdx` above).
+      if (u.verificationUnconfirmed) {
+        await prefs.setBool(_kVerUnconfirmed, true);
+      } else {
+        await _removeKey(prefs, _kVerUnconfirmed);
+      }
+      if (u.verificationLastCheckedAtMs != null) {
+        await prefs.setInt(
+            _kVerLastCheckedAtMs, u.verificationLastCheckedAtMs!);
+      } else {
+        await _removeKey(prefs, _kVerLastCheckedAtMs);
+      }
+      if (u.verificationSource != VerificationSource.none) {
+        await prefs.setInt(_kVerSourceIdx, u.verificationSource.index);
+      } else {
+        await _removeKey(prefs, _kVerSourceIdx);
+      }
       // Auto-login markers: the session survives restarts and the role
       // drives the direct routing (client → ClientShell, professionnel →
       // ProShell) performed by the splash screen.
@@ -601,6 +694,16 @@ class UserStore {
 
       final roleIdx = prefs.getInt(_kRoleIdx);
       final verIdx = prefs.getInt(_kVerIdx) ?? ProVerification.none.index;
+      // Phase 7-5: restore verification audit (records written before this
+      // phase fall back to false / null / none).
+      final verUnconfirmed = prefs.getBool(_kVerUnconfirmed) ?? false;
+      final verLastCheckedAtMs = prefs.getInt(_kVerLastCheckedAtMs);
+      final verSourceIdx = prefs.getInt(_kVerSourceIdx);
+      final verSource = (verSourceIdx == null ||
+              verSourceIdx < 0 ||
+              verSourceIdx >= VerificationSource.values.length)
+          ? VerificationSource.none
+          : VerificationSource.values[verSourceIdx];
       // Blank values saved by legacy versions are normalized to null so the
       // UI never renders empty governorate chips after a restart.
       final governorateAr = _cleanGov(prefs.getString(_kGovernorateAr));
@@ -625,6 +728,9 @@ class UserStore {
         selfiePath: prefs.getString(_kSelfiePath),
         verificationStatus: ProVerification
             .values[verIdx.clamp(0, ProVerification.values.length - 1)],
+        verificationUnconfirmed: verUnconfirmed,
+        verificationLastCheckedAtMs: verLastCheckedAtMs,
+        verificationSource: verSource,
         rejectionReason: prefs.getString(_kVerReason),
       );
       _syncAntiAbuseBinding();
@@ -1332,6 +1438,42 @@ class UserStore {
     await persistToPrefs();
   }
 
+  /// Phase 7-5 (P5b): the server read FAILED (network / timeout / RLS) —
+  /// do NOT downgrade the current verification status. Keep it as-is
+  /// (approved / rejected / pending / none) and flag it unconfirmed so the
+  /// VerifyingScreen can retry non-blockingly.
+  ///
+  /// Semantics:
+  ///   * status      → UNCHANGED (this is the whole point)
+  ///   * unconfirmed → true
+  ///   * source      → server (we DID attempt a server read)
+  ///   * timestamp   → now (audit trail of the last ATTEMPT)
+  static Future<void> markVerificationUnconfirmed() async {
+    final current = user.value;
+    if (current == null) return;
+    user.value = current.withVerificationAudit(
+      unconfirmed: true,
+      source: VerificationSource.server,
+      lastCheckedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    await persistToPrefs();
+  }
+
+  /// Phase 7-5 (P5b): the server returned a CLEAR answer (approved /
+  /// rejected / pending) — mark the audit as confirmed and stamp the
+  /// source. Called from AdminStore._applyServerVerificationAuthority
+  /// after a successful three-state parse.
+  static Future<void> markVerificationConfirmed() async {
+    final current = user.value;
+    if (current == null) return;
+    user.value = current.withVerificationAudit(
+      unconfirmed: false,
+      source: VerificationSource.server,
+      lastCheckedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    await persistToPrefs();
+  }
+
   /// Signs the user out and wipes every persisted session key so a restart
   /// lands on the welcome screen instead of silently restoring the session.
   ///
@@ -1405,6 +1547,14 @@ class UserStore {
             (await _removeKey(prefs, _kRoleIdx)) & sessionKeysClean;
         sessionKeysClean =
             (await _removeKey(prefs, _kVerIdx)) & sessionKeysClean;
+        // Phase 7-5: clear the verification audit — a different account on
+        // the same device must not inherit the previous Pro's audit fields.
+        sessionKeysClean =
+            (await _removeKey(prefs, _kVerUnconfirmed)) & sessionKeysClean;
+        sessionKeysClean =
+            (await _removeKey(prefs, _kVerLastCheckedAtMs)) & sessionKeysClean;
+        sessionKeysClean =
+            (await _removeKey(prefs, _kVerSourceIdx)) & sessionKeysClean;
         sessionKeysClean =
             (await _removeKey(prefs, _kGovernorateAr)) & sessionKeysClean;
         sessionKeysClean =
@@ -1462,6 +1612,10 @@ class UserStore {
     }
     await SubscriptionStore.reset();
     await ProProfileStore.reset();
+    // Phase 7-3: clear the offline queue on logout — session-scoped work
+    // (including stale `updateProAvailability` entries) must not survive
+    // into the next account on this device.
+    await OfflineQueue.clear();
     // CUSTOMER-SCOPED DATA (CodeRabbit): orders and their chat rooms belong
     // to the signed-in identity, so they are wiped with the session. Keeping
     // them in memory after a logout leaked one customer's order history,

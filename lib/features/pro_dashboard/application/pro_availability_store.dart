@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../../auth/application/supabase_auth_service.dart';
 import '../../auth/application/user_store.dart';
 import '../data/pro_availability_repository.dart';
 import 'pro_profile_store.dart';
 
-/// LIVE availability board — `pro_code` → "accepts new service requests".
+/// LIVE availability board — `pro_id` (auth uuid) → "accepts new service requests".
 ///
 /// WHY a separate board and not just [ProProfileStore.isAvailable]:
 ///   • [ProProfileStore.isAvailable] is the SIGNED-IN PRO'S OWN choice (one
@@ -27,12 +28,18 @@ import 'pro_profile_store.dart';
 class ProAvailabilityStore {
   ProAvailabilityStore._();
 
-  /// `pro_code` (the PUBLIC id the client feed renders) → isAvailable.
+  /// Phase 7-4: `pro_id` (the professional's auth.users uuid) → isAvailable.
+  ///
+  /// Renamed (Phase 7-4) because `pro_code` is NULL for pros whose
+  /// registration has no public code yet — those rows were dropped by the old
+  /// decode gate, the real flag was lost and every reader fell through to
+  /// `fallback: true` (an OFFLINE pro rendered as available). The uuid exists
+  /// for every live pro, so the key never misses.
   ///
   /// ABSENCE MEANS "UNKNOWN", not "offline": a pro who never toggled has no
   /// row, so the feed keeps its own default instead of being flipped to
   /// unavailable by a value nobody ever set.
-  static final onlineByProCode =
+  static final onlineByProId =
       ValueNotifier<Map<String, bool>>(const <String, bool>{});
 
   /// REALTIME / HYDRATION INGRESS — idempotent merge of ONE pro's flag.
@@ -45,29 +52,44 @@ class ProAvailabilityStore {
   /// also mirrored onto [ProProfileStore.isAvailable] — the dashboard switch
   /// reacts to a toggle made on ANOTHER device exactly like the client board
   /// does, without waiting for a restart.
-  static void applyRemoteAvailability(String? proCode, bool isAvailable) {
-    final code = proCode?.trim() ?? '';
-    if (code.isEmpty) return;
-    final current = onlineByProCode.value;
-    if (current[code] != isAvailable) {
-      onlineByProCode.value = Map<String, bool>.unmodifiable(<String, bool>{
+  static void applyRemoteAvailability(String? proId, bool isAvailable) {
+    final id = proId?.trim() ?? '';
+    if (id.isEmpty) return;
+    final current = onlineByProId.value;
+    if (current[id] != isAvailable) {
+      onlineByProId.value = Map<String, bool>.unmodifiable(<String, bool>{
         ...current,
-        code: isAvailable,
+        id: isAvailable,
       });
     }
-    _mirrorOwn(code, isAvailable);
+    _mirrorOwn(id, isAvailable);
   }
 
-  /// Mirrors [isAvailable] onto the OWNER's dashboard when [code] is the
-  /// signed-in professional's public id (no-op for everybody else's rows).
+  /// The identity this device's own row is keyed by (`pro_id` / uuid).
+  ///
+  /// Primary source: the LIVE Supabase session — the exact uuid the dashboard
+  /// upserts its row with. Fallback: the BOUND session id, which
+  /// `SupabaseAuthBindings` sets FROM `supabaseUser.id` (so in a Supabase
+  /// session both sources are the SAME uuid) and which is the only identity a
+  /// local-only session has — such a local id never appears as a server
+  /// `pro_id`, so the mirror simply never fires there.
+  static String? get _ownProId {
+    final uuid = SupabaseAuthService.currentUserId?.trim();
+    if (uuid != null && uuid.isNotEmpty) return uuid;
+    final bound = UserStore.user.value?.id.trim() ?? '';
+    return bound.isEmpty ? null : bound;
+  }
+
+  /// Mirrors [isAvailable] onto the OWNER's dashboard when [proId] is the
+  /// signed-in professional's uuid (no-op for everybody else's rows).
   ///
   /// Kept INSIDE the ingress so both directions (realtime push and boot
   /// hydration) share one rule; [ProProfileStore.applyRemoteAvailability]
   /// itself no-ops on an unchanged value, so the mirror never echoes and never
   /// loops back into a write.
-  static void _mirrorOwn(String code, bool isAvailable) {
-    final own = UserStore.user.value?.proCode?.trim() ?? '';
-    if (own.isEmpty || own != code) return;
+  static void _mirrorOwn(String proId, bool isAvailable) {
+    final own = _ownProId;
+    if (own == null || own != proId) return;
     ProProfileStore.applyRemoteAvailability(isAvailable);
   }
 
@@ -76,15 +98,15 @@ class ProAvailabilityStore {
   static void applyRemoteRow(Map<String, dynamic> row) {
     final parsed = ProAvailabilityRepository.fromRow(row);
     if (parsed == null) return;
-    applyRemoteAvailability(parsed.proCode, parsed.isAvailable);
+    applyRemoteAvailability(parsed.proId, parsed.isAvailable);
   }
 
   /// The board's answer for [proId], or `null` when this pro never toggled
   /// (unknown → the caller keeps its own default).
   static bool? remoteFlagFor(String? proId) {
-    final code = proId?.trim() ?? '';
-    if (code.isEmpty) return null;
-    return onlineByProCode.value[code];
+    final id = proId?.trim() ?? '';
+    if (id.isEmpty) return null;
+    return onlineByProId.value[id];
   }
 
   /// [remoteFlagFor] with an explicit fallback — the feed's single read seam.
@@ -100,20 +122,20 @@ class ProAvailabilityStore {
   static Future<bool> hydrateFromSupabase() async {
     final board = await ProAvailabilityRepository.fetchAvailability();
     if (board == null) return false;
-    onlineByProCode.value = Map<String, bool>.unmodifiable(board);
+    onlineByProId.value = Map<String, bool>.unmodifiable(board);
     // The signed-in professional's OWN row (possibly written from ANOTHER
     // device) wins over the value this device cached locally — this is what
     // makes the dashboard restore the persisted state on launch.
-    final own = UserStore.user.value?.proCode?.trim() ?? '';
-    final remote = own.isEmpty ? null : board[own];
-    if (remote != null) _mirrorOwn(own, remote);
+    final own = _ownProId;
+    final remote = own == null ? null : board[own];
+    if (own != null && remote != null) _mirrorOwn(own, remote);
     return true;
   }
 
   /// Drops the whole board (sign-out): the map is scoped to the identity that
   /// was bound when it was fetched, so the next session re-hydrates it.
   static void reset() {
-    onlineByProCode.value = const <String, bool>{};
+    onlineByProId.value = const <String, bool>{};
   }
 
   /// Test seam — same effect as [reset], named for the debug-* convention used

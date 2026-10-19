@@ -6,13 +6,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:allo_service_pro/core/navigation/client_shell.dart';
 import 'package:allo_service_pro/core/navigation/pro_shell.dart';
+import 'package:allo_service_pro/core/network/connectivity_store.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/application/verification_sync_service.dart';
 import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
 import 'package:allo_service_pro/features/auth/presentation/login_screen.dart';
 import 'package:allo_service_pro/features/auth/presentation/otp_screen.dart';
+import 'package:allo_service_pro/features/auth/presentation/verifying_screen.dart';
 import 'package:allo_service_pro/features/chat/application/chat_store.dart';
 import 'package:allo_service_pro/features/notifications/application/notification_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
@@ -31,8 +34,9 @@ import 'package:allo_service_pro/shared/app_locale.dart';
 ///  C. Stale LOCAL approved + server `is_verified = false`
 ///     → pending (the SERVER wins, on the session AND on the credential
 ///     record so the next sign-in cannot re-upgrade it).
-///  D. Unknown server state fails closed, and a null/unknown role inside
-///     ProShell never grants the pro dashboard.
+///  D. An unresolved server read (transient network failure) keeps the
+///     last known status and flags the session `verificationUnconfirmed`;
+///     a null/unknown role inside ProShell still hits the gate.
 ///  E. Client OTP login keeps its existing routing (ClientShell).
 
 const _proEmail = 'pending.pro@allo.test';
@@ -70,9 +74,13 @@ void main() {
     await ProProfileStore.reset();
     AdminStore.pendingPros.value = [];
     ProfileRepository.debugIsVerifiedOverride = null;
+
+    // Isolate the sync service (_inFlight + listeners) between tests.
+    VerificationSyncService.debugReset();
   });
 
   tearDown(() async {
+    VerificationSyncService.debugReset();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_geolocatorChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -266,9 +274,10 @@ void main() {
     });
 
     testWidgets(
-        'D · unknown server state fails closed; null role never opens the '
-        'pro dashboard', (tester) async {
-      // D1 — unresolved server answer + stale approved ⇒ fail closed.
+        'D · unresolved server read keeps approved + flags unconfirmed; '
+        'null role still hits the gate', (tester) async {
+      // D1 — unresolved server answer + stale approved ⇒ status PRESERVED,
+      // session flagged unconfirmed (Phase 7-5: non-blocking retry).
       SupabaseAuthService.debugConfiguredOverride = true;
       addTearDown(SupabaseAuthService.debugResetOverrides);
       ProfileRepository.debugIsVerifiedOverride = () async => null;
@@ -279,11 +288,16 @@ void main() {
         registryStatus: 'approved',
       );
       await AdminStore.syncSessionStoresForCurrentUser();
+      // Phase 7-5 (P5b): a transient server read failure PRESERVES the
+      // approved status and flags `verificationUnconfirmed = true` so the
+      // ProShell shows a non-blocking VerifyingScreen instead of
+      // downgrading to pending.
       expect(
         UserStore.user.value!.verificationStatus,
-        isNot(ProVerification.approved),
+        ProVerification.approved,
       );
-      expect(UserStore.user.value!.needsVerificationGate, isTrue);
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+      expect(UserStore.user.value!.needsVerificationGate, isFalse);
 
       // D2 — a null/unknown role inside ProShell must hit the gate, never
       // the dashboard.
@@ -298,6 +312,87 @@ void main() {
       expect(find.byType(ProDashboardScreen), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('D3 · approved + unconfirmed → ProShell shows VerifyingScreen',
+        (tester) async {
+      // Phase 7-5: a transient server read failure on an approved Pro
+      // routes the ProShell to VerifyingScreen (non-blocking, auto-retry)
+      // instead of the Dashboard or the VerificationGateScreen.
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+      ProfileRepository.debugIsVerifiedOverride = () async => null;
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+      await AdminStore.syncSessionStoresForCurrentUser();
+
+      // Precondition: approved + unconfirmed.
+      expect(
+          UserStore.user.value!.verificationStatus, ProVerification.approved);
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+
+      await tester.pumpWidget(app(const ProShell()));
+      await tester.pump();
+
+      // The ProShell should show the VerifyingScreen (not the gate, not
+      // the dashboard).
+      expect(find.byType(VerifyingScreen), findsOneWidget);
+      expect(find.byType(VerificationGateScreen), findsNothing);
+      expect(find.byType(ProDashboardScreen), findsNothing);
+
+      // Let a bit of time pass (backoff fires + retries) — the screen
+      // should STAY because the server read keeps failing.
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.byType(VerifyingScreen), findsOneWidget);
+
+      // Cleanup: dispose the widget tree so pending timers get cancelled.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'D4 · unconfirmed flag bypasses TTL — retry happens on non-forced call',
+        (tester) async {
+      // Phase 7-5 (P5d): even when the cache timestamp is recent, an
+      // unconfirmed session MUST retry on the next non-forced syncNow call.
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      // 1) First: seed an approved pro + transient failure → unconfirmed.
+      ProfileRepository.debugIsVerifiedOverride = () async => null;
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+      await AdminStore.syncSessionStoresForCurrentUser();
+
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+      final firstCheckedAt = UserStore.user.value!.verificationLastCheckedAtMs;
+      expect(firstCheckedAt, isNotNull);
+
+      // 2) Now the server comes back online — approved.
+      ProfileRepository.debugIsVerifiedOverride = () async => true;
+
+      // 3) Trigger a non-forced sync. The TTL would normally skip (timestamp
+      //    is < 5 min old), but unconfirmed must bypass it.
+      await VerificationSyncService.syncNow();
+
+      // 4) Expect: the flag cleared + status confirmed.
+      expect(UserStore.user.value!.verificationUnconfirmed, isFalse);
+      expect(
+        UserStore.user.value!.verificationStatus,
+        ProVerification.approved,
+      );
+      // And a FRESH timestamp.
+      expect(
+        UserStore.user.value!.verificationLastCheckedAtMs,
+        greaterThanOrEqualTo(firstCheckedAt!),
+      );
     });
 
     testWidgets('E · client OTP login behavior is unchanged', (tester) async {
@@ -325,6 +420,225 @@ void main() {
       expect(find.byType(VerificationGateScreen), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'T1 · syncNow retries 3 times with exponential backoff on failure',
+        (tester) async {
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      int attempts = 0;
+      ProfileRepository.debugIsVerifiedOverride = () async {
+        attempts++;
+        return null; // always fail
+      };
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+      // Reset the attempt counter after the initial hydration.
+      attempts = 0;
+
+      // Kick off a sync (async).
+      final future = VerificationSyncService.syncNow(force: true);
+
+      // Advance the fake clock through the backoff windows.
+      await tester.pump(const Duration(milliseconds: 100)); // first attempt
+      await tester.pump(const Duration(seconds: 1)); // wait backoff[0]
+      await tester.pump(const Duration(seconds: 2)); // wait backoff[1]
+      await tester.pump(const Duration(seconds: 4)); // wait backoff[2]
+      await tester.pump(const Duration(seconds: 1));
+
+      // Wait for the future to resolve.
+      await tester.runAsync(() async {
+        await future;
+      });
+
+      expect(attempts, 3,
+          reason: 'Expected exactly 3 attempts (initial + 2 retries).');
+    });
+
+    testWidgets('T2 · concurrent syncNow calls collapse into a single attempt',
+        (tester) async {
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      int attempts = 0;
+      ProfileRepository.debugIsVerifiedOverride = () async {
+        attempts++;
+        return true; // success
+      };
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+      attempts = 0;
+
+      await tester.runAsync(() async {
+        final f1 = VerificationSyncService.syncNow(force: true);
+        final f2 = VerificationSyncService.syncNow(force: true);
+        final r2 = await f2;
+        await f1;
+        // The second call must NOT have made a new fetch.
+        expect(r2, isFalse);
+      });
+
+      expect(attempts, 1, reason: 'Expected exactly 1 fetch attempt.');
+    });
+
+    testWidgets('T3 · VerifyingScreen disappears after a successful re-sync',
+        (tester) async {
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      // Seed: approved + transient failure → unconfirmed.
+      ProfileRepository.debugIsVerifiedOverride = () async => null;
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+      await AdminStore.syncSessionStoresForCurrentUser();
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+
+      await tester.pumpWidget(app(const ProShell()));
+      await tester.pump();
+      expect(find.byType(VerifyingScreen), findsOneWidget);
+
+      // Phase 7-5 (P6b): VerifyingScreen.initState fired an unawaited sync
+      // while the override still returned null. Pump through the backoff
+      // windows (1s + 2s + 4s + 1s) so that in-flight call completes and
+      // releases `_inFlight` before we trigger a manual sync.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(seconds: 1));
+
+      // Now the server comes back online.
+      ProfileRepository.debugIsVerifiedOverride = () async => true;
+
+      // Trigger a manual sync — should succeed now.
+      await tester.runAsync(() async {
+        await VerificationSyncService.syncNow(force: true);
+      });
+      await tester.pump();
+
+      expect(find.byType(VerifyingScreen), findsNothing);
+      expect(find.byType(ProDashboardScreen), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('T4 · rejected status never shows VerifyingScreen (gate wins)',
+        (tester) async {
+      // Manually build a rejected + unconfirmed session.
+      UserStore.user.value = const UserModel(
+        id: 'rejected-uid',
+        name: 'Rejected Pro',
+        phone: '',
+        role: UserRole.professional,
+        verificationStatus: ProVerification.rejected,
+        verificationUnconfirmed: true,
+      );
+
+      await tester.pumpWidget(app(const ProShell()));
+      await tester.pump();
+
+      expect(find.byType(VerificationGateScreen), findsOneWidget);
+      expect(find.byType(VerifyingScreen), findsNothing);
+      expect(find.byType(ProDashboardScreen), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('T5 · a stale cache timestamp (> 5 min) triggers a fresh fetch',
+        (tester) async {
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      int attempts = 0;
+      ProfileRepository.debugIsVerifiedOverride = () async {
+        attempts++;
+        return true;
+      };
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+
+      // Force a stale timestamp: 6 minutes ago.
+      final current = UserStore.user.value!;
+      UserStore.user.value = current.withVerificationAudit(
+        unconfirmed: false,
+        source: VerificationSource.server,
+        lastCheckedAtMs: DateTime.now()
+            .subtract(const Duration(minutes: 6))
+            .millisecondsSinceEpoch,
+      );
+
+      attempts = 0;
+
+      await tester.runAsync(() async {
+        await VerificationSyncService.syncNow(); // non-forced
+      });
+
+      expect(attempts, 1,
+          reason: 'A stale timestamp must trigger a fresh fetch.');
+    });
+
+    testWidgets('T6 · regaining connectivity triggers a background sync',
+        (tester) async {
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+
+      int attempts = 0;
+      ProfileRepository.debugIsVerifiedOverride = () async {
+        attempts++;
+        return true;
+      };
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.approved,
+        registryStatus: 'approved',
+      );
+
+      // Initialize the service (idempotent) so it subscribes to connectivity.
+      VerificationSyncService.debugReset();
+      VerificationSyncService.init();
+      addTearDown(VerificationSyncService.debugReset);
+
+      // Wait for the initial nudge from init() to settle.
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+
+      attempts = 0;
+
+      // Simulate: offline → online.
+      ConnectivityStore.debugSetOnline(false);
+      await tester.pump();
+      ConnectivityStore.debugSetOnline(true);
+      await tester.pump();
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+
+      expect(attempts, greaterThanOrEqualTo(1),
+          reason: 'Regaining connectivity must trigger a sync.');
     });
   });
 }

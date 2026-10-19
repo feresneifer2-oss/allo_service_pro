@@ -4,6 +4,7 @@ import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/presentation/verifying_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_dashboard_screen.dart';
@@ -84,6 +85,15 @@ class _ProShellState extends State<ProShell> {
                 sessionUser.needsVerificationGate;
             if (sessionNeedsGate) {
               return const VerificationGateScreen();
+            }
+
+            // Phase 7-5: approved but the last server read failed → show a
+            // non-blocking VerifyingScreen. The ValueListenableBuilder above
+            // rebuilds once verificationUnconfirmed flips false (sync
+            // success) — no navigation needed. `sessionUser` is already
+            // promoted past this point by the sessionNeedsGate check above.
+            if (sessionUser.verificationUnconfirmed) {
+              return const VerifyingScreen();
             }
 
             // Paywall gates:

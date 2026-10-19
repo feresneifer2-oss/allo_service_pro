@@ -42,12 +42,12 @@ class _SearchScreenState extends State<SearchScreen> {
     // REALTIME AVAILABILITY: results live in state; a persisted toggle on
     // `realtime:public:pro_availability` must repaint the "Indisponible"
     // badge + "Demander" CTA in ONE frame without a new search/remount.
-    ProAvailabilityStore.onlineByProCode.addListener(_onAvailabilityChanged);
+    ProAvailabilityStore.onlineByProId.addListener(_onAvailabilityChanged);
   }
 
   @override
   void dispose() {
-    ProAvailabilityStore.onlineByProCode.removeListener(_onAvailabilityChanged);
+    ProAvailabilityStore.onlineByProId.removeListener(_onAvailabilityChanged);
     _controller.dispose();
     super.dispose();
   }

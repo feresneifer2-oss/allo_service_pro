@@ -92,8 +92,7 @@ void main() {
         expect(await AdminStore.approvePro(registered.id), isTrue);
 
         final live = ProfessionalsRepository.live;
-        final entry =
-            live.firstWhere((p) => p.id == registered.proCode);
+        final entry = live.firstWhere((p) => p.id == registered.proCode);
         // Routing id is STILL the public code…
         expect(entry.id, registered.proCode);
         // …and the auth identity travels alongside it.

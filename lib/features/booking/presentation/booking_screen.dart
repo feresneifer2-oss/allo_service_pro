@@ -11,6 +11,7 @@ import 'package:allo_service_pro/features/professionals/models/professional_mode
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/models/service_request.dart';
 import 'package:allo_service_pro/features/requests/presentation/request_sent_screen.dart';
+import '../../pro_dashboard/application/pro_availability_store.dart';
 
 /// Unified booking flow (Urban Company style): every confirmation creates a
 /// real [ServiceRequest] in [RequestStore] so the professional receives the
@@ -239,6 +240,37 @@ class _BookingScreenState extends State<BookingScreen> {
       return;
     }
 
+    // PHASE 7-2a: availability gate — refuse orders to an offline pro.
+    // fallback: true matches the feed semantics (absent row = available).
+    // Mirrors confirm_request_screen: the gate runs BEFORE `_isSubmitting`
+    // is armed, so a refusal returns early without disabling the button.
+    // Phase 7-4: the board is keyed by the pro's UUID (`pro_id`), so the gate
+    // resolves the auth identity with the SAME rule as `resolvedAuthUid`
+    // below (declared later in this method) — the gate and the order stored
+    // right after it can never disagree on WHICH professional was checked.
+    final gateProId =
+        (widget.professionalId != null && widget.professionalId!.isNotEmpty)
+            ? widget.professionalId!
+            : _resolvedPro.id;
+    final gateAuthUid = _resolvedPro.id == gateProId
+        ? _resolvedPro.authUid
+        : ProfessionalsRepository.byId(gateProId)?.authUid;
+    if (!ProAvailabilityStore.isOnline(gateAuthUid, fallback: true)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr(
+            context,
+            fr: "Ce professionnel est actuellement indisponible. "
+                "Réessayez plus tard.",
+            ar: 'هذا المحترف غير متاح حاليًا. حاول مجددًا لاحقًا.',
+          )),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final dt = DateTime(
@@ -292,12 +324,31 @@ class _BookingScreenState extends State<BookingScreen> {
     // chat + notification flows light up exactly like the profile path.
     // AWAITED (CodeRabbit): the Supabase mirror settles before the user is
     // told the order was sent.
-    final mirrored = await RequestStore.add(request);
+    final outcome = await RequestStore.addDetailed(request);
 
     // ASYNC-GAP SAFETY: `add` awaited the backend mirror — the State may
     // have been disposed meanwhile; never navigate with a dead context.
     if (!mounted) return;
-    if (!mirrored) {
+    if (outcome == RequestSubmitOutcome.proUnavailable) {
+      // PHASE 7-2c-4: server-side availability gate refused — permanent
+      // (the pro flipped offline between the local gate and the INSERT).
+      // Re-arm + the availability copy, never the misleading
+      // "sync failed" message.
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(tr(
+            context,
+            fr: "Ce professionnel est actuellement indisponible. "
+                "Réessayez plus tard.",
+            ar: 'هذا المحترف غير متاح حاليًا. حاول مجددًا لاحقًا.',
+          )),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (outcome != RequestSubmitOutcome.sent) {
       // BACKEND REFUSAL (CodeRabbit): the optimistic local row exists, but
       // Supabase rejected the INSERT — pushing the "sent" screen would be a
       // PHANTOM SUCCESS (the pro never received the order). The submit flag

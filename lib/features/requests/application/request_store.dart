@@ -18,6 +18,20 @@ import '../../pro_dashboard/application/subscription_store.dart';
 import '../../auth/application/supabase_auth_service.dart';
 import '../data/orders_repository.dart';
 
+/// Phase 7-2c-4: outcome of a submit attempt, richer than bool.
+enum RequestSubmitOutcome {
+  /// Durable: inserted, or intentionally local (offline / unconfigured).
+  sent,
+
+  /// Server-side availability gate refused (pro is offline).
+  /// Permanent — do NOT enqueue, do NOT retry.
+  proUnavailable,
+
+  /// Backend reachable & configured but refused (RLS / constraint /
+  /// transport). The row was enqueued for retry.
+  syncFailed,
+}
+
 class RequestStore {
   RequestStore._();
 
@@ -30,15 +44,10 @@ class RequestStore {
   /// caller reports success; offline → local-only (the queue only supports
   /// status replays today, so creations are not enqueued).
   ///
-  /// RETURNS the mirror outcome — the INSERT failure is no longer discarded:
-  ///   • `true`  → durably handled: mirrored, or deliberately local-only
-  ///               (offline / backend unconfigured) or an idempotent
-  ///               duplicate (the row already exists under that id);
-  ///   • `false` → the backend was reachable AND configured but REFUSED the
-  ///               INSERT (RLS / constraint / transport). The optimistic
-  ///               local row is NEVER rolled back — the caller surfaces an
-  ///               actionable retry instead of a phantom success.
-  static Future<bool> add(ServiceRequest request) async {
+  /// Same as [add], but returns a rich outcome — used by UI to show the
+  /// correct message when the availability gate refuses.
+  static Future<RequestSubmitOutcome> addDetailed(
+      ServiceRequest request) async {
     if (requests.value.any((existing) => existing.id == request.id)) {
       // IDEMPOTENT by id: a double-tap / replayed submission adds nothing and
       // is already durable, so the caller must not be told it failed.
@@ -53,7 +62,7 @@ class RequestStore {
       if (ConnectivityStore.isOnline.value && OrdersRepository.isConfigured) {
         unawaited(_mirror(request));
       }
-      return true;
+      return RequestSubmitOutcome.sent;
     }
     final list = List<ServiceRequest>.from(requests.value);
     list.insert(0, request);
@@ -81,31 +90,50 @@ class RequestStore {
     // no Supabase binding has nothing to replay into, so nothing is queued.
     if (!ConnectivityStore.isOnline.value) {
       await _persistPendingCreation(request);
-      return true;
+      return RequestSubmitOutcome.sent;
     }
-    if (!OrdersRepository.isConfigured) return true;
+    if (!OrdersRepository.isConfigured) return RequestSubmitOutcome.sent;
 
     // PERSISTENCE MIRROR (CodeRabbit): the INSERT is awaited so the shared
     // creation path (booking screen / confirm screen) can never report the
     // order as sent before the backend accepted it.
-    final mirrored = await _mirror(request);
-    if (!mirrored) {
-      // PROPAGATED (CodeRabbit): a REFUSED insert used to be swallowed — the
+    final outcome = await _mirror(request);
+
+    if (outcome == RequestSubmitOutcome.proUnavailable) {
+      // Permanent refusal (pro offline) — do NOT enqueue, do NOT retry.
+      AppErrorHandler.report(
+        StateError('orders INSERT refused for "${request.id}": '
+            'pro_unavailable (professionalId="${request.professionalId}")'),
+        StackTrace.current,
+        context: 'RequestStore.addDetailed',
+      );
+      return outcome;
+    }
+
+    if (outcome == RequestSubmitOutcome.syncFailed) {
+      // TRANSIENT (CodeRabbit): a REFUSED insert used to be swallowed — the
       // caller navigated to the success screen while the backend owned no
-      // row. It is now reported (diagnostics + explicit `false`) so the UI
+      // row. It is now reported (diagnostics + explicit outcome) so the UI
       // can tell the user the order is stored locally and pending sync.
       AppErrorHandler.report(
         StateError('orders INSERT refused for "${request.id}" '
             '(professional="${request.professionalId}")'),
         StackTrace.current,
-        context: 'RequestStore.add',
+        context: 'RequestStore.addDetailed',
       );
       // Zero data loss: the refused row is queued as well, so a transient
       // refusal (RLS hiccup, transport reset) is retried automatically on the
       // next connectivity window instead of dying with the process.
       await _persistPendingCreation(request);
     }
-    return mirrored;
+    return outcome;
+  }
+
+  /// Backward-compatible façade: true when durable (inserted or intentional
+  /// local), false on refusal (sync failed or pro unavailable).
+  static Future<bool> add(ServiceRequest request) async {
+    final outcome = await addDetailed(request);
+    return outcome == RequestSubmitOutcome.sent;
   }
 
   /// Client-generated, collision-resistant id (RFC-4122 v4 shape) used by the
@@ -177,7 +205,12 @@ class RequestStore {
       );
       return false;
     }
-    return _mirror(request);
+    final mirrorOutcome = await _mirror(request);
+    // Phase 7-2c-4: queue contract — only a TRANSIENT sync failure is
+    // replayed; a permanent availability refusal is consumed here (the pro
+    // is offline — a replay cannot succeed until they return).
+    if (mirrorOutcome == RequestSubmitOutcome.proUnavailable) return true;
+    return mirrorOutcome == RequestSubmitOutcome.sent;
   }
 
   /// Mirrors [request] to the backend, re-keying it only as a LAST RESORT.
@@ -199,18 +232,21 @@ class RequestStore {
   ///   3. only when the duplicate cannot be tied to an existing row does the
   ///      previous behavior stand: re-key once with a fresh v4 UUID and retry
   ///      the INSERT exactly once. Any other refusal fails this pass.
-  static Future<bool> _mirror(ServiceRequest request) async {
+  static Future<RequestSubmitOutcome> _mirror(ServiceRequest request) async {
     final outcome = await OrdersRepository.insertOrderDetailed(request);
     switch (outcome) {
       case OrderInsertOutcome.inserted:
-        return true;
+        return RequestSubmitOutcome.sent;
       case OrderInsertOutcome.notConfigured:
         // No backend to sync into: the local commit IS the durable state.
-        return true;
+        return RequestSubmitOutcome.sent;
       case OrderInsertOutcome.duplicateId:
         break; // verified below, re-keyed only as a last resort
+      case OrderInsertOutcome.proUnavailable:
+        // Phase 7-2c-4: server-side availability gate — permanent refusal.
+        return RequestSubmitOutcome.proUnavailable;
       case OrderInsertOutcome.failed:
-        return false;
+        return RequestSubmitOutcome.syncFailed;
     }
 
     // 1) LOCAL STATE FIRST (CodeRabbit): the draft this mirror belongs to may
@@ -223,7 +259,7 @@ class RequestStore {
         'duplicate INSERT for "${request.id}" whose local draft is gone — '
             'treated as idempotent, no re-key',
       );
-      return true;
+      return RequestSubmitOutcome.sent;
     }
 
     // 2) REMOTE VERIFICATION (CodeRabbit): the outcome is classified
@@ -244,7 +280,7 @@ class RequestStore {
               'no re-key',
         );
         applyRemoteOrder(verification.order!);
-        return true;
+        return RequestSubmitOutcome.sent;
       case OrderVerification.inconclusiveTransport:
         // DO NOT re-key on an ambiguous read (CodeRabbit): a transport/auth
         // hiccup proves nothing about the row. Re-keying here would fork the
@@ -255,7 +291,7 @@ class RequestStore {
           'duplicate INSERT for "${request.id}" could not be verified '
               '(transport/auth) — mirror left pending, no re-key',
         );
-        return false;
+        return RequestSubmitOutcome.syncFailed;
       case OrderVerification.dataMismatch:
         // Conclusive: the id is taken by a DIFFERENT request — re-keying is
         // the only path (handled in step 3 below).
@@ -267,14 +303,19 @@ class RequestStore {
         final retried = await OrdersRepository.insertOrderDetailed(request);
         if (retried == OrderInsertOutcome.inserted ||
             retried == OrderInsertOutcome.notConfigured) {
-          return true;
+          return RequestSubmitOutcome.sent;
+        }
+        if (retried == OrderInsertOutcome.proUnavailable) {
+          // Phase 7-2c-4: the pro went offline between the two INSERTs —
+          // permanent refusal, never enqueued.
+          return RequestSubmitOutcome.proUnavailable;
         }
         AppErrorHandler.report(
           StateError('same-key retry for "${request.id}" failed: $retried'),
           StackTrace.current,
           context: 'RequestStore._mirror',
         );
-        return false;
+        return RequestSubmitOutcome.syncFailed;
     }
 
     // 3) The id is CONCLUSIVELY taken by a different order: re-key once with
@@ -291,7 +332,12 @@ class RequestStore {
     final retried = await OrdersRepository.insertOrderDetailed(reKeyed);
     if (retried == OrderInsertOutcome.inserted ||
         retried == OrderInsertOutcome.notConfigured) {
-      return true;
+      return RequestSubmitOutcome.sent;
+    }
+    if (retried == OrderInsertOutcome.proUnavailable) {
+      // Phase 7-2c-4: the pro went offline before the re-keyed INSERT —
+      // permanent refusal, never enqueued.
+      return RequestSubmitOutcome.proUnavailable;
     }
     if (retried == OrderInsertOutcome.duplicateId) {
       // A fresh v4 UUID colliding twice is astronomically unlikely: reported
@@ -302,7 +348,7 @@ class RequestStore {
         context: 'RequestStore._mirror',
       );
     }
-    return false;
+    return RequestSubmitOutcome.syncFailed;
   }
 
   /// Applies a RE-KEY to the local store so the remote row and the local one

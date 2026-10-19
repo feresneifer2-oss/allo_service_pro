@@ -255,8 +255,7 @@ void main() {
       expect([...rowWith.keys]..sort(), [...rowWithout.keys]..sort());
       expect(rowWith['pro_id'], 'uid-wire');
       expect(rowWithout['pro_id'], isNull);
-      final withMinusPro = Map<String, dynamic>.from(rowWith)
-        ..remove('pro_id');
+      final withMinusPro = Map<String, dynamic>.from(rowWith)..remove('pro_id');
       final withoutMinusPro = Map<String, dynamic>.from(rowWithout)
         ..remove('pro_id');
       expect(withMinusPro, withoutMinusPro);
@@ -266,8 +265,7 @@ void main() {
       expect(rowWith.values, isNot(contains('pro_1')));
     });
 
-    test('fromRow round-trip carries pro_id → uid; no display id invented',
-        () {
+    test('fromRow round-trip carries pro_id → uid; no display id invented', () {
       final original = buildRequest(
         id: '3k-w-2',
         professionalId: 'PRO-12345',
@@ -326,25 +324,23 @@ void main() {
       expect(wireRow.professionalAuthUid, 'uid-merge');
 
       RequestStore.applyRemoteOrder(wireRow);
-      expect(RequestStore.byId('3k-merge-1')?.professionalAuthUid,
-          'uid-merge');
+      expect(RequestStore.byId('3k-merge-1')?.professionalAuthUid, 'uid-merge');
 
       // A legacy remote row decoding WITHOUT `pro_id` still inherits the
       // local uid instead of stripping it (pre-3L shape).
-      final legacyRow = Map<String, dynamic>.from(
-          OrdersRepository.toRow(request))
-        ..remove('pro_id');
+      final legacyRow =
+          Map<String, dynamic>.from(OrdersRepository.toRow(request))
+            ..remove('pro_id');
       final legacyRemote = OrdersRepository.fromRow(legacyRow)!;
       expect(legacyRemote.professionalAuthUid, isNull);
       RequestStore.applyRemoteOrder(legacyRemote);
-      expect(RequestStore.byId('3k-merge-1')?.professionalAuthUid,
-          'uid-merge');
+      expect(RequestStore.byId('3k-merge-1')?.professionalAuthUid, 'uid-merge');
 
       // A remote row that ALREADY carries a uid always wins.
       RequestStore.applyRemoteOrder(
           wireRow.copyWith(professionalAuthUid: 'uid-remote'));
-      expect(RequestStore.byId('3k-merge-1')?.professionalAuthUid,
-          'uid-remote');
+      expect(
+          RequestStore.byId('3k-merge-1')?.professionalAuthUid, 'uid-remote');
     });
 
     test('hydration merge inherits uid, keeps local-only rows on top', () {
@@ -369,12 +365,10 @@ void main() {
           ['3k-hyd-local', '3k-hyd-1', '3k-hyd-new']);
       // The replaced row keeps the uid — the wire round-trip carried it
       // (`pro_id`) and the local inherit covers any legacy decode.
-      expect(
-          merged.firstWhere((r) => r.id == '3k-hyd-1').professionalAuthUid,
+      expect(merged.firstWhere((r) => r.id == '3k-hyd-1').professionalAuthUid,
           'uid-hyd');
       // …and a genuinely NEW remote order stays null.
-      expect(
-          merged.firstWhere((r) => r.id == '3k-hyd-new').professionalAuthUid,
+      expect(merged.firstWhere((r) => r.id == '3k-hyd-new').professionalAuthUid,
           isNull);
       // The kept local-only row is untouched.
       expect(merged.first.professionalId, 'pro_5');
@@ -406,8 +400,7 @@ void main() {
       expect(await RequestStore.add(request), isTrue);
 
       // (a) The local durable copy carries the uid.
-      expect(RequestStore.byId('3k-off-1')?.professionalAuthUid,
-          'uid-offline');
+      expect(RequestStore.byId('3k-off-1')?.professionalAuthUid, 'uid-offline');
 
       // (b) The queued payload is EXACTLY the untouched wire row.
       final queued = OfflineQueue.pending.value
@@ -441,8 +434,7 @@ void main() {
       expect(report.applied, 1);
       expect(report.dropped, 0);
       expect(OfflineQueue.isEmpty, isTrue);
-      expect(RequestStore.byId('3k-off-1')?.professionalAuthUid,
-          'uid-offline');
+      expect(RequestStore.byId('3k-off-1')?.professionalAuthUid, 'uid-offline');
     });
   });
 }

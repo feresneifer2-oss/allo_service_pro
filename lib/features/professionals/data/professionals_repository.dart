@@ -31,6 +31,10 @@ class ProfessionalsRepository {
 
     return approved.map((p) {
       final code = p.proCode ?? p.id;
+      // Phase 7-4: match by uuid (authUid), NOT by pro_code — the board is
+      // keyed by `pro_id`. A mock/legacy pro without an authUid has no board
+      // key, so it falls back to "available" (the pre-first-toggle default).
+      final proUuid = p.authUid;
       // Phase 4G: use the first zone as city, no fake 'Tunis' fallback.
       final cityFr = (p.zones.isNotEmpty) ? p.zones.first : (p.city ?? '');
       final loc = TunisianLocations.getLocationByFr(cityFr);
@@ -62,7 +66,7 @@ class ProfessionalsRepository {
         // is listed according to their own flag, not unconditionally. `true` is
         // only the fallback for a pro who has no row yet — the value the
         // registration flow implies until the very first toggle.
-        availableNow: ProAvailabilityStore.isOnline(code, fallback: true),
+        availableNow: ProAvailabilityStore.isOnline(proUuid, fallback: true),
         // Quote mode is preserved verbatim: a pro who registered with
         // pricingType 'quote' carries priceFrom == null, and the client UI
         // branches on pricingType FIRST ('Sur devis' badge) so the `?? 50`
@@ -136,8 +140,14 @@ class ProfessionalsRepository {
   /// `null` (unknown pro / no row) leaves the entry UNCHANGED: the source
   /// model's own default stands, so a failed or pending hydration can never
   /// flip the whole catalog to "unavailable".
+  ///
+  /// Phase 7-4: matched by `authUid` (the board's `pro_id` uuid key). The
+  /// `?? p.id` branch only serves curated catalog entries, which carry NO
+  /// auth identity — a server row can never hold a catalog id as `pro_id`
+  /// (it is always an auth.users uuid), so that branch cannot match a real
+  /// row; it just keeps the demo entries addressable by the local board.
   static ProfessionalModel _withRemoteAvailability(ProfessionalModel p) {
-    final remote = ProAvailabilityStore.remoteFlagFor(p.id);
+    final remote = ProAvailabilityStore.remoteFlagFor(p.authUid ?? p.id);
     return remote == null ? p : p.withAvailability(remote);
   }
 

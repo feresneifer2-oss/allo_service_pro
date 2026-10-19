@@ -100,7 +100,8 @@ void main() {
     EmailOtpService.reset();
   });
 
-  testWidgets('server-confirmed admin bypasses the registry and routes to admin',
+  testWidgets(
+      'server-confirmed admin bypasses the registry and routes to admin',
       (tester) async {
     // Phase 1 — SERVER-SIDE AUTHORIZATION: nothing in the client decides this
     // any more. The operator's real Supabase credentials are exchanged for a

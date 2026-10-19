@@ -12,6 +12,7 @@ import 'package:allo_service_pro/shared/validators.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../application/supabase_auth_service.dart';
 import '../application/user_store.dart';
+import '../application/verification_sync_service.dart';
 import '../data/profile_repository.dart';
 import '../../requests/application/request_store.dart';
 import 'language_screen.dart';
@@ -247,6 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return false;
       }
     }
+
     // Mirror the persisted registry (subscription · tokens · approval) into
     // the live session stores BEFORE routing — zero desync, exactly like the
     // OTP success path. Runs AFTER the server-role hydration above so
@@ -255,6 +257,11 @@ class _LoginScreenState extends State<LoginScreen> {
     // and `professionals.is_verified` is never read from Supabase.
     await AdminStore.syncSessionStoresForCurrentUser();
     if (!mounted) return false;
+
+    // Phase 7-5: trigger a verification sync in the background so the
+    // fresh session's status is confirmed non-blockingly.
+    unawaited(VerificationSyncService.syncNow(force: true));
+
     // Phase B: re-hydrate orders now that the session is authenticated.
     // Startup hydration (main.dart) ran BEFORE login → RLS returned 0 rows.
     unawaited(RequestStore.hydrateFromSupabase());

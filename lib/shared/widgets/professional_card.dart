@@ -10,6 +10,7 @@ class ProfessionalCard extends StatelessWidget {
     this.rating = 0.0,
     this.location = "Ariana",
     this.verified = true,
+    this.available = true,
     this.buttonText = "Voir",
     this.priceFrom,
     this.pricingType = 'fixed',
@@ -21,6 +22,11 @@ class ProfessionalCard extends StatelessWidget {
   final double rating;
   final String location;
   final bool verified;
+
+  /// Live availability board flag (Supabase `pro_availability`).
+  /// `false` renders the "Indisponible" badge and disables the CTA.
+  /// Defaults to `true` so callers that do not opt in keep today's look.
+  final bool available;
   final String buttonText;
 
   /// Starting price in TND — rendered as a gold-bordered price chip.
@@ -101,6 +107,34 @@ class ProfessionalCard extends StatelessWidget {
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    // PHASE 7-3a: offline badge — mirrors search_screen's
+                    // "Indisponible" chip (error-tinted, first in the Wrap).
+                    if (!available) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.block_rounded,
+                                size: 12, color: AppColors.error),
+                            const SizedBox(width: 4),
+                            Text(
+                              tr(context, fr: 'Indisponible', ar: 'غير متاح'),
+                              style: const TextStyle(
+                                color: AppColors.error,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     // Trust badge: identity card verified by the admin
                     // (بطاقة هويّة مفعلة / CIN Vérifié).
                     if (verified)
@@ -234,7 +268,12 @@ class ProfessionalCard extends StatelessWidget {
                 width: double.infinity,
                 height: 42,
                 child: ElevatedButton(
-                  onPressed: onPressed ?? () {},
+                  onPressed: available ? (onPressed ?? () {}) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        available ? AppColors.secondary : Colors.grey,
+                    disabledBackgroundColor: Colors.grey,
+                  ),
                   child: Text(
                     buttonText,
                     maxLines: 1,

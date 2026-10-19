@@ -466,27 +466,71 @@ class _ProfessionalProfileScreenState extends State<ProfessionalProfileScreen> {
                 ],
               ),
             ),
+            // PHASE 7-3b: banner — the client sees WHY the CTA is dead
+            // (mirrors search_screen's "Indisponible" chip, full-width).
+            if (!finalPro.availableNow) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.block_rounded,
+                        size: 16, color: AppColors.error),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        tr(
+                          context,
+                          fr: 'Ce professionnel est actuellement indisponible.',
+                          ar: 'هذا المحترف غير متاح حاليًا.',
+                        ),
+                        style: const TextStyle(
+                          color: AppColors.error,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.all(20),
               child: SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CreateRequestScreen(
-                          serviceTitleFr: finalPro.professionFr,
-                          serviceTitleAr: finalPro.professionAr,
-                          professionalId: finalPro.id,
-                          professionalName: finalPro.name,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: finalPro.availableNow
+                      ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CreateRequestScreen(
+                                serviceTitleFr: finalPro.professionFr,
+                                serviceTitleAr: finalPro.professionAr,
+                                professionalId: finalPro.id,
+                                professionalName: finalPro.name,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.secondary),
+                    backgroundColor: finalPro.availableNow
+                        ? AppColors.secondary
+                        : Colors.grey,
+                    disabledBackgroundColor: Colors.grey,
+                  ),
                   child: Text(tr(context,
                       fr: 'Demander ce service', ar: 'اطلب هذه الخدمة')),
                 ),

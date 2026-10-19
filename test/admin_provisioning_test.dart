@@ -60,8 +60,8 @@ void main() {
         description: description,
       ));
 
-  PendingProModel entryOf(PendingProModel pro) => AdminStore.pendingPros.value
-      .firstWhere((p) => p.id == pro.id);
+  PendingProModel entryOf(PendingProModel pro) =>
+      AdminStore.pendingPros.value.firstWhere((p) => p.id == pro.id);
 
   FakeAdminAuthRepository approveFake({
     bool enrolled = true,

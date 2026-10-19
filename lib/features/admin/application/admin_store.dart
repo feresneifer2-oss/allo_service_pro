@@ -971,12 +971,14 @@ class AdminStore {
   ///    inheriting it through the copyWith merge);
   ///  * `status == 'pending'` → the session is gated as pending, demoting a
   ///    stale local approved;
-  ///  * unresolved (`null` — Supabase unconfigured, query error, timeout,
-  ///    missing row/column) or an unknown/missing `status` value → FAIL
-  ///    CLOSED to pending, EXCEPT that a failed read NEVER silently
-  ///    downgrades an existing rejection: only an explicit server answer can
-  ///    lift or change it (stale approved → pending on failure, mirroring the
-  ///    old two-state contract).
+  ///  * TRANSIENT FAILURE (`statusMap == null` — network / timeout / RLS /
+  ///    unconfigured): the current status is PRESERVED and the session is
+  ///    flagged `verificationUnconfirmed = true`; the VerifyingScreen
+  ///    retries non-blockingly (Phase 7-5). The status is NEVER downgraded
+  ///    on a transient failure.
+  ///  * SERVER ANOMALY (`statusMap` exists but 'status' is null or
+  ///    unknown): we still fail CLOSED to 'pending' — the server responded
+  ///    but with unexpected data, and guessing 'approved' would be unsafe.
   ///
   /// Never throws: an unreachable backend degrades to FAIL CLOSED.
   ///
@@ -995,15 +997,16 @@ class AdminStore {
     final statusMap = await ProfileRepository.fetchOwnProfessionalStatus(
       id: SupabaseAuthService.currentUserId ?? '',
     );
+
     // The await may have interleaved with other session writes — re-read.
     final session = UserStore.user.value;
     if (session == null || !session.isProfessional) return;
 
-    // Three-state parse of the server row. Anything that is not an explicit
-    // 'approved' / 'rejected' / 'pending' answer (null map, missing or
-    // unknown status) fails CLOSED to pending — never approved — with the
-    // one carve-out documented above: an unresolved read must not silently
-    // downgrade a rejection the server previously issued.
+    // Three-state parse of the server row. A CLEAR answer (approved /
+    // rejected / pending) is authoritative. A transient read failure is
+    // handled in the `else if` branch below (early return + unconfirmed
+    // flag). A malformed row (statusMap exists but status missing or
+    // unknown) fails CLOSED to pending — never approved.
     final rawStatus = statusMap?['status'];
     final ProVerification newStatus;
     if (rawStatus == 'approved') {
@@ -1012,12 +1015,24 @@ class AdminStore {
       newStatus = ProVerification.rejected;
     } else if (rawStatus == 'pending') {
       newStatus = ProVerification.pending;
+    } else if (statusMap == null) {
+      // Phase 7-5 (P5b): TRANSIENT FAILURE (network / timeout / RLS /
+      // unconfigured). Do NOT downgrade — flag unconfirmed and let the
+      // VerificationSyncService retry non-blockingly.
+      await UserStore.markVerificationUnconfirmed();
+      return; // no further processing on a failed read
     } else {
-      // Failure / missing / unknown → keep a rejection, otherwise pending.
+      // SERVER ANOMALY (statusMap exists but rawStatus is null or
+      // unknown). This is NOT a network issue — the server explicitly
+      // returned a row. Fail-closed to pending (safer than guessing).
       newStatus = session.verificationStatus.isRejected
           ? ProVerification.rejected
           : ProVerification.pending;
     }
+
+    // Phase 7-5 (P5b): we have a CLEAR server answer — mark the audit
+    // confirmed (unconfirmed=false) and stamp the timestamp.
+    await UserStore.markVerificationConfirmed();
 
     // Refresh the persisted reason only on an EXPLICIT server rejection:
     // the fail-closed branch above can map to `rejected` solely when the

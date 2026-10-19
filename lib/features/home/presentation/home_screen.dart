@@ -14,6 +14,7 @@ import 'widgets/search_bar_widget.dart';
 import 'widgets/service_grid.dart';
 
 import '../application/governorate_filter_store.dart';
+import '../../pro_dashboard/application/pro_availability_store.dart';
 
 import '../../../shared/widgets/section_title.dart';
 import '../../../shared/widgets/professional_card.dart';
@@ -76,88 +77,98 @@ class _RecommendedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<String?>(
-      valueListenable: GovernorateFilterStore.governorateFr,
-      builder: (context, govFr, _) {
-        // set(ar, fr) always updates both notifiers simultaneously, so
-        // listening to the FR one and reading both .values is safe.
-        return ValueListenableBuilder<Locale>(
-          valueListenable: appLocale,
-          builder: (context, locale, _) {
-            final isArabic = locale.languageCode == 'ar';
-            final selectedGov =
-                isArabic ? GovernorateFilterStore.governorateAr.value : govFr;
-            final pros = _recommendedPros(selectedGov, isArabic);
+    // PHASE 7-3c: live availability — a third notifier stacked on the two
+    // below, so a pro toggling their board repaints badges/CTAs instantly.
+    return ValueListenableBuilder<Map<String, bool>>(
+      valueListenable: ProAvailabilityStore.onlineByProId,
+      builder: (context, availability, _) {
+        return ValueListenableBuilder<String?>(
+          valueListenable: GovernorateFilterStore.governorateFr,
+          builder: (context, govFr, _) {
+            // set(ar, fr) always updates both notifiers simultaneously, so
+            // listening to the FR one and reading both .values is safe.
+            return ValueListenableBuilder<Locale>(
+              valueListenable: appLocale,
+              builder: (context, locale, _) {
+                final isArabic = locale.languageCode == 'ar';
+                final selectedGov = isArabic
+                    ? GovernorateFilterStore.governorateAr.value
+                    : govFr;
+                final pros = _recommendedPros(selectedGov, isArabic);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: SectionTitle(
-                        title: tr(
-                          context,
-                          fr: 'Professionnels recommandés',
-                          ar: 'محترفون موصى بهم',
-                        ),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ProfessionalsListScreen(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: SectionTitle(
+                            title: tr(
+                              context,
+                              fr: 'Professionnels recommandés',
+                              ar: 'محترفون موصى بهم',
+                            ),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                      label: Text(
-                        tr(context, fr: 'Voir tout', ar: 'عرض الكل'),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfessionalsListScreen(),
+                              ),
+                            );
+                          },
+                          icon:
+                              const Icon(Icons.arrow_forward_rounded, size: 16),
+                          label: Text(
+                            tr(context, fr: 'Voir tout', ar: 'عرض الكل'),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                ...pros.take(3).map((pro) {
-                  final profession = tr(
-                    context,
-                    fr: pro.professionFr,
-                    ar: pro.professionAr,
-                  );
-                  // City label follows the active locale (AR name in
-                  // Arabic, French name otherwise, with an AR fallback
-                  // when the French name is missing).
-                  final location = isArabic
-                      ? pro.city
-                      : (pro.cityFr.isNotEmpty ? pro.cityFr : pro.city);
-
-                  return ProfessionalCard(
-                    name: pro.name,
-                    profession: profession,
-                    rating: pro.rating,
-                    location: location,
-                    verified: pro.verified,
-                    priceFrom: pro.priceFrom,
-                    pricingType: pro.pricingType,
-                    buttonText: tr(context, fr: 'Voir', ar: 'عرض'),
-                    onPressed: () {
-                      Navigator.push(
+                    const SizedBox(height: 18),
+                    ...pros.take(3).map((pro) {
+                      final profession = tr(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => ProfessionalProfileScreen(
-                            professionalId: pro.id,
-                          ),
-                        ),
+                        fr: pro.professionFr,
+                        ar: pro.professionAr,
                       );
-                    },
-                  );
-                }),
-                const SizedBox(height: 12),
-              ],
+                      // City label follows the active locale (AR name in
+                      // Arabic, French name otherwise, with an AR fallback
+                      // when the French name is missing).
+                      final location = isArabic
+                          ? pro.city
+                          : (pro.cityFr.isNotEmpty ? pro.cityFr : pro.city);
+
+                      return ProfessionalCard(
+                        name: pro.name,
+                        profession: profession,
+                        rating: pro.rating,
+                        location: location,
+                        verified: pro.verified,
+                        priceFrom: pro.priceFrom,
+                        pricingType: pro.pricingType,
+                        available: pro.availableNow,
+                        buttonText: tr(context, fr: 'Voir', ar: 'عرض'),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ProfessionalProfileScreen(
+                                professionalId: pro.id,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 12),
+                  ],
+                );
+              },
             );
           },
         );

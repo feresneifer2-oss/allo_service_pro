@@ -191,7 +191,13 @@ class ProProfileStore {
       proCode: proCode,
       isAvailable: value,
     );
-    if (!applied) await _enqueueAvailability(proId, proCode, value);
+    if (applied) {
+      // Phase 7-3: drop any stale queue entry for this id — the upsert just
+      // superseded it; keeping it would replay a wrong value later.
+      await OfflineQueue.removeById('pro_availability_$proId');
+    } else {
+      await _enqueueAvailability(proId, proCode, value);
+    }
   }
 
   /// Builds the queued action for an availability toggle.

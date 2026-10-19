@@ -43,12 +43,12 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
     // REALTIME AVAILABILITY: `_filtered` is recomputed on every build, so this
     // screen only needs the REBUILD trigger — a persisted toggle (own device or
     // another one) then re-applies the "Disponibles uniquement" filter live.
-    ProAvailabilityStore.onlineByProCode.addListener(_onAvailabilityChanged);
+    ProAvailabilityStore.onlineByProId.addListener(_onAvailabilityChanged);
   }
 
   @override
   void dispose() {
-    ProAvailabilityStore.onlineByProCode.removeListener(_onAvailabilityChanged);
+    ProAvailabilityStore.onlineByProId.removeListener(_onAvailabilityChanged);
     super.dispose();
   }
 
@@ -236,6 +236,7 @@ class _ProfessionalsListScreenState extends State<ProfessionalsListScreen> {
                   verified: pro.verified,
                   priceFrom: pro.priceFrom,
                   pricingType: pro.pricingType,
+                  available: pro.availableNow,
                   buttonText: tr(context, fr: 'Voir', ar: 'عرض'),
                   onPressed: () {
                     Navigator.push(

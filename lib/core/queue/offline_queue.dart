@@ -400,6 +400,14 @@ class OfflineQueue {
         pending.value.where((a) => a.id != id).toList(growable: false);
   }
 
+  /// Phase 7-3: public removal by id — removes the entry AND persists.
+  /// Used by [ProProfileStore._pushAvailability] to drop a stale
+  /// `updateProAvailability` entry once the online upsert has succeeded.
+  static Future<void> removeById(String id) async {
+    _remove(id);
+    await persistToPrefs();
+  }
+
   /// Inserts [action] into [list] at its strict [QueuedAction.compareTo]
   /// position and returns the new list (input never mutated).
   ///

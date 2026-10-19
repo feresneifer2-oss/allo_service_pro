@@ -53,7 +53,15 @@ import '../models/service_request.dart';
 /// rejected only because that primary key is already taken, so the caller can
 /// re-key the order and retry — while [failed] (RLS / constraint / transport)
 /// and [notConfigured] are not.
-enum OrderInsertOutcome { inserted, duplicateId, failed, notConfigured }
+/// Phase 7-2c-4: server-side trigger refused (pro is offline).
+/// Permanent refusal — do NOT retry / enqueue.
+enum OrderInsertOutcome {
+  inserted,
+  duplicateId,
+  failed,
+  notConfigured,
+  proUnavailable,
+}
 
 // ─── Duplicate-INSERT verification (CodeRabbit) ─────────────────────────────
 
@@ -96,6 +104,9 @@ class OrdersRepository {
 
   /// Postgres SQLSTATE for a UNIQUE / PRIMARY-KEY violation.
   static const String _uniqueViolation = '23505';
+
+  /// SQLSTATE raised by the orders availability trigger (Phase 7A).
+  static const String _proUnavailable = 'P0001';
 
   static bool get isConfigured {
     try {
@@ -323,9 +334,9 @@ class OrdersRepository {
       return OrderInsertOutcome.inserted;
     } catch (e, st) {
       AppErrorHandler.report(e, st, context: 'OrdersRepository.insertOrder');
-      return isDuplicateKey(e)
-          ? OrderInsertOutcome.duplicateId
-          : OrderInsertOutcome.failed;
+      if (isProUnavailable(e)) return OrderInsertOutcome.proUnavailable;
+      if (isDuplicateKey(e)) return OrderInsertOutcome.duplicateId;
+      return OrderInsertOutcome.failed;
     }
   }
 
@@ -347,6 +358,19 @@ class OrdersRepository {
       return error.message.contains(_uniqueViolation);
     }
     return error.toString().contains(_uniqueViolation);
+  }
+
+  /// Phase 7-2c-4: true when the error is the availability gate refusal
+  /// (SQLSTATE P0001 with message 'pro_unavailable'). Mirrors the
+  /// isDuplicateKey pattern (code → message fallback).
+  static bool isProUnavailable(Object error) {
+    if (error is PostgrestException) {
+      if (error.code == _proUnavailable) {
+        return error.message.contains('pro_unavailable');
+      }
+      return error.message.contains('pro_unavailable');
+    }
+    return error.toString().contains('pro_unavailable');
   }
 
   /// SELECT of a single order by primary key (RLS scopes the read).

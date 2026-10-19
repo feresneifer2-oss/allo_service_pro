@@ -62,13 +62,18 @@ Map<String, dynamic> _row({
       'updated_at': '2026-09-24T10:00:00Z',
     };
 
-/// The persisted professional id used by the "own account" scenarios.
+/// The persisted public code (pro_code) of the "own account" scenarios —
+/// still carried on the row and the queue payload, but NEVER a board key
+/// after Phase 7-4.
 const String _ownProCode = 'PRO-7001';
 
-/// A signed-in professional whose account owns [_ownProCode].
+/// Phase 7-4: the uuid (pro_id) this account's availability rows are keyed by.
+const String _ownProUuid = 'uid-7001';
+
+/// A signed-in professional whose account owns [_ownProUuid] / [_ownProCode].
 void _bindOwnSession() {
   UserStore.user.value = const UserModel(
-    id: 'uid-7001',
+    id: _ownProUuid,
     name: 'Ahmed',
     phone: '21600000000',
     proCode: _ownProCode,
@@ -218,17 +223,18 @@ void main() {
     });
 
     test('drops rows nobody in the client feed could ever match', () {
-      // No public code (the registration has not been issued one yet)…
+      // Phase 7-4: the GATE + KEY is pro_id (uuid) — a row without a usable
+      // uuid is undecodable even when it carries a public code…
       expect(
         ProAvailabilityRepository.fromRow(
-          _row(proId: 'uid-1', proCode: null, isAvailable: true),
+          _row(proId: '', proCode: _ownProCode, isAvailable: true),
         ),
         isNull,
       );
-      // …an empty code…
+      // …or when the uuid is only whitespace…
       expect(
         ProAvailabilityRepository.fromRow(
-          _row(proId: 'uid-1', proCode: '   ', isAvailable: true),
+          _row(proId: '   ', proCode: _ownProCode, isAvailable: true),
         ),
         isNull,
       );
@@ -239,6 +245,21 @@ void main() {
             ..['is_available'] = 'indisponible',
         ),
         isNull,
+      );
+      // pro_code stays OPTIONAL: a pro whose registration has no public code
+      // yet still lands on the board under their uuid (the bug 7-4 fixed —
+      // these rows used to be DROPPED and their flag fell back to "available").
+      expect(
+        ProAvailabilityRepository.fromRow(
+          _row(proId: 'uid-1', proCode: null, isAvailable: true),
+        ),
+        isNotNull,
+      );
+      expect(
+        ProAvailabilityRepository.fromRow(
+          _row(proId: 'uid-1', proCode: '   ', isAvailable: true),
+        ),
+        isNotNull,
       );
     });
 
@@ -283,8 +304,8 @@ void main() {
 
       // Owner side: the dashboard switch follows the persisted truth…
       expect(ProProfileStore.isAvailable.value, isFalse);
-      // …client side: the board carries the public code.
-      expect(ProAvailabilityStore.remoteFlagFor(_ownProCode), isFalse);
+      // …client side: the board carries the uuid key (Phase 7-4).
+      expect(ProAvailabilityStore.remoteFlagFor(_ownProUuid), isFalse);
     });
 
     test('another craftsman\'s row never touches MY own switch', () async {
@@ -296,8 +317,8 @@ void main() {
       await pumpEventQueue();
 
       expect(ProProfileStore.isAvailable.value, isTrue);
-      expect(ProAvailabilityStore.remoteFlagFor('PRO-9999'), isFalse);
-      expect(ProAvailabilityStore.remoteFlagFor(_ownProCode), isNull,
+      expect(ProAvailabilityStore.remoteFlagFor('uid-other'), isFalse);
+      expect(ProAvailabilityStore.remoteFlagFor(_ownProUuid), isNull,
           reason: 'my own row was never delivered — unknown, not offline');
     });
 
@@ -330,13 +351,13 @@ void main() {
     test('a repeated delivery of the same value is free (no rebuild)', () {
       var notifications = 0;
       void probe() => notifications += 1;
-      ProAvailabilityStore.onlineByProCode.addListener(probe);
+      ProAvailabilityStore.onlineByProId.addListener(probe);
       addTearDown(
-        () => ProAvailabilityStore.onlineByProCode.removeListener(probe),
+        () => ProAvailabilityStore.onlineByProId.removeListener(probe),
       );
 
-      ProAvailabilityStore.applyRemoteAvailability('pro_3', false);
-      ProAvailabilityStore.applyRemoteAvailability('pro_3', false);
+      ProAvailabilityStore.applyRemoteAvailability('uid-3', false);
+      ProAvailabilityStore.applyRemoteAvailability('uid-3', false);
       ProAvailabilityStore.applyRemoteRow(
         _row(proId: 'uid-3', proCode: 'pro_3', isAvailable: false),
       );
@@ -345,11 +366,13 @@ void main() {
     });
 
     test('an undecodable delivery is ignored, never applied', () {
+      // Phase 7-4: the gate is the uuid — a row without a usable pro_id has
+      // no board key, whatever public code it carries.
       ProAvailabilityStore.applyRemoteRow(
-        _row(proId: 'uid-1', proCode: null, isAvailable: false),
+        _row(proId: '', proCode: 'PRO-9999', isAvailable: false),
       );
 
-      expect(ProAvailabilityStore.onlineByProCode.value, isEmpty);
+      expect(ProAvailabilityStore.onlineByProId.value, isEmpty);
     });
 
     test('a failed hydration keeps the board realtime already merged',
@@ -366,11 +389,11 @@ void main() {
 
     test('sign-out drops the board — the next session re-hydrates it', () {
       ProAvailabilityStore.applyRemoteAvailability('pro_3', false);
-      expect(ProAvailabilityStore.onlineByProCode.value, isNotEmpty);
+      expect(ProAvailabilityStore.onlineByProId.value, isNotEmpty);
 
       ProAvailabilityStore.reset(); // called by the auth binding on signedOut
 
-      expect(ProAvailabilityStore.onlineByProCode.value, isEmpty);
+      expect(ProAvailabilityStore.onlineByProId.value, isEmpty);
       expect(
         ProfessionalsRepository.all
             .firstWhere((p) => p.id == 'pro_3')
@@ -527,8 +550,11 @@ void main() {
       expect(ctas(tester).where((b) => b.onPressed == null), hasLength(1));
 
       // ── The backend persists pro_5 as UNAVAILABLE and pushes the row ──
+      // Phase 7-4: the board key is `pro_id` — a CATALOG entry carries no auth
+      // identity, so its board key is the catalog id itself (a live pro's row
+      // would carry the auth.users uuid instead).
       ProAvailabilityStore.applyRemoteRow(
-        _row(proId: 'uid-5', proCode: 'pro_5', isAvailable: false),
+        _row(proId: 'pro_5', proCode: 'pro_5', isAvailable: false),
       );
       await tester
           .pump(); // ← ONE frame. No new search, no refresh, no remount.
@@ -539,7 +565,7 @@ void main() {
 
       // ── Back ONLINE: the same card returns to its requestable state ──
       ProAvailabilityStore.applyRemoteRow(
-        _row(proId: 'uid-5', proCode: 'pro_5', isAvailable: true),
+        _row(proId: 'pro_5', proCode: 'pro_5', isAvailable: true),
       );
       await tester.pump();
 
@@ -566,13 +592,13 @@ void main() {
         (tester) async {
       await pumpSearch(tester);
       // ignore: invalid_use_of_protected_member
-      expect(ProAvailabilityStore.onlineByProCode.hasListeners, isTrue);
+      expect(ProAvailabilityStore.onlineByProId.hasListeners, isTrue);
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
 
       // ignore: invalid_use_of_protected_member
-      expect(ProAvailabilityStore.onlineByProCode.hasListeners, isFalse,
+      expect(ProAvailabilityStore.onlineByProId.hasListeners, isFalse,
           reason: 'the State must detach in dispose() or it leaks forever');
 
       // A delivery after the screen is gone is harmless.

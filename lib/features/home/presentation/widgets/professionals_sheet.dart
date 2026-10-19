@@ -7,6 +7,7 @@ import 'package:allo_service_pro/features/professionals/data/professionals_repos
 import 'package:allo_service_pro/features/professionals/models/professional_model.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/professional_card.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_availability_store.dart';
 
 /// Draggable sheet listing the available professionals for a profession.
 /// Tapping "Réserver" opens the unified booking flow, which creates a real
@@ -26,10 +27,10 @@ void showProfessionalsSheet(
   // forService already merges curated + live pros and falls back to
   // label matching for legacy rows — NO fallback to ALL here: an empty
   // list means nobody serves this service.
-  final pros = ProfessionalsRepository.forService(serviceId);
-  final sorted = List<ProfessionalModel>.from(pros)
-    ..sort((a, b) => b.rating.compareTo(a.rating));
-
+  //
+  // PHASE 7-3c: `pros`/`sorted` are derived INSIDE the listener below —
+  // the availability flags are baked into each model at construction, so
+  // they must be recomputed on every board tick to stay fresh.
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -39,64 +40,73 @@ void showProfessionalsSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (context) {
-      return DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.82,
-        minChildSize: 0.45,
-        maxChildSize: 0.95,
-        builder: (context, controller) {
-          return ListView(
-            controller: controller,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.slate800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                tr(
-                  context,
-                  fr: "Professionnels disponibles",
-                  ar: "المحترفون المتوفرون",
-                ),
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              ...sorted.map((ProfessionalModel pro) {
-                return ProfessionalCard(
-                  name: pro.name,
-                  profession:
-                      tr(context, fr: pro.professionFr, ar: pro.professionAr),
-                  rating: pro.rating,
-                  location: tr(context, fr: pro.cityFr, ar: pro.city),
-                  verified: pro.verified,
-                  priceFrom: pro.priceFrom,
-                  pricingType: pro.pricingType,
-                  buttonText: tr(context, fr: "Reserver", ar: "احجز"),
-                  onPressed: () {
-                    final nav = Navigator.of(context, rootNavigator: true);
-                    nav.pop();
-                    Future.microtask(() {
-                      nav.push(
-                        MaterialPageRoute(
-                          builder: (_) => BookingScreen(
-                            serviceTitleFr: pro.professionFr,
-                            serviceTitleAr: pro.professionAr,
-                            professionalId: pro.id,
-                            professionalName: pro.name,
-                          ),
-                        ),
-                      );
-                    });
-                  },
-                );
-              }),
-            ],
+      return ValueListenableBuilder<Map<String, bool>>(
+        valueListenable: ProAvailabilityStore.onlineByProId,
+        builder: (context, availability, _) {
+          final pros = ProfessionalsRepository.forService(serviceId);
+          final sorted = List<ProfessionalModel>.from(pros)
+            ..sort((a, b) => b.rating.compareTo(a.rating));
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.82,
+            minChildSize: 0.45,
+            maxChildSize: 0.95,
+            builder: (context, controller) {
+              return ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    tr(
+                      context,
+                      fr: "Professionnels disponibles",
+                      ar: "المحترفون المتوفرون",
+                    ),
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  ...sorted.map((ProfessionalModel pro) {
+                    return ProfessionalCard(
+                      name: pro.name,
+                      profession: tr(context,
+                          fr: pro.professionFr, ar: pro.professionAr),
+                      rating: pro.rating,
+                      location: tr(context, fr: pro.cityFr, ar: pro.city),
+                      verified: pro.verified,
+                      priceFrom: pro.priceFrom,
+                      pricingType: pro.pricingType,
+                      available: pro.availableNow,
+                      buttonText: tr(context, fr: "Reserver", ar: "احجز"),
+                      onPressed: () {
+                        final nav = Navigator.of(context, rootNavigator: true);
+                        nav.pop();
+                        Future.microtask(() {
+                          nav.push(
+                            MaterialPageRoute(
+                              builder: (_) => BookingScreen(
+                                serviceTitleFr: pro.professionFr,
+                                serviceTitleAr: pro.professionAr,
+                                professionalId: pro.id,
+                                professionalName: pro.name,
+                              ),
+                            ),
+                          );
+                        });
+                      },
+                    );
+                  }),
+                ],
+              );
+            },
           );
         },
       );

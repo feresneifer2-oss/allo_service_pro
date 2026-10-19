@@ -17,6 +17,7 @@ import 'features/anti_abuse/application/anti_abuse_bindings.dart';
 import 'features/anti_abuse/application/anti_abuse_store.dart';
 import 'features/auth/application/supabase_auth_bindings.dart';
 import 'features/auth/application/user_store.dart';
+import 'features/auth/application/verification_sync_service.dart';
 import 'features/pro_dashboard/application/pro_availability_store.dart';
 import 'features/pro_dashboard/application/pro_profile_store.dart';
 import 'features/pro_dashboard/application/subscription_store.dart';
@@ -135,10 +136,12 @@ Future<void> main() async {
     await SubscriptionStore.loadFromPrefs();
     await ProProfileStore.loadFromPrefs();
 
-    // Zero-desync: mirror the persisted admin registry (subscription ·
-    // tokens · approval state) into the live session stores for any
-    // auto-logged-in pro — so gates & paywall reflect the truth instantly.
-    await AdminStore.syncSessionStoresForCurrentUser();
+    // Phase 7-5: the boot-time session mirror is DEFERRED to
+    // VerificationSyncService (optimistic boot). The user's cached
+    // verification status is used immediately; a background sync confirms
+    // or updates it without blocking the first frame. The service's init()
+    // (below) triggers the first sync and re-arms it on app resume /
+    // connectivity rejoin.
 
     // Supabase Auth ↔ UserStore bridge: binds the onAuthStateChange listener
     // so remote sign-in/out events map onto the local session dynamically
@@ -146,6 +149,10 @@ Future<void> main() async {
     // clears the session). No-op when Supabase was not initialized (tests /
     // offline demo builds) — the local auth flow remains fully functional.
     bindSupabaseAuthListener();
+
+    // Phase 7-5: background verification sync (boot + resume + connectivity
+    // rejoin). Non-blocking: the cached status renders immediately.
+    VerificationSyncService.init();
 
     // Global connectivity listener (Uber-style offline overlay).
     ConnectivityStore.init();

@@ -10,10 +10,15 @@ import '../../../core/error/app_error_handler.dart';
 ///   pro_id (uuid pk)    ← Supabase `auth.users.id` of the professional, i.e.
 ///                         the SAME identity `orders.customer_id` /
 ///                         `messages.sender_id` carry, read through
-///                         `SupabaseAuthService.currentUserId`;
+///                         `SupabaseAuthService.currentUserId`. Phase 7-4: it
+///                         is THE key every reader matches on — `fromRow`'s
+///                         decode gate AND the board map — because the uuid
+///                         exists for every live pro while `pro_code` may be
+///                         NULL;
 ///   pro_code (text)     ← the PUBLIC identifier the client feed renders
 ///                         (`ProfessionalModel.id` == `PRO-XXXXX`), NULL while
-///                         the registration has no code yet;
+///                         the registration has no code yet — OPTIONAL
+///                         reference only, never a match key;
 ///   is_available (bool) ← the flag behind the dashboard's green/red dot;
 ///   updated_at          ← wall-clock of the LAST toggle (observability only —
 ///                         reads are never TTL-gated, the row IS the truth).
@@ -94,8 +99,8 @@ class ProAvailabilityRepository {
   }
 
   /// SELECT of the whole availability board (RLS: every authenticated identity
-  /// may read the `pro_code` + flag pair — see the migration's policy),
-  /// decoded to `pro_code → isAvailable`.
+  /// may read the `pro_id` + flag pair — see the migration's policy),
+  /// decoded to `pro_id → isAvailable` (Phase 7-4: uuid key).
   ///
   /// Returns `null` when no backend answered (unconfigured / failed read) —
   /// DELIBERATELY distinct from an EMPTY map, which is a valid authoritative
@@ -110,7 +115,7 @@ class ProAvailabilityRepository {
       for (final row in (rows as List)) {
         final parsed = fromRow(row as Map<String, dynamic>);
         if (parsed == null) continue;
-        board[parsed.proCode] = parsed.isAvailable;
+        board[parsed.proId] = parsed.isAvailable;
       }
       return board;
     } catch (e, st) {
@@ -125,20 +130,26 @@ class ProAvailabilityRepository {
 
   /// Tolerant row decode — the counterpart of `OrdersRepository.fromRow`.
   ///
-  /// A row without a usable `pro_code` is NOT decodable (nobody in the client
-  /// feed can be matched to it), so it yields null and is skipped instead of
-  /// polluting the board with an unmatchable key.
+  /// A row without a usable `pro_id` (uuid) is NOT decodable — it would have
+  /// no key to merge under — so it yields null and is skipped instead of
+  /// polluting the board. Phase 7-4: `pro_code` is OPTIONAL here (a pro whose
+  /// registration has no public code yet still lands on the board under their
+  /// uuid); the old code-gate silently DROPPED those rows and their real flag
+  /// was lost to the `fallback: true` read.
   static ProAvailabilityRow? fromRow(Map<String, dynamic> row) {
-    final rawCode = row['pro_code'];
-    final code = rawCode is String ? rawCode.trim() : '';
-    if (code.isEmpty) return null;
+    // Phase 7-4: the GATE + KEY is pro_id (uuid), not pro_code.
+    final rawProId = row['pro_id'];
+    final proId = rawProId is String ? rawProId.trim() : '';
+    if (proId.isEmpty) return null;
 
     final flag = readAvailabilityFlag(row['is_available']);
     if (flag == null) return null;
 
-    final rawProId = row['pro_id'];
+    final rawCode = row['pro_code'];
+    final code = rawCode is String ? rawCode.trim() : '';
+
     return ProAvailabilityRow(
-      proId: rawProId is String ? rawProId.trim() : '',
+      proId: proId,
       proCode: code,
       isAvailable: flag,
     );

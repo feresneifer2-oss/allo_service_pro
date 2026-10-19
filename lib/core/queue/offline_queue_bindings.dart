@@ -3,6 +3,7 @@ import 'package:allo_service_pro/core/logging/app_logger.dart';
 import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/queue/offline_queue.dart';
 import 'package:allo_service_pro/core/queue/queued_action.dart';
+import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/pro_dashboard/data/pro_availability_repository.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 
@@ -191,6 +192,20 @@ class OfflineQueueBindings {
           'OfflineQueue',
           'malformed updateProAvailability payload: empty proId',
         );
+        return QueueExecutionResult.drop;
+      }
+
+      // Phase 7-3: session guard — never replay an availability entry
+      // under the wrong session (prevents the stale `true` bug).
+      // No verified session (boot before auth restore / local-only mode):
+      // KEEP the entry for a later window — the backend refuses
+      // unauthenticated writes anyway, and dropping it would lose the pro's
+      // offline choice. Only a mismatched session is unrecoverable.
+      final currentUid = SupabaseAuthService.currentUserId;
+      if (currentUid == null) {
+        return QueueExecutionResult.retry;
+      }
+      if (currentUid != proId) {
         return QueueExecutionResult.drop;
       }
 
