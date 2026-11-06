@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -169,5 +171,82 @@ void main() {
     expect(u.verificationStatus, isNot(ProVerification.rejected));
     expect(u.verificationUnconfirmed, isTrue);
     expect(u.needsVerificationGate, isTrue, reason: 'stays on the gate');
+  });
+
+  // ── R3b ───────────────────────────────────────────────────────────────
+  group('R3b · legacy duplicate dossiers are collapsed on load', () {
+    PendingProModel dossier({
+      required String id,
+      required String status,
+      String uid = _uid,
+      String? proCode,
+    }) =>
+        PendingProModel(
+          id: id,
+          name: 'Sami',
+          phone: '22110033',
+          email: _email,
+          professionFr: 'Plombier',
+          professionAr: 'سبّاك',
+          submittedAt: '01/01/2026',
+          status: status,
+          proCode: proCode,
+          authUid: uid,
+        );
+
+    test('keeps the dossier that carries the PRO code, even when listed last',
+        () {
+      final registry = <PendingProModel>[
+        dossier(id: _uid, status: 'approved'), // pre-R3 hydrated orphan
+        dossier(id: _localId, status: 'pending', proCode: _proCode),
+      ];
+
+      AdminStore.collapseDuplicateDossiers(registry);
+
+      expect(registry, hasLength(1));
+      expect(registry.single.id, _localId);
+      expect(registry.single.proCode, _proCode);
+    });
+
+    test('never merges two different accounts, never touches uid-less records',
+        () {
+      final registry = <PendingProModel>[
+        dossier(id: 'a', status: 'approved', uid: 'uid-a', proCode: 'PRO-1'),
+        dossier(id: 'b', status: 'pending', uid: 'uid-b', proCode: 'PRO-2'),
+        dossier(id: 'c', status: 'pending', uid: ''), // no identity
+        dossier(id: 'd', status: 'pending', uid: ''),
+      ];
+
+      AdminStore.collapseDuplicateDossiers(registry);
+
+      expect(registry, hasLength(4));
+    });
+
+    test('is idempotent and runs on every boot (prefs round-trip)', () async {
+      final duplicated = [
+        dossier(id: _uid, status: 'approved'),
+        dossier(id: _localId, status: 'pending', proCode: _proCode),
+        dossier(id: 'other', status: 'pending', uid: 'uid-other'),
+      ];
+      // Cold restart: the registry is restored from SharedPreferences.
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'admin_pending_pros_json': jsonEncode(
+          duplicated.map((p) => p.toJson()).toList(growable: false),
+        ),
+      });
+
+      await AdminStore.loadFromPrefs();
+
+      expect(AdminStore.pendingPros.value, hasLength(2),
+          reason: 'the duplicate is dropped, the other account survives');
+      expect(
+        AdminStore.pendingPros.value.singleWhere((p) => p.authUid == _uid).id,
+        _localId,
+      );
+
+      // A second boot changes nothing.
+      await AdminStore.loadFromPrefs();
+      expect(AdminStore.pendingPros.value, hasLength(2));
+    });
   });
 }

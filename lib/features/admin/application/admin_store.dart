@@ -1253,11 +1253,67 @@ class AdminStore {
       final decoded = (jsonDecode(raw) as List)
           .map((e) => PendingProModel.fromJson(e as Map<String, dynamic>))
           .toList();
+      // R3b (Phase 10): repair devices that already carry the legacy
+      // duplicates created by the pre-R3 hydration. Purely local, idempotent,
+      // and it runs on EVERY boot — including offline ones, where the
+      // hydration-driven repair can never happen.
+      collapseDuplicateDossiers(decoded);
       pendingPros.value = decoded;
       _proSeq = (prefs.getInt(_kSeq) ?? decoded.length + 1).clamp(1, 999999);
     } catch (_) {
       // Corrupted registry: keep seeded demo data.
     }
+  }
+
+  /// Collapses LEGACY duplicate dossiers of the SAME authenticated professional
+  /// into the single record the rest of the app expects (R3b · Phase 10).
+  ///
+  /// WHY: before R3, `hydrateApprovedProsFromSupabase` inserted the server row
+  /// under its auth uuid while the registration dossier stayed under
+  /// `pro_<timestamp>`. Both describe one human, so the admin list could show a
+  /// duplicate card (one `approved`, one stale `pending`).
+  ///
+  /// RULES — deliberately conservative:
+  ///   * records WITHOUT an `authUid` are never touched: identity is unknown,
+  ///     so merging them could fuse two different professionals;
+  ///   * records are grouped by `authUid` only (a uuid is one account);
+  ///   * inside a group the dossier carrying a real PRO code WINS (it is the
+  ///     identity `entryForUser` and the re-submission flow are keyed on),
+  ///     otherwise the FIRST occurrence is kept;
+  ///   * the surviving record keeps its own fields verbatim — this is a
+  ///     de-duplication, not a merge.
+  ///
+  /// Idempotent: a registry without duplicates is returned untouched.
+  @visibleForTesting
+  static void collapseDuplicateDossiers(List<PendingProModel> registry) {
+    if (registry.length < 2) return;
+
+    // Best slot per authenticated identity.
+    final best = <String, int>{};
+    for (var i = 0; i < registry.length; i++) {
+      final uid = (registry[i].authUid ?? '').trim();
+      if (uid.isEmpty) continue;
+      final current = best[uid];
+      if (current == null) {
+        best[uid] = i;
+        continue;
+      }
+      final currentHasCode =
+          (registry[current].proCode ?? '').trim().isNotEmpty;
+      final candidateHasCode = (registry[i].proCode ?? '').trim().isNotEmpty;
+      if (!currentHasCode && candidateHasCode) best[uid] = i;
+    }
+
+    final kept = <PendingProModel>[];
+    for (var i = 0; i < registry.length; i++) {
+      final uid = (registry[i].authUid ?? '').trim();
+      if (uid.isEmpty || best[uid] == i) kept.add(registry[i]);
+    }
+    if (kept.length == registry.length) return; // nothing to repair
+
+    registry
+      ..clear()
+      ..addAll(kept);
   }
 
   /// TEST SEAM (R3 · Phase 8): stands in for the `list_approved_professionals`

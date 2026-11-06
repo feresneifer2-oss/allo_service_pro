@@ -79,6 +79,42 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
     }
   }
 
+  /// Phase 10 (gallery): where the replacement proof comes from.
+  ///
+  /// The flow used to hard-code the CAMERA, so a professional whose document
+  /// was rejected — on a device with no usable camera, or who already had the
+  /// corrected file in their gallery — could not re-submit at all.
+  ///
+  /// Returns `true` for the camera, `false` for the gallery, and `null` when
+  /// the sheet is dismissed (the caller then does nothing, exactly like a
+  /// cancelled capture).
+  Future<bool?> _pickSource(BuildContext context) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_rounded),
+              title: Text(
+                  tr(sheetContext, fr: 'Prendre une photo', ar: 'التقاط صورة')),
+              onTap: () => Navigator.of(sheetContext).pop(true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: Text(tr(sheetContext,
+                  fr: 'Choisir dans la galerie', ar: 'اختيار من المعرض')),
+              onTap: () => Navigator.of(sheetContext).pop(false),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<UserModel?>(
@@ -189,11 +225,11 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
                         final messenger = ScaffoldMessenger.of(context);
                         final errorText = tr(
                           context,
-                          fr: "Aucune photo n'a été prise. Veuillez "
-                              "réessayer ou autoriser l'accès à la "
-                              "caméra.",
-                          ar: "لم يتم التقاط أي صورة. يرجى المحاولة "
-                              "مرة أخرى أو منح إذن الوصول للكاميرا.",
+                          fr: "Aucune photo sélectionnée. Veuillez réessayer "
+                              "ou vérifier l'accès à l'appareil photo / à la "
+                              "galerie.",
+                          ar: "لم يتم اختيار أي صورة. يرجى المحاولة مرة أخرى "
+                              "أو التحقق من إذن الكاميرا / المعرض.",
                         );
                         // Captured BEFORE the async pick so the post-await
                         // SnackBar never touches `context` (avoids
@@ -213,8 +249,10 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
                               'لمتابعة حالة حسابك.',
                         );
 
+                        final source = await _pickSource(context);
+                        if (source == null) return; // sheet dismissed
                         final path = await DocumentMediaService.pickDocument(
-                          fromCamera: true, // the fast path: photograph it
+                          fromCamera: source,
                         );
                         if (path == null) {
                           // Camera capture failed or the user denied the
