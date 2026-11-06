@@ -395,6 +395,96 @@ void main() {
       );
     });
 
+    testWidgets(
+        'D5 · fresh Pro with a transient server failure → VerifyingScreen '
+        '(not Pending)', (tester) async {
+      // Phase 7-5b: the user lands on VerifyingScreen (not VerificationGate)
+      // when the first server read fails on a fresh session with status=none.
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+      ProfileRepository.debugIsVerifiedOverride = () async => null;
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.none,
+        registryStatus: 'pending',
+      );
+
+      await AdminStore.syncSessionStoresForCurrentUser();
+
+      // Precondition: transient failure → unconfirmed=true, status still none.
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+      expect(UserStore.user.value!.verificationStatus, ProVerification.none);
+
+      await tester.pumpWidget(app(const ProShell()));
+      await tester.pump();
+
+      // The fix: VerifyingScreen, not VerificationGateScreen.
+      expect(find.byType(VerifyingScreen), findsOneWidget);
+      expect(find.byType(VerificationGateScreen), findsNothing);
+      expect(find.byType(ProDashboardScreen), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      // Test-only: VerifyingScreen.initState kicked off syncNow(), whose
+      // retry cycle is still in flight at teardown. Drain it on the fake
+      // clock using the REAL schedule (maxAttempts=3, _backoff=[1s,2s,4s],
+      // overall .timeout(30s)) so no timer outlives the widget tree.
+      await tester.pump(const Duration(seconds: 1)); // backoff #1 (1s)
+      await tester.pump(const Duration(seconds: 2)); // backoff #2 (2s)
+      await tester.pump(const Duration(seconds: 4)); // reserved slot (unused)
+      await tester.pump(const Duration(seconds: 30)); // flush the timeout timer
+      await tester.pump(); // drain remaining microtasks
+    });
+
+    testWidgets(
+        'D6 · pending + unconfirmed → VerificationGateScreen '
+        '(never VerifyingScreen)', (tester) async {
+      // Phase 7-5b regression: a transient server failure must NOT upgrade
+      // the experience of an account the admin has not decided on yet. The
+      // pending gate stays, because "vérification en cours" would promise a
+      // decision that was never made — and the retry loop would hide the
+      // real status forever.
+      SupabaseAuthService.debugConfiguredOverride = true;
+      addTearDown(SupabaseAuthService.debugResetOverrides);
+      ProfileRepository.debugIsVerifiedOverride = () async => null;
+      addTearDown(() => ProfileRepository.debugIsVerifiedOverride = null);
+
+      await seedPro(
+        email: _proEmail,
+        localStatus: ProVerification.pending,
+        registryStatus: 'pending',
+      );
+
+      await AdminStore.syncSessionStoresForCurrentUser();
+
+      // Precondition: the failed read only FLAGS the session — it never
+      // downgrades or upgrades the status, so it stays pending.
+      expect(UserStore.user.value!.verificationStatus, ProVerification.pending);
+      expect(UserStore.user.value!.verificationUnconfirmed, isTrue);
+
+      await tester.pumpWidget(app(const ProShell()));
+      await tester.pump();
+
+      // The gate wins over the transient flag.
+      expect(find.byType(VerificationGateScreen), findsOneWidget);
+      expect(find.byType(VerifyingScreen), findsNothing);
+      expect(find.byType(ProDashboardScreen), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      // Phase 9 (R5): the gate now re-checks the server on mount, so its
+      // failing retry cycle (plus syncNow's own 30s ceiling) is still in
+      // flight at teardown. Drain it on the fake clock — every assertion above
+      // is untouched; this only stops a timer outliving the widget tree.
+      await tester.pump(const Duration(seconds: 1)); // backoff #1 (1s)
+      await tester.pump(const Duration(seconds: 2)); // backoff #2 (2s)
+      await tester.pump(const Duration(seconds: 4)); // reserved slot (unused)
+      await tester.pump(const Duration(seconds: 30)); // flush the timeout timer
+      await tester.pump(); // drain remaining microtasks
+    });
+
     testWidgets('E · client OTP login behavior is unchanged', (tester) async {
       installAuthSeams();
       // The server answer must be irrelevant for a client identity.

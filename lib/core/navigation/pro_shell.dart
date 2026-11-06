@@ -5,6 +5,7 @@ import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/presentation/verifying_screen.dart';
+import 'package:allo_service_pro/features/auth/presentation/welcome_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/presentation/pro_dashboard_screen.dart';
@@ -33,6 +34,23 @@ class ProShell extends StatefulWidget {
 
 class _ProShellState extends State<ProShell> {
   int _index = 0;
+
+  /// R4 (Phase 9): a shell whose SESSION disappeared must leave for the entry
+  /// screen exactly once. Without this latch the post-frame callback would be
+  /// re-scheduled by every rebuild of the gate chain.
+  bool _exitingToWelcome = false;
+
+  void _exitToWelcome() {
+    if (_exitingToWelcome) return;
+    _exitingToWelcome = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        (route) => false,
+      );
+    });
+  }
 
   final _screens = const [
     ProDashboardScreen(),
@@ -80,20 +98,53 @@ class _ProShellState extends State<ProShell> {
             // longer bypass the pending-approval screen. Client sessions
             // never route here (they land on ClientShell), so their routing
             // is untouched.
-            final sessionNeedsGate = sessionUser == null ||
-                sessionUser.role == null ||
-                sessionUser.needsVerificationGate;
-            if (sessionNeedsGate) {
+            // Phase 7-5b · R4 (Phase 9): Gate 0 priority, most-specific first:
+            // 1. NO session at all → leave for the entry screen (R4, below).
+            // 2. Missing role.
+            // 3. Explicit rejection → the Gate, with its reason.
+            // 4. Unconfirmed read (transient failure) for a NON-pending state
+            //    (none / approved) → VerifyingScreen.
+            // 5. Known pending → the Gate.
+            // 6. Otherwise → Dashboard.
+            // ── R4 (Phase 9) · Session ended ──────────────────────────────
+            // A NULL session is NOT a verification state: it means the auth
+            // session is gone (sign-out, expiry, revoked token, partial
+            // hydration). The old code parked it on the verification gate,
+            // whose own null branch rendered a spinner with no AppBar and no
+            // action — a dead end that needed an app kill. Send it back to the
+            // entry screen instead; `checkInitialSession` (R6) already stops a
+            // stale marker from routing here in the first place.
+            if (sessionUser == null) {
+              _exitToWelcome();
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            // A KNOWN session with an unknown role still fails closed: it can
+            // never be read as "approved".
+            if (sessionUser.role == null) {
               return const VerificationGateScreen();
             }
 
-            // Phase 7-5: approved but the last server read failed → show a
-            // non-blocking VerifyingScreen. The ValueListenableBuilder above
-            // rebuilds once verificationUnconfirmed flips false (sync
-            // success) — no navigation needed. `sessionUser` is already
-            // promoted past this point by the sessionNeedsGate check above.
-            if (sessionUser.verificationUnconfirmed) {
+            if (sessionUser.verificationStatus.isRejected) {
+              return const VerificationGateScreen();
+            }
+
+            // PENDING IS EXCLUDED ON PURPOSE: an account the admin has not
+            // decided on yet must keep the pending gate even when server
+            // confirmation is unavailable — "vérification en cours" would
+            // promise a decision that was never made, and the retry loop
+            // would hide the real status indefinitely. `none` and `approved`
+            // are the states a transient failure may legitimately mask, so
+            // only those fall through to the VerifyingScreen.
+            if (sessionUser.verificationUnconfirmed &&
+                !sessionUser.verificationStatus.isPending) {
               return const VerifyingScreen();
+            }
+
+            if (sessionUser.needsVerificationGate) {
+              return const VerificationGateScreen();
             }
 
             // Paywall gates:

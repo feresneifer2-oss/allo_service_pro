@@ -929,23 +929,37 @@ class AdminStore {
       await ProProfileStore.persistToPrefs();
     }
 
-    // Verification: the registry is authoritative. If the admin approved or
-    // re-queued the account since the session snapshot was saved, the live
-    // session follows immediately (no re-login required).
-    final approved = entry.status == 'approved';
-    if (approved && !u.verificationStatus.isApproved) {
-      await UserStore.updateProVerification(
-        status: ProVerification.approved,
-        proofPath: entry.docImage,
-      );
-    } else if (!approved &&
-        u.verificationStatus.isApproved &&
-        (entry.status == 'pending' || entry.status == 'rejected')) {
-      await UserStore.updateProVerification(
-        status: entry.status == 'rejected'
-            ? ProVerification.rejected
-            : ProVerification.pending,
-      );
+    // ── R1 (Phase 8) — NO LOCAL DOWNGRADE OF A VERIFICATION STATUS ────────
+    // The persisted registry is a DEVICE-LOCAL cache, never an authority over
+    // who is approved. When a backend is configured, the ONLY writer of
+    // `verificationStatus` is the CONFIRMED server answer
+    // ([_applyServerVerificationAuthority], called at the end of this method)
+    // — never this local mirror.
+    //
+    // WHY THE OLD CODE WAS WRONG: the mirror ran BOTH ways, and its demotion
+    // branch (`entry.status == 'pending'` → session approved → pending) ran
+    // BEFORE the server read. A dossier written at registration and never
+    // updated after an approval made on ANOTHER device therefore demoted a
+    // genuinely approved professional on EVERY boot; then any transient server
+    // failure (offline / 8s timeout / RLS) returned from the authority step
+    // BEFORE restoring it — leaving a confirmed approval downgraded to
+    // `pending` for good. Local evidence must never outvote a confirmed
+    // server state, in either direction: a stale local `approved` must not
+    // win over a server rejection either, which is why the PROMOTION is
+    // local-only as well.
+    //
+    // LOCAL-ONLY builds (no credentials / demo / tests) keep the historical
+    // promotion: there is no server to ask, and the admin's own actions
+    // already patch the live session directly (see approvePro / rejectPro), so
+    // the removed demotion was redundant even there.
+    if (!SupabaseAuthService.isConfigured) {
+      final approved = entry.status == 'approved';
+      if (approved && !u.verificationStatus.isApproved) {
+        await UserStore.updateProVerification(
+          status: ProVerification.approved,
+          proofPath: entry.docImage,
+        );
+      }
     }
 
     // SERVER AUTHORITY — LAST WORD (pro pending-approval routing). The local
@@ -1021,10 +1035,22 @@ class AdminStore {
       // VerificationSyncService retry non-blockingly.
       await UserStore.markVerificationUnconfirmed();
       return; // no further processing on a failed read
+    } else if (statusMap.isEmpty) {
+      // R7 (Phase 9): the read SUCCEEDED and NO `professionals` row exists —
+      // the account was never provisioned (or was removed server-side). That
+      // is a DEFINITE answer, so it may legitimately gate the session; it is
+      // not a transient failure and must not be retried forever. Fail-closed.
+      newStatus = ProVerification.pending;
     } else {
-      // SERVER ANOMALY (statusMap exists but rawStatus is null or
-      // unknown). This is NOT a network issue — the server explicitly
-      // returned a row. Fail-closed to pending (safer than guessing).
+      // R2 (Phase 9): SERVER ANOMALY — a row exists but 'status' is null or
+      // unknown. That is NOT a confirmed decision, so it must never downgrade
+      // an approval: the last known good state is PRESERVED and flagged
+      // unconfirmed (the sync service keeps retrying). Every other state keeps
+      // the fail-closed posture — guessing 'approved' would be unsafe.
+      if (session.verificationStatus.isApproved) {
+        await UserStore.markVerificationUnconfirmed();
+        return;
+      }
       newStatus = session.verificationStatus.isRejected
           ? ProVerification.rejected
           : ProVerification.pending;
@@ -1234,21 +1260,49 @@ class AdminStore {
     }
   }
 
+  /// TEST SEAM (R3 · Phase 8): stands in for the `list_approved_professionals`
+  /// RPC **and** for the signed-in-identity guard, because unit tests have no
+  /// live Supabase client to call either. Null = the real RPC. Mirrors
+  /// `ProfileRepository.debugIsVerifiedOverride`.
+  @visibleForTesting
+  static Future<List<dynamic>?> Function()? debugApprovedProsOverride;
+
   /// Phase 4C: hydrate the client-facing registry from Supabase.
   /// Merges approved pros into pendingPros. Idempotent (updates in place).
   /// Returns count synced.
   static Future<int> hydrateApprovedProsFromSupabase() async {
-    if (!SupabaseAuthService.isConfigured) return 0;
-    if (SupabaseAuthService.currentUserId == null) return 0;
+    if (debugApprovedProsOverride == null) {
+      if (!SupabaseAuthService.isConfigured) return 0;
+      if (SupabaseAuthService.currentUserId == null) return 0;
+    }
     try {
-      final answer =
-          await Supabase.instance.client.rpc('list_approved_professionals');
+      final override = debugApprovedProsOverride;
+      final answer = override != null
+          ? await override()
+          : await Supabase.instance.client.rpc('list_approved_professionals');
       if (answer is! List) return 0;
 
       final existing = List<PendingProModel>.from(pendingPros.value);
-      final byId = <String, int>{
-        for (var i = 0; i < existing.length; i++) existing[i].id: i,
-      };
+      // ── R3 (Phase 8) — IDENTITY INDEX, NEVER A DUPLICATE ────────────────
+      // A server row is keyed by the auth UUID, while the device-local dossier
+      // written at registration lives under `pro_<timestamp>` and carries the
+      // PRO code. Indexing ONLY the server id therefore MISSED the real
+      // record and inserted a second one; `entryForUser` prefers the PRO code,
+      // kept resolving the stale `pending` copy, and the approval stayed
+      // invisible to every lookup. Both strong identities are indexed here.
+      // The PRO code is deliberately NOT indexed: the server row does not
+      // carry one, and matching on it could merge two different accounts.
+      final byIdentity = <String, int>{};
+      void indexIdentity(String? key, int i) {
+        final k = (key ?? '').trim();
+        if (k.isEmpty) return;
+        byIdentity.putIfAbsent(k, () => i);
+      }
+
+      for (var i = 0; i < existing.length; i++) {
+        indexIdentity(existing[i].id, i);
+        indexIdentity(existing[i].authUid, i);
+      }
 
       var synced = 0;
       for (final raw in answer) {
@@ -1320,12 +1374,28 @@ class AdminStore {
           reviewCount: reviewCount,
         );
 
-        final idx = byId[id];
+        // R3: a UUID match means the SAME authenticated professional ⇒ UPDATE
+        // the existing dossier in place instead of appending a duplicate.
+        final idx = byIdentity[id];
         if (idx == null) {
           existing.add(model);
-          byId[id] = existing.length - 1;
+          byIdentity[id] = existing.length - 1;
+          indexIdentity(model.authUid, existing.length - 1);
         } else {
-          existing[idx] = model;
+          final prior = existing[idx];
+          existing[idx] = model.copyWith(
+            // Keep the local dossier id and the PRO code — they are the
+            // identities every other lookup (entryForUser, the admin list,
+            // proof re-submission) is keyed on.
+            id: prior.id,
+            proCode: prior.proCode,
+            // Device-local proof path; the server never stores it.
+            docImage: prior.docImage,
+            // An empty server field must never erase a real local value.
+            name: name.isNotEmpty ? name : prior.name,
+            phone: phone.isNotEmpty ? phone : prior.phone,
+            email: model.email ?? prior.email,
+          );
         }
         synced++;
       }

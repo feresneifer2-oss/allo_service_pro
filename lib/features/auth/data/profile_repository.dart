@@ -251,8 +251,15 @@ class ProfileRepository {
     }
   }
 
+  /// TEST SEAM (Phase 9): drives the RAW server row for
+  /// [fetchOwnProfessionalStatus], so the "no row" (empty map), "malformed row"
+  /// and "confirmed status" branches are all reachable without a live backend.
+  /// Null = the real query; it is checked BEFORE the boolean seam.
+  @visibleForTesting
+  static Future<Map<String, dynamic>?> Function()? debugStatusMapOverride;
+
   /// Reads the full server-side Pro verification state for the given user id.
-  /// Returns null on any failure (fail-closed). Never throws.
+  /// Never throws. See the RESULT CONTRACT below for the three outcomes.
   ///
   /// Shape when successful:
   ///   {
@@ -282,11 +289,26 @@ class ProfileRepository {
   /// Mirrors [fetchOwnProfessionalIsVerified] exactly: unconfigured Supabase
   /// or a blank identity resolves to `null` WITHOUT issuing a request; the
   /// statement is RLS-scoped to the caller's own row
-  /// (`professionals_select_own_row`, phase 3O) and every failure (timeout,
-  /// missing row, error) degrades to `null` so callers FAIL CLOSED.
+  /// (`professionals_select_own_row`, phase 3O).
+  ///
+  /// RESULT CONTRACT (R7 · Phase 9) — three DISTINCT outcomes:
+  ///   * a populated map        → a confirmed row (status / tokens / …);
+  ///   * an EMPTY map           → the query succeeded and NO row exists
+  ///                              ("never provisioned": a definite answer);
+  ///   * `null`                 → we could not ask (timeout / network / RLS /
+  ///                              unconfigured / blank identity).
+  /// Callers must never treat "no row" as a transient failure, nor as a
+  /// confirmed approval.
   static Future<Map<String, dynamic>?> fetchOwnProfessionalStatus({
     required String id,
   }) async {
+    // TEST SEAM (Phase 9): drives the RAW server row, so the "no row" (`{}`),
+    // "malformed row" and "confirmed status" branches are all reachable
+    // without a live backend. Checked first — it is strictly more specific
+    // than the boolean seam below.
+    final mapOverride = debugStatusMapOverride;
+    if (mapOverride != null) return mapOverride();
+
     // TEST SEAM (mirrors the ordering in [fetchOwnProfessionalIsVerified]):
     // when the boolean override stands in for the live read (tests without a
     // Supabase instance), derive the three-state row from it so BOTH server
@@ -330,7 +352,14 @@ class ProfileRepository {
           .eq('id', id.trim())
           .maybeSingle()
           .timeout(const Duration(seconds: 8));
-      if (row == null) return null;
+      if (row == null) {
+        // R7 (Phase 9): the query SUCCEEDED and the row is absent — a
+        // DEFINITE answer ("this professional has no server dossier"), which
+        // is NOT "we could not ask". The empty map carries that meaning to the
+        // caller; `null` stays reserved for a transient failure (timeout /
+        // network / RLS / unconfigured).
+        return const <String, dynamic>{};
+      }
       return row;
     } catch (e, st) {
       AppErrorHandler.report(

@@ -324,6 +324,17 @@ class UserStore {
     // this point: the client can never grant itself the admin route.
     if (roleKey == 'admin') return null;
     if (roleKey != null && roleKey.isNotEmpty) {
+      // R6 (Phase 9): a persisted LOCAL marker is not proof that the cloud
+      // session still exists. When a backend is configured and Supabase holds
+      // no session (revoked / expired / wiped / never bound), the marker is
+      // stale — fail CLOSED to the guest route so the user signs in again
+      // instead of entering a shell whose every request would be refused.
+      //
+      // OFFLINE-SAFE: [SupabaseAuthService.hasSession] is a LOCAL read; an
+      // unreachable backend must never lock a returning session out.
+      if (SupabaseAuthService.isConfigured && !SupabaseAuthService.hasSession) {
+        return null;
+      }
       return roleKey;
     }
     // Legacy sessions saved before the role key existed: derive the route

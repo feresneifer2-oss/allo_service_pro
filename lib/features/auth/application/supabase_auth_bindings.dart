@@ -271,7 +271,13 @@ Future<void> _bindRemoteUser(AuthState state) async {
   final u = UserStore.user.value;
   if (u != null && u.isProfessional) {
     final statusRow = await readProStatusRow();
-    if (statusRow != null) {
+    // R7 (Phase 9): `fetchOwnProfessionalStatus` now returns an EMPTY map for
+    // "the query succeeded and there is no `professionals` row". That is a
+    // definite answer for VERIFICATION, but it carries no tokens/paid_until:
+    // feeding it to `applyServerPaidUntil(null)` below would wipe the cached
+    // subscription of an account whose row is merely absent. Treat "no data"
+    // like a failed read here — leave the local mirrors untouched.
+    if (statusRow != null && statusRow.isNotEmpty) {
       final tokensRaw = statusRow['tokens'];
       final tokensInt = tokensRaw is int
           ? tokensRaw

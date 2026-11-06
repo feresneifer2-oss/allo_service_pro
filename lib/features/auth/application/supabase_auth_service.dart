@@ -96,6 +96,23 @@ class SupabaseAuthService {
     }
   }
 
+  /// R6 (Phase 9): whether the SDK still holds a session.
+  ///
+  /// A LOCAL read — no network round-trip — so a stored-but-unrefreshed session
+  /// still answers `true`. It separates "the device carries a login marker" from
+  /// "the identity is actually authenticated", which a persisted
+  /// `is_logged_in` flag alone cannot do.
+  ///
+  /// FAIL-CLOSED on an unexpected SDK state (`false`): callers use this to send
+  /// a stale session back to the login screen.
+  static bool get hasSession {
+    try {
+      return Supabase.instance.client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Stable Supabase Auth UUID (`auth.users.id`) of the signed-in identity.
   ///
   /// This is THE id every backend column keyed to the authenticated user must

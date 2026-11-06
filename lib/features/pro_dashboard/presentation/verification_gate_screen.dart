@@ -11,6 +11,7 @@ import 'package:allo_service_pro/core/services/supabase_storage_service.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
+import 'package:allo_service_pro/features/auth/application/verification_sync_service.dart';
 import 'package:allo_service_pro/features/auth/presentation/welcome_screen.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
@@ -29,6 +30,33 @@ class VerificationGateScreen extends StatefulWidget {
 }
 
 class _VerificationGateScreenState extends State<VerificationGateScreen> {
+  /// R5 (Phase 9): the gate must reconcile ON ITS OWN. Nothing else wakes the
+  /// verification sync up while this screen is open, so an approval that lands
+  /// while the professional waits used to require a background/foreground
+  /// cycle (or a restart).
+  Timer? _retry;
+
+  @override
+  void initState() {
+    super.initState();
+    // Immediate attempt: the boot read may have failed before the session was
+    // even bound, and the connectivity/Resume triggers only fire on a change.
+    unawaited(VerificationSyncService.syncNow(force: true));
+    // Periodic attempt on the same cadence as [VerifyingScreen]. `_inFlight`
+    // collapses overlapping calls, and ProShell's notifier-driven builder
+    // repaints the dashboard the instant the status changes.
+    _retry = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      unawaited(VerificationSyncService.syncNow(force: true));
+    });
+  }
+
+  @override
+  void dispose() {
+    _retry?.cancel();
+    super.dispose();
+  }
+
   Future<void> _openWhatsApp(UserModel user) async {
     final msg = AdminStore.whatsappMessage(
       name: user.name,
@@ -58,8 +86,10 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
       builder: (context, user, _) {
         final u = user;
         if (u == null) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+          // R4 (Phase 9): a bare spinner here is a DEAD END — no AppBar, no
+          // button, no exit but killing the app. The session ended underneath
+          // this screen, so offer the only meaningful move.
+          return const _SessionEndedView();
         }
 
         final rejected = u.verificationStatus.isRejected;
@@ -428,6 +458,62 @@ class _VerificationGateScreenState extends State<VerificationGateScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// R4 (Phase 9): the session vanished while the verification gate was on
+/// screen (sign-out, expiry, revoked token, partial hydration).
+///
+/// The previous behaviour — a bare `CircularProgressIndicator` — trapped the
+/// user: no AppBar, no button, no way out but killing the app. This view says
+/// what happened and offers the only useful action.
+class _SessionEndedView extends StatelessWidget {
+  const _SessionEndedView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.no_accounts_rounded,
+                    size: 64, color: AppColors.warning),
+                const SizedBox(height: 16),
+                Text(
+                  tr(context,
+                      fr: 'Votre session a expiré.', ar: 'انتهت صلاحية جلستك.'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  tr(context,
+                      fr: 'Reconnectez-vous pour retrouver votre compte.',
+                      ar: 'أعد تسجيل الدخول للوصول إلى حسابك.'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                    (route) => false,
+                  ),
+                  child: Text(
+                      tr(context, fr: 'Se reconnecter', ar: 'تسجيل الدخول')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
