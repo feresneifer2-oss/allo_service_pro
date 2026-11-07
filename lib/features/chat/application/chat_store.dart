@@ -289,8 +289,6 @@ class ChatStore {
     );
   }
 
-  static int _seq = 0;
-
   /// Single persistence pipeline shared by text / voice / photo messages.
   /// Defense-in-depth: never persist messages into locked rooms (admin
   /// closure, expiry, or unconfirmed order).
@@ -309,7 +307,13 @@ class ChatStore {
     if (!RequestStore.isChatAllowed(requestId)) return;
 
     final msg = ChatMessage(
-      id: '${DateTime.now().millisecondsSinceEpoch}_${_seq++}',
+      // Phase 10: a real v4 UUID, not `'<millis>_<seq>'`. The live
+      // `public.messages.id` column is a uuid, so the epoch-shaped id was
+      // rejected by Postgres on EVERY insert (the chat never persisted), and
+      // two devices sending within the same millisecond could collide on the
+      // same key. The generator already exists for `orders.id`, so this costs
+      // no new dependency.
+      id: RequestStore.newClientId(),
       requestId: requestId,
       senderId: senderId,
       senderName: senderName,

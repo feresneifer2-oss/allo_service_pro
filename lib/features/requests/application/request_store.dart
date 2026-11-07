@@ -138,7 +138,8 @@ class RequestStore {
 
   /// Client-generated, collision-resistant id (RFC-4122 v4 shape) used by the
   /// order CREATION sites (Phase 3L: the wire primary key `orders.id` is a
-  /// uuid) and whenever an order has to be RE-KEYED.
+  /// uuid), whenever an order has to be RE-KEYED, and by the chat message ids
+  /// (Phase 10: `messages.id` is a uuid too).
   ///
   /// Why a UUID and not an epoch stamp: `millisecondsSinceEpoch` ids collide
   /// across devices and replays — and the live schema rejects anything that
