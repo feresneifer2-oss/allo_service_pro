@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/auth/application/verification_sync_service.dart';
 import '../../features/chat/application/chat_store.dart';
 import '../../features/chat/data/messages_repository.dart';
 import '../../features/pro_dashboard/application/pro_availability_store.dart';
@@ -22,6 +25,12 @@ import '../../features/requests/data/orders_repository.dart';
 ///     "accepts new requests" flag: it repaints the client-facing badges and,
 ///     when the row belongs to the signed-in pro, mirrors their OWN dashboard
 ///     indicator).
+///   • `realtime:public:professionals` (R8 · Phase 10) → INSERT / UPDATE of the
+///     CALLER'S OWN row (server-side filter `id=eq.<uid>`, RLS-scoped) →
+///     [VerificationSyncService.syncNow] (force) re-reads the authoritative
+///     status and navigation follows instantly. Without it an approval only
+///     landed on boot / resume / a connectivity change — up to the 5-minute
+///     cache TTL.
 ///
 /// LIFECYCLE: [start] is idempotent (safe to call again) and a no-op when
 /// Supabase is not initialized (tests / offline demo builds). [stop] removes
@@ -32,6 +41,7 @@ class SupabaseRealtimeService {
   static RealtimeChannel? _ordersChannel;
   static RealtimeChannel? _messagesChannel;
   static RealtimeChannel? _availabilityChannel;
+  static RealtimeChannel? _professionalsChannel;
 
   /// Monotonic BINDING GENERATION.
   ///
@@ -126,8 +136,43 @@ class SupabaseRealtimeService {
         )
         .subscribe();
 
+    // ── PROFESSIONALS: instant verification verdict (R8 · Phase 10) ──
+    //
+    // The applicant waits on the verification gate; the admin approves from
+    // ANOTHER device. Until this channel existed the app learned about it only
+    // on boot / resume / a connectivity change — and even a resume was skipped
+    // by the sync TTL (5 min). The subscription is scoped SERVER-SIDE to the
+    // caller's own row (`id=eq.<uid>`, RLS `professionals_select_own_row`), so
+    // it can never leak another professional's status.
+    final ownUid = client.auth.currentUser?.id;
+    if (ownUid != null && ownUid.isNotEmpty) {
+      _professionalsChannel = client
+          .channel('realtime:public:professionals:$ownUid')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'professionals',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: ownUid,
+            ),
+            callback: (payload) {
+              if (generation != _generation) return; // stale delivery
+              final row = payload.newRecord;
+              if (row.isEmpty) return; // DELETE events: nothing to apply
+              // Re-read through the ONE authority path (it re-applies the
+              // server row, mirrors registry/tokens and marks the audit) with
+              // its own retry/backoff — never patch the status from the raw
+              // payload, which would bypass the three-state contract.
+              unawaited(VerificationSyncService.syncNow(force: true));
+            },
+          )
+          .subscribe();
+    }
+
     debugPrint('RealtimeService: channels bound '
-        '(orders + messages + pro_availability).');
+        '(orders + messages + pro_availability + professionals).');
   }
 
   /// Removes both channels (sign-out) so a signed-out device stops ingesting
@@ -147,9 +192,11 @@ class SupabaseRealtimeService {
     final orders = _ordersChannel;
     final messages = _messagesChannel;
     final availability = _availabilityChannel;
+    final professionals = _professionalsChannel;
     _ordersChannel = null;
     _messagesChannel = null;
     _availabilityChannel = null;
+    _professionalsChannel = null;
 
     if (client == null) {
       debugPrint('RealtimeService.stop: Supabase not initialized — '
@@ -160,6 +207,7 @@ class SupabaseRealtimeService {
     await _removeChannel(client, orders, 'orders');
     await _removeChannel(client, messages, 'messages');
     await _removeChannel(client, availability, 'pro_availability');
+    await _removeChannel(client, professionals, 'professionals');
   }
 
   /// Removes ONE channel inside its own guard, so a failure never aborts the
@@ -187,5 +235,6 @@ class SupabaseRealtimeService {
     _ordersChannel = null;
     _messagesChannel = null;
     _availabilityChannel = null;
+    _professionalsChannel = null;
   }
 }
