@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:allo_service_pro/core/services/supabase_storage_service.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/shared/app_locale.dart';
 import 'package:allo_service_pro/shared/widgets/app_image.dart';
@@ -74,6 +75,25 @@ class _VoiceBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = message.mediaPath?.trim() ?? '';
+    // If it is already a remote https URL or a readable local file, render
+    // directly. Otherwise it is a storage path in the PRIVATE chat-media
+    // bucket and must be resolved to a signed URL before playback.
+    final isRemote = isRemoteMediaPath(path);
+    final isLocalFile = !isRemote && File(normalizeMediaPath(path)).existsSync();
+    if (isRemote || isLocalFile) {
+      return _buildVoiceBody(context, path, path.isNotEmpty);
+    }
+    // Storage path — resolve a signed URL asynchronously.
+    return FutureBuilder<String?>(
+      future: SupabaseStorageService.createChatMediaSignedUrl(path),
+      builder: (context, snapshot) {
+        final signedUrl = snapshot.data;
+        return _buildVoiceBody(context, signedUrl ?? '', signedUrl != null);
+      },
+    );
+  }
+
+  Widget _buildVoiceBody(BuildContext context, String path, bool available) {
     // REMOTE-AWARE AVAILABILITY (Supabase Storage): an uploaded note carries
     // an https URL and has NO local file — `File(url).existsSync()` is
     // therefore false and would wrongly disable the play button on every
@@ -81,9 +101,6 @@ class _VoiceBody extends StatelessWidget {
     // LOCAL-URI NORMALIZATION (CodeRabbit): a `file:///…` URI must be
     // stripped to an absolute path BEFORE the availability check, or
     // `File(...).existsSync()` is always false for device-local notes.
-    final available = path.isNotEmpty &&
-        (isRemoteMediaPath(path) ||
-            File(normalizeMediaPath(path)).existsSync());
     return ValueListenableBuilder<String?>(
       valueListenable: VoiceNotePlayer.playingPath,
       builder: (_, current, __) {
@@ -175,26 +192,58 @@ class _PhotoBody extends StatelessWidget {
     if (path.isEmpty) {
       return _missingPhoto(isMine);
     }
-    return GestureDetector(
-      onTap: () => showChatPhotoPreview(context, path),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        // REMOTE-AWARE RENDERING (Supabase Storage): [AppImage] resolves a
-        // local file OR an https Storage URL with the same bounded,
-        // overflow-proof pipeline the rest of the app uses.
-        child: SizedBox(
-          width: 200,
-          height: 200,
-          child: AppImage(
-            path,
-            fit: BoxFit.cover,
-            errorIcon: Icons.broken_image_rounded,
-            placeholderColor: isMine
-                ? Colors.white.withValues(alpha: .15)
-                : AppColors.slate800,
+    // If it is already a remote https URL or a readable local file, render
+    // directly. Otherwise it is a storage path in the PRIVATE chat-media
+    // bucket and must be resolved to a signed URL before rendering.
+    final isRemote = isRemoteMediaPath(path);
+    final isLocalFile = !isRemote && File(normalizeMediaPath(path)).existsSync();
+    if (isRemote || isLocalFile) {
+      return GestureDetector(
+        onTap: () => showChatPhotoPreview(context, path),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 200,
+            height: 200,
+            child: AppImage(
+              path,
+              fit: BoxFit.cover,
+              errorIcon: Icons.broken_image_rounded,
+              placeholderColor: isMine
+                  ? Colors.white.withValues(alpha: .15)
+                  : AppColors.slate800,
+            ),
           ),
         ),
-      ),
+      );
+    }
+    // Storage path — resolve a signed URL asynchronously.
+    return FutureBuilder<String?>(
+      future: SupabaseStorageService.createChatMediaSignedUrl(path),
+      builder: (context, snapshot) {
+        final signedUrl = snapshot.data;
+        if (signedUrl == null) {
+          return _missingPhoto(isMine);
+        }
+        return GestureDetector(
+          onTap: () => showChatPhotoPreview(context, signedUrl),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 200,
+              height: 200,
+              child: AppImage(
+                signedUrl,
+                fit: BoxFit.cover,
+                errorIcon: Icons.broken_image_rounded,
+                placeholderColor: isMine
+                    ? Colors.white.withValues(alpha: .15)
+                    : AppColors.slate800,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

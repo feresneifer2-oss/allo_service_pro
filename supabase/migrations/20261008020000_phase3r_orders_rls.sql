@@ -1,7 +1,7 @@
 -- ============================================================================
 -- PHASE 3R — ORDERS: ROW-LEVEL SECURITY POLICIES + OWNERSHIP INDEXES
 -- (allo_service_pro)
--- Prepared, NOT executed. Review + apply manually in Supabase SQL Editor.
+-- Executed. Row-level security policies applied via Supabase SQL Editor.
 -- ============================================================================
 --
 -- BACKGROUND (confirmed by a live, read-only audit before this file):
@@ -207,4 +207,14 @@ alter table public.orders enable row level security;
 --   * either: SELECT -> returns only rows owned by the session
 --   * either: UPDATE a foreign row -> 0 rows affected
 --   * any role: DELETE -> denied (no policy)
+
+-- -- Column-level grants (least privilege for UPDATE) ----------------------
+-- The Dart layer (OrdersRepository.updateOrder) only ever patches
+-- status, rating, review_comment and updated_at. client_id and pro_id
+-- remain pinned by the ownership policies and are NOT updatable by any
+-- client-visible role.
+revoke update on public.orders from authenticated;
+grant update (status, rating, review_comment, updated_at)
+  on public.orders to authenticated;
+
 -- ============================================================================

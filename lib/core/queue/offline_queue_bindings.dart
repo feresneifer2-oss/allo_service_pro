@@ -6,6 +6,7 @@ import 'package:allo_service_pro/core/queue/queued_action.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/pro_dashboard/data/pro_availability_repository.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
+import 'package:allo_service_pro/features/requests/data/orders_repository.dart';
 
 /// Wires [OfflineQueue] executors to domain stores.
 ///
@@ -130,11 +131,16 @@ class OfflineQueueBindings {
       if (current.status == targetStatus) {
         // The optimistic apply already mutated the local store when the
         // device went offline — the queued action's REMAINING work is the
-        // BACKEND SYNC ONLY (CodeRabbit): replaying the standard mutation
-        // path would re-fire notifications, re-open/expire chat rooms and
-        // re-charge the 10-token fee. Sync the row, then report the result.
+        // BACKEND SYNC ONLY. For `accepted` transitions we must call the
+        // pro_accept_order RPC (token deduction + status flip in one
+        // server transaction) — NOT a plain status UPDATE — otherwise the
+        // server never debits the 10-token fee (offline accept gap).
         final synced =
-            await RequestStore.syncReplayedStatus(requestId, targetStatus);
+            targetStatus == RequestStatus.accepted
+                ? OrdersRepository.isConfigured
+                    ? await OrdersRepository.acceptOrderWithFee(requestId) != null
+                    : true // Supabase not configured — nothing to sync into
+                : await RequestStore.syncReplayedStatus(requestId, targetStatus);
         return synced
             ? QueueExecutionResult.applied
             : QueueExecutionResult.retry;

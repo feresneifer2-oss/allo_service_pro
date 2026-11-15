@@ -77,15 +77,17 @@ class SupabaseStorageService {
     );
   }
 
-  /// Uploads a chat media file (photo / voice note) to the public
-  /// `chat-media` bucket and returns its public URL (null on failure).
+  /// Uploads a chat media file (photo / voice note) to the PRIVATE
+  /// `chat-media` bucket and returns its STORAGE PATH (null on failure).
+  /// The caller must resolve a signed URL via [createChatMediaSignedUrl]
+  /// before rendering, since the bucket is no longer public.
   static Future<String?> uploadChatMedia(
     String requestId,
     File file, {
     String kind = 'chat',
   }) async {
     final ext = _extOf(file.path) ?? 'jpg';
-    return _uploadPublic(
+    return _upload(
       bucket: chatMediaBucket,
       path: '$requestId/${kind}_${_stamp()}.$ext',
       file: file,
@@ -107,6 +109,24 @@ class SupabaseStorageService {
     } catch (e, st) {
       AppErrorHandler.report(e, st,
           context: 'SupabaseStorageService.createDocumentSignedUrl');
+      return null;
+    }
+  }
+
+  /// Signed, time-limited read URL for a PRIVATE chat media file.
+  /// [expiresIn] defaults to 1 hour.
+  static Future<String?> createChatMediaSignedUrl(
+    String storagePath, {
+    Duration expiresIn = const Duration(hours: 1),
+  }) async {
+    if (!isConfigured) return null;
+    try {
+      return await Supabase.instance.client.storage
+          .from(chatMediaBucket)
+          .createSignedUrl(storagePath, expiresIn.inSeconds);
+    } catch (e, st) {
+      AppErrorHandler.report(e, st,
+          context: 'SupabaseStorageService.createChatMediaSignedUrl');
       return null;
     }
   }
