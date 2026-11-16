@@ -868,7 +868,7 @@ class AdminStore {
   static Future<void> syncSessionStoresForCurrentUser() async {
     final u = UserStore.user.value;
     final entry = entryForUser(u);
-    if (u == null || entry == null) {
+    if (entry == null) {
       // No registry mirror to apply — the SERVER still decides whether a
       // professional session may be opened (fail-closed when unresolved).
       await _applyServerVerificationAuthority();
@@ -888,7 +888,7 @@ class AdminStore {
       final until = DateTime.fromMillisecondsSinceEpoch(entry.paidUntilMs!);
       final start =
           until.subtract(const Duration(days: SubscriptionStore.durationDays));
-      await SubscriptionStore.renew(at: start, ownerId: u.id);
+      await SubscriptionStore.renew(at: start, ownerId: u!.id);
       // An ALREADY-ELAPSED cycle must stay expired: renew() flips the status
       // back to 'active' unconditionally, which would silently un-paywall a
       // pro whose 30 days are over. Restore the truthful 'expired' state -
@@ -910,7 +910,7 @@ class AdminStore {
       // the granted access. Without it the guard refuses and seeds a fresh
       // cycle rather than inheriting unattributed time.
       await SubscriptionStore.markPaidPreservingCycle(
-        ownerId: u.id,
+        ownerId: u!.id,
         adoptUnownedLegacyCycle: true,
       );
     } else {
@@ -923,11 +923,44 @@ class AdminStore {
     }
     await SubscriptionStore.persistToPrefs();
 
-    // Tokens: mirror the registry balance into the session store.
-    if (ProProfileStore.tokens.value != entry.tokens) {
-      ProProfileStore.tokens.value = entry.tokens;
-      await ProProfileStore.persistToPrefs();
+    // Tokens + subscription: SERVER is the source of truth when Supabase is
+    // fully configured. When Supabase is not configured (tests / local builds),
+    // mirror the registry so existing tests pass unchanged.
+    if (!SupabaseAuthService.isConfigured || u == null) {
+      // Local-only / test mode: mirror the registry balance.
+      if (ProProfileStore.tokens.value != entry.tokens) {
+        ProProfileStore.tokens.value = entry.tokens;
+        await ProProfileStore.persistToPrefs();
+      }
+    } else {
+      // Server mode: read live `tokens` and `paid_until` from public.professionals
+      // (Phase 3S columns), not from the potentially-stale local registry mirror.
+      try {
+        final proRow = await Supabase.instance.client
+            .from('professionals')
+            .select('tokens, paid_until')
+            .eq('id', u.id)
+            .single();
+        final serverTokens = (proRow['tokens'] as num?)?.toInt();
+        if (serverTokens != null &&
+            ProProfileStore.tokens.value != serverTokens) {
+          ProProfileStore.tokens.value = serverTokens;
+          await ProProfileStore.persistToPrefs();
+        }
+        final serverPaidUntil = proRow['paid_until'] as String?;
+        await SubscriptionStore.applyServerPaidUntil(
+            serverPaidUntil != null ? DateTime.parse(serverPaidUntil) : null);
+      } catch (e, st) {
+        AppErrorHandler.report(e, st,
+            context: 'syncSessionStoresForCurrentUser: pro profile');
+        // Fall back to registry mirror on error.
+        if (ProProfileStore.tokens.value != entry.tokens) {
+          ProProfileStore.tokens.value = entry.tokens;
+          await ProProfileStore.persistToPrefs();
+        }
+      }
     }
+    await SubscriptionStore.persistToPrefs();
 
     // ── R1 (Phase 8) — NO LOCAL DOWNGRADE OF A VERIFICATION STATUS ────────
     // The persisted registry is a DEVICE-LOCAL cache, never an authority over
@@ -954,7 +987,7 @@ class AdminStore {
     // the removed demotion was redundant even there.
     if (!SupabaseAuthService.isConfigured) {
       final approved = entry.status == 'approved';
-      if (approved && !u.verificationStatus.isApproved) {
+      if (approved && !u!.verificationStatus.isApproved) {
         await UserStore.updateProVerification(
           status: ProVerification.approved,
           proofPath: entry.docImage,

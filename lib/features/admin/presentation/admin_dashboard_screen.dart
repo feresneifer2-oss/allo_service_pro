@@ -4,6 +4,7 @@ import 'package:allo_service_pro/core/models/request_status.dart';
 import 'package:allo_service_pro/core/data/tunisian_locations.dart';
 import 'package:allo_service_pro/core/theme/app_colors.dart';
 import 'package:allo_service_pro/features/admin/application/admin_store.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:allo_service_pro/features/admin/domain/pending_pro_model.dart';
 import 'package:allo_service_pro/features/admin/domain/pro_badges.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
@@ -358,6 +359,87 @@ class _ProManageCard extends StatelessWidget {
         .showSnackBar(SnackBar(content: Text(tr(context, fr: fr, ar: ar))));
   }
 
+  /// Shows a dialog to activate a subscription for the selected professional.
+  /// Reads the current `paid_until` status and allows the admin to pick a
+  /// new expiration date (default: 30 days from now), then calls
+  /// `admin_set_subscription` RPC.
+  Future<void> _showSubscriptionDialog(BuildContext context, String proId) async {
+    // Get current pro data to show status
+    final pro = AdminStore.pendingPros.value.firstWhere(
+      (p) => p.id == proId,
+      orElse: () => PendingProModel(
+        id: proId,
+        name: '',
+        phone: '',
+        professionFr: '',
+        professionAr: '',
+        submittedAt: '',
+        status: '',
+        tokens: 0,
+        isPaid: false,
+        paidUntilMs: null,
+      ),
+    );
+
+    // Default date: 30 days from now
+    DateTime? initialDate = pro.paidUntilMs != null
+        ? DateTime.fromMillisecondsSinceEpoch(pro.paidUntilMs!)
+        : DateTime.now().add(const Duration(days: 30));
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.slate900,
+        title: Text(tr(context, fr: 'Gérer l\'abonnement', ar: 'إدارة الاشتراك')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Show current status
+            if (pro.paidUntilMs != null)
+              Text(
+                'Actif jusqu\'au ${DateTime.fromMillisecondsSinceEpoch(pro.paidUntilMs!).day.toString()}',
+                style: const TextStyle(color: AppColors.success, fontSize: 12),
+              ),
+            const SizedBox(height: 12),
+            // Date picker trigger text
+            TextButton(
+              onPressed: () async {
+                final pickedDate = await showDatePicker(
+                  context: context,
+                  initialDate: initialDate,
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                  locale: const Locale('ar', 'TN'),
+                );
+                if (pickedDate != null && pickedDate != initialDate) {
+                  // Call the RPC to set the subscription
+                  if (!context.mounted) return;
+                  try {
+                    await Supabase.instance.client.rpc('admin_set_subscription', params: {
+                      'p_pro_id': proId,
+                      'p_paid_until': pickedDate.toUtc().toIso8601String(),
+                    });
+                    // Refresh the admin store state
+                    AdminStore.syncSessionStoresForCurrentUser();
+                    if (!context.mounted) return;
+                    Navigator.of(dialogContext).pop();
+                    _snack(context, 'Abonnement activé', 'تم تفعيل الاشتراك');
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    _snack(context, 'Erreur', 'Une erreur est survenue: $e');
+                  }
+                }
+              },
+              child: Text(
+                tr(context, fr: 'Activer pour 30 jours', ar: 'تحديد التاريخ'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showDocument(BuildContext context) {
     showDialog(
       context: context,
@@ -514,6 +596,11 @@ class _ProManageCard extends StatelessWidget {
                 tooltip: tr(context, fr: 'Voir le document', ar: 'عرض الوثيقة'),
                 onPressed: () => _showDocument(context),
                 icon: const Icon(Icons.badge_rounded, color: AppColors.primary),
+              ),
+              IconButton(
+                tooltip: tr(context, fr: 'Gérer l\'abonnement', ar: 'إدارة الاشتراك'),
+                onPressed: () => _showSubscriptionDialog(context, pro.id),
+                icon: const Icon(Icons.card_membership, color: Colors.blue),
               ),
             ],
           ),

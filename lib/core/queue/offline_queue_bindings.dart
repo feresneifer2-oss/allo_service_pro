@@ -5,6 +5,7 @@ import 'package:allo_service_pro/core/queue/offline_queue.dart';
 import 'package:allo_service_pro/core/queue/queued_action.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/pro_dashboard/data/pro_availability_repository.dart';
+import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/requests/application/request_store.dart';
 import 'package:allo_service_pro/features/requests/data/orders_repository.dart';
 
@@ -135,12 +136,21 @@ class OfflineQueueBindings {
         // pro_accept_order RPC (token deduction + status flip in one
         // server transaction) — NOT a plain status UPDATE — otherwise the
         // server never debits the 10-token fee (offline accept gap).
+        // The server-returned balance is the source of truth for tokens.
+        if (targetStatus == RequestStatus.accepted) {
+          if (!OrdersRepository.isConfigured) {
+            return QueueExecutionResult.applied; // local-only: nothing to sync
+          }
+          final newBalance =
+              await OrdersRepository.acceptOrderWithFee(requestId);
+          if (newBalance == null) return QueueExecutionResult.retry;
+          ProProfileStore.tokens.value = newBalance;
+          ProProfileStore.tokensConsumed.value = true;
+          await ProProfileStore.persistToPrefs();
+          return QueueExecutionResult.applied;
+        }
         final synced =
-            targetStatus == RequestStatus.accepted
-                ? OrdersRepository.isConfigured
-                    ? await OrdersRepository.acceptOrderWithFee(requestId) != null
-                    : true // Supabase not configured — nothing to sync into
-                : await RequestStore.syncReplayedStatus(requestId, targetStatus);
+            await RequestStore.syncReplayedStatus(requestId, targetStatus);
         return synced
             ? QueueExecutionResult.applied
             : QueueExecutionResult.retry;

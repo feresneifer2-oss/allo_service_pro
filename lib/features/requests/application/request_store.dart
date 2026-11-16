@@ -455,17 +455,13 @@ class RequestStore {
       serverAccepted = true;
     }
 
-    // ── TODO(Batch 5b): OFFLINE ACCEPT GAP ──────────────────────────────
-    // When offline, this path still deducts 10 tokens locally and queues
-    // the status transition. The queue replay calls OrdersRepository.updateOrder
-    // (status only), NOT the pro_accept_order RPC — so server-side tokens are
-    // NOT debited. This will be addressed in a follow-up batch by teaching the
-    // offline queue executor to call the RPC for accepted transitions, or by
-    // rejecting offline accept entirely.
-    // ────────────────────────────────────────────────────────────────────
-    if (isAcceptTransition && !serverAccepted) {
-      // LEGACY PATH (offline or unconfigured build): token reservation
-      // strictly BEFORE the backend acceptance, refunded on refusal below.
+    // OFFLINE ACCEPT: no local token deduction here — the server-side
+    // pro_accept_order RPC (called by the offline queue replay on reconnect)
+    // performs the atomic deduction + status flip and returns the new
+    // balance, which becomes the source of truth locally. Local-only builds
+    // (Supabase unconfigured) keep the legacy local-first behaviour.
+    if (isAcceptTransition && !serverAccepted &&
+        !SupabaseAuthService.isConfigured) {
       if (!SubscriptionStore.isPaidSubscriber.value) {
         final deducted = await ProProfileStore.deductTokens(10);
         if (!deducted) {
