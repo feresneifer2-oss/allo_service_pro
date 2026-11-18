@@ -15,15 +15,22 @@ Application Flutter de mise en relation entre clients et prestataires de service
 
 ## État technique
 
-Cette version utilise des stores locaux en mémoire pour permettre le développement et les démonstrations sans backend. Les données sont réinitialisées lorsque l'application redémarre.
+L'application utilise une architecture **local-first** : les données sont mises en cache localement avec `shared_preferences` et un **FIFO offline queue** (persisté sur disque) pour assurer une expérience sans interruption. Une passerelle Supabase est utilisée pour le backend (Postgres, Auth, Storage, Realtime).
 
-L'intégration Firebase est volontairement prévue en dernière étape :
+### Stack technique
 
-- Firebase Authentication
-- Cloud Firestore
-- Firebase Storage
-- Firebase Cloud Messaging
-- Règles de sécurité et rôles client/prestataire/admin
+- **Frontend** : Flutter (Dart 3) + RTL (francais & arabe)
+- **Backend** : Supabase (PostgreSQL + Auth + Storage + Realtime)
+- **Notifications push** : OneSignal (avec Firebase Cloud Messaging sous le capot)
+- **Stockage local** : SharedPreferences + offline FIFO queue
+- **Gestion des identifiants** : `.env` (gitignored) + `--dart-define`
+
+### Fonctionnalités clés récentes
+
+- **Chat Media Privé avec Signed URLs** : Les médias de chat (photos/voix) sont stockés dans un bucket privé. Les URLs signées (expire 1h) sont générées côté client pour les afficher.
+- **Notifications push** : Intégration OneSignal avec `login(userId)` sur session, `player_id` synced en base, `requestPermission()` sur l'ouverture de l'app.
+- **Gestion des abonnements** : Panneau d'administration avec `admin_set_subscription` RPC. Un abonnement coûte 15 TND/mois avec `paid_until` sur la table `professionals`.
+- **Sécurité RLS** : Row-Level Security complet sur `orders`, `messages`, `professionals`, `profiles`, `token_transactions`, `storage.objects` (buckets privés avec policies).
 
 ## Prérequis
 
@@ -59,8 +66,8 @@ Le fichier généré se trouve dans `build/app/outputs/flutter-apk/app-debug.apk
 
 ## Avant la production
 
-1. Intégrer Firebase et remplacer les données locales.
-2. Retirer les identifiants admin locaux et gérer les rôles côté serveur.
-3. Activer le vrai OTP, la réinitialisation du mot de passe et les sessions.
-4. Ajouter le stockage des photos/documents et les notifications push.
-5. Compléter les règles de sécurité, les pages légales et les tests d'intégration.
+1. **Push Notifications** : Finaliser l'intégration OneSignal avec `google-services.json` et `firebase_core`/`firebase_messaging` (déjà installés).
+2. **Stockage médias** : Migrer `chat-media` et `documents` vers des buckets privés avec signed URLs.
+3. **RLS complet** : Finaliser les règles de sécurité sur toutes les tables (orders, messages, professionals, profiles).
+4. **Tests d'intégration** : Ajouter des tests E2E pour la환류 du compte complet (inscription → vérification → approbation).
+5. **Documentation** : Compléter les textes légales (CGU, confidentialité, cookies) et les clues de configuration du projet.

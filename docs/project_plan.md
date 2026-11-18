@@ -20,5 +20,6 @@ Permettre aux clients de trouver rapidement un professionnel fiable selon leur r
 
 ## Technologies
 - Flutter
-- Firebase
+- Supabase (PostgreSQL, Auth, Storage, Realtime)
+- OneSignal (notifications push)
 - GitHub
