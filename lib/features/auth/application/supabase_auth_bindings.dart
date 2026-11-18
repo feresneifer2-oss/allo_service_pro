@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:allo_service_pro/core/error/app_error_handler.dart';
 import 'package:allo_service_pro/features/auth/application/supabase_auth_service.dart';
 import 'package:allo_service_pro/features/auth/application/user_store.dart';
 import 'package:allo_service_pro/features/auth/data/profile_repository.dart';
@@ -10,6 +11,7 @@ import 'package:allo_service_pro/features/pro_dashboard/application/pro_availabi
 import 'package:allo_service_pro/features/pro_dashboard/application/pro_profile_store.dart';
 import 'package:allo_service_pro/features/pro_dashboard/application/subscription_store.dart';
 import 'package:allo_service_pro/core/realtime/supabase_realtime_service.dart';
+import 'package:allo_service_pro/core/services/onesignal_service.dart';
 
 /// Maps Supabase Auth lifecycle events onto the local [UserStore] session.
 ///
@@ -83,6 +85,11 @@ Future<void> _processEvent(AuthState state) async {
       // sign-in — a device switching accounts instantly switches to the new
       // identity's data feed. [SupabaseRealtimeService.start] is idempotent.
       SupabaseRealtimeService.start();
+      // PUSH NOTIFICATIONS: associate the signed-in Supabase UID with
+      // OneSignal, then persist the OneSignal player ID to the server so the
+      // backend can target this specific device. Fire-and-forget: a slow
+      // backend must never block the session bind.
+      unawaited(_syncOneSignalPlayerId(state.session?.user.id));
       // PERSISTED AVAILABILITY, RESTORED AT SESSION START: the pro's own
       // `pro_availability` row is the source of truth, so a force-closed app
       // (or a toggle made on another device) resolves to the REAL state instead
@@ -116,6 +123,9 @@ Future<void> _processEvent(AuthState state) async {
       }
       // Stop ingesting: the channels were scoped to the signed-out identity.
       unawaited(SupabaseRealtimeService.stop());
+      // PUSH NOTIFICATIONS: switch back to device-scoped user on sign-out so
+      // the next account starts with a clean OneSignal identity.
+      await OneSignalService.logout();
       // The availability board was fetched under the signed-out identity's RLS
       // scope — dropped with the session, so the next account starts from its
       // own rows instead of inheriting the previous pro's flags.
@@ -354,5 +364,38 @@ Future<Map<String, dynamic>?> _readProfileRow(String uid) async {
   } catch (e) {
     debugPrint('SupabaseAuthBindings: profile row read failed: $e');
     return null;
+  }
+}
+
+/// PUSH NOTIFICATIONS: links the Supabase UID to OneSignal, fetches the
+/// player ID, and persists it to `public.professionals` (or `public.profiles`
+/// for clients). Fire-and-forget, failure-tolerant: a backend refusal must
+/// never block the session bind.
+Future<void> _syncOneSignalPlayerId(String? supabaseUid) async {
+  if (supabaseUid == null || supabaseUid.trim().isEmpty) return;
+  if (!OneSignalService.isConfigured) return;
+
+  try {
+    await OneSignalService.login(supabaseUid.trim());
+    final playerId = await OneSignalService.playerId;
+    if (playerId == null || playerId.isEmpty) return;
+
+    // Determine whether this UID belongs to a professional or a client.
+    final proRow = await Supabase.instance.client
+        .from('professionals')
+        .select('id')
+        .eq('id', supabaseUid.trim())
+        .maybeSingle();
+
+    if (proRow != null) {
+      await Supabase.instance.client.from('professionals').update(
+          {'onesignal_player_id': playerId}).eq('id', supabaseUid.trim());
+    } else {
+      await Supabase.instance.client.from('profiles').update(
+          {'onesignal_player_id': playerId}).eq('id', supabaseUid.trim());
+    }
+  } catch (e, st) {
+    debugPrint('SupabaseAuthBindings: _syncOneSignalPlayerId failed: $e');
+    AppErrorHandler.report(e, st, context: '_syncOneSignalPlayerId');
   }
 }

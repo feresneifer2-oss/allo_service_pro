@@ -10,6 +10,7 @@ import 'core/location/location_service.dart';
 import 'core/network/connectivity_store.dart';
 import 'core/queue/offline_queue_bindings.dart';
 import 'core/services/onesignal_service.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/admin/application/admin_store.dart';
@@ -197,6 +198,9 @@ Future<void> main() async {
     // provided via --dart-define. Awaited-after-binding but never fatal —
     // failures are logged, boot continues.
     await OneSignalService.initialize();
+    // Request push notification permission on first open (iOS / Android 13+).
+    // Failure is non-fatal: the user can still use the app without pushes.
+    await OneSignal.Notifications.requestPermission(true);
 
     // Background location: kicked off but deliberately NOT awaited — GPS
     // prompts, slow fixes or a disabled radio must never delay runApp()/
